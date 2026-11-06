@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ApiError, ok, readJson, route } from "@/lib/server/http";
 import { requireAdmin } from "@/lib/server/session";
 import { exec, queryOne } from "@/lib/server/db";
-import { hashPassword } from "@/lib/server/crypto";
+import { encrypt, hashPassword } from "@/lib/server/crypto";
 import { nameSchema, strongPassword } from "@/lib/server/validators";
 import { isPermission } from "@/lib/permissions";
 import { audit } from "@/lib/server/audit";
@@ -40,7 +40,7 @@ export const PATCH = route<Ctx>(async (req, { params }) => {
     sets.push(sql);
     vals.push(val);
   };
-  if (body.name) add("name = ?", body.name);
+  if (body.name) add("name_enc = ?", await encrypt(body.name));
   if (body.role) add("role = ?", body.role);
   if (body.status) add("status = ?", body.status);
   if (body.permissions) add("permissions = ?", JSON.stringify(body.permissions));

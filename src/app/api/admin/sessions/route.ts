@@ -10,7 +10,7 @@ import { getClientIp } from "@/lib/server/request";
 export const GET = route(async (req: NextRequest) => {
   const a = await requireAdmin("sessions.view");
   if (req.nextUrl.searchParams.get("kind") === "admin" && !can(a, "staff.manage")) throw new ApiError(403, "FORBIDDEN", "Only admins can view agent sessions.");
-  return ok(await listSessions(req.nextUrl.searchParams));
+  return ok(await listSessions(req.nextUrl.searchParams, can(a, "users.contact")));
 });
 
 /** Force-logout a session. */

@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import { KeyRound, Lock, Plus, ShieldCheck, UserCog, X } from "lucide-react";
 import { useFetch } from "./use-fetch";
-import { Badge, Card, PageHeader, Table } from "./ui";
+import { Badge, Btn, Card, PageHeader, Table } from "./ui";
 import { useAdmin } from "./admin-context";
 import { api, errMsg } from "@/lib/client/api";
 import { PERMISSIONS, type Permission } from "@/lib/permissions";
@@ -28,25 +28,25 @@ export function StaffManager() {
   return (
     <>
       <PageHeader
-        icon={<UserCog className="h-6 w-6" />}
+        icon={<UserCog />}
         title="Staff & access"
         sub="Two roles: Admin (full access) and Staff (only the permissions you grant). Everyone signs in from Agent login."
-        actions={<Button onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> Add agent</Button>}
+        actions={<Btn variant="dark" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> Add agent</Btn>}
       />
       <Card>
         <Table head={["Agent", "Role", "Permissions", "Status", "Last login", "Sessions", ""]} loading={loading} empty={!data?.staff.length}>
           {data?.staff.map((a) => (
-            <tr key={a.id} className="hover:bg-surface/60">
-              <td className="px-5 py-3.5">
+            <tr key={a.id} className="hover:bg-neutral-50/70">
+              <td className="px-4 py-3">
                 <div className="font-semibold">{a.name} {a.id === me.id && <span className="text-xs text-muted">(you)</span>}</div>
                 <div className="text-xs text-muted">{a.email}</div>
               </td>
-              <td className="px-5 py-3.5"><Badge>{a.role}</Badge></td>
-              <td className="max-w-[320px] px-5 py-3.5 text-xs text-muted">{a.role === "admin" ? "Everything" : `${perms(a.permissions).length} permission${perms(a.permissions).length === 1 ? "" : "s"}`}</td>
-              <td className="px-5 py-3.5">{a.locked ? <Badge tone="blocked"><Lock className="h-3 w-3" /> locked</Badge> : <Badge>{a.status}</Badge>}</td>
-              <td className="px-5 py-3.5 text-xs text-muted">{timeAgo(a.last_login_at)}<div className="font-mono">{a.last_login_ip || ""}</div></td>
-              <td className="px-5 py-3.5 text-center font-bold">{a.active_sessions}</td>
-              <td className="px-5 py-3.5 text-right"><button onClick={() => setEditing(a)} className="text-xs font-bold text-brand hover:underline">Manage</button></td>
+              <td className="px-4 py-3"><Badge>{a.role}</Badge></td>
+              <td className="max-w-[320px] px-4 py-3 text-xs text-muted">{a.role === "admin" ? "Everything" : `${perms(a.permissions).length} permission${perms(a.permissions).length === 1 ? "" : "s"}`}</td>
+              <td className="px-4 py-3">{a.locked ? <Badge tone="blocked"><Lock className="h-3 w-3" /> locked</Badge> : <Badge>{a.status}</Badge>}</td>
+              <td className="px-4 py-3 text-xs text-muted">{timeAgo(a.last_login_at)}<div className="font-mono">{a.last_login_ip || ""}</div></td>
+              <td className="px-4 py-3 text-center font-bold">{a.active_sessions}</td>
+              <td className="px-4 py-3 text-right"><Btn className="h-7 px-2.5 text-xs" onClick={() => setEditing(a)}>Manage</Btn></td>
             </tr>
           ))}
         </Table>

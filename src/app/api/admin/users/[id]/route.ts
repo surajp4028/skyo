@@ -17,11 +17,11 @@ const parseId = (s: string) => {
 export const GET = route<Ctx>(async (req, { params }) => {
   const a = await requireAdmin("users.view");
   const id = parseId((await params).id);
-  const unmask = can(a, "users.contact") && req.nextUrl.searchParams.get("reveal") === "1";
-  const d = await getUserDetail(id, unmask);
+  const full = can(a, "users.contact");
+  const d = await getUserDetail(id, full);
   if (!d) throw new ApiError(404, "NOT_FOUND", "Customer not found");
-  if (unmask) await audit({ actorType: "admin", actorId: a.id, action: "pii.reveal_user", targetType: "user", targetId: id });
-  return ok(d);
+  await audit({ actorType: "admin", actorId: a.id, action: "pii.view_user", targetType: "user", targetId: d.user.uid, ip: getClientIp(req.headers) });
+  return ok({ ...d, full });
 });
 
 export const PATCH = route<Ctx>(async (req, { params }) => {

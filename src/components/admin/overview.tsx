@@ -2,9 +2,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Activity, ArrowUpRight, BusFront, Building2, LayoutDashboard, LogIn, Palmtree, Plane, TrainFront, UserPlus, Users } from "lucide-react";
+import { Activity, ArrowUpRight, BusFront, Building2, LogIn, Palmtree, Plane, TrainFront, UserPlus, Users } from "lucide-react";
 import { useFetch } from "./use-fetch";
-import { Card, PageHeader, StatCard } from "./ui";
+import { Avatar, Card, StatCard } from "./ui";
 import { useAdmin } from "./admin-context";
 import { formatINR, timeAgo } from "@/lib/utils";
 
@@ -13,15 +13,15 @@ type Stats = {
   sessions: { live: number; logins24: number };
   byService: { service: string; count: number; revenuePaise: number }[];
   signups: { date: string; count: number }[];
-  recent: { uid: string; name: string | null; email_masked: string | null; phone_masked: string | null; last_location: string | null; created_at: string }[];
+  recent: { id: number; uid: string; name: string | null; email: string | null; phone: string | null; location: string | null; created_at: string }[];
 };
 
 const SVC = [
-  { key: "train", label: "Trains", icon: TrainFront, color: "from-brand to-brand-2" },
-  { key: "flight", label: "Flights", icon: Plane, color: "from-iris to-sky" },
-  { key: "bus", label: "Buses", icon: BusFront, color: "from-mint to-emerald-300" },
-  { key: "hotel", label: "Hotels", icon: Building2, color: "from-fuchsia-500 to-pink-400" },
-  { key: "package", label: "Packages", icon: Palmtree, color: "from-amber-500 to-yellow-300" },
+  { key: "train", label: "Trains", icon: TrainFront },
+  { key: "flight", label: "Flights", icon: Plane },
+  { key: "bus", label: "Buses", icon: BusFront },
+  { key: "hotel", label: "Hotels", icon: Building2 },
+  { key: "package", label: "Packages", icon: Palmtree },
 ] as const;
 
 export function Overview() {
@@ -29,8 +29,6 @@ export function Overview() {
   const { data } = useFetch<{ stats: Stats }>("/api/admin/stats");
   const s = data?.stats;
   const [now] = useState(() => Date.now());
-
-  // last 14 days, filling gaps
   const days = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(now - (13 - i) * 86400_000).toISOString().slice(0, 10);
     return { d, n: s?.signups.find((x) => x.date === d)?.count || 0 };
@@ -40,82 +38,92 @@ export function Overview() {
 
   return (
     <>
-      <PageHeader
-        icon={<LayoutDashboard className="h-6 w-6" />}
-        title={`Good ${hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"}, ${admin.name.split(" ")[0]}`}
-        sub="Here's what's happening across your travel platform today."
-      />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total users" value={s?.users.total ?? "—"} hint={`${s?.users.active ?? 0} active`} icon={<Users className="h-5 w-5" />} />
-        <StatCard label="New today" value={s?.users.today ?? "—"} hint={`${s?.users.week ?? 0} this week`} icon={<UserPlus className="h-5 w-5" />} tone="mint" />
-        <StatCard label="Online now" value={s?.sessions.live ?? "—"} hint="active in last 30 min" icon={<Activity className="h-5 w-5" />} tone="sky" />
-        <StatCard label="Logins (24h)" value={s?.sessions.logins24 ?? "—"} hint="new sessions" icon={<LogIn className="h-5 w-5" />} tone="iris" />
+      <div className="relative mb-8 overflow-hidden rounded-xl border border-neutral-200 bg-white px-6 py-7">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#e5e5e5_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_at_top_right,black_20%,transparent_70%)]" />
+        <div className="pointer-events-none absolute -right-10 -top-24 h-64 w-64 rounded-full bg-brand/10 blur-3xl" />
+        <div className="relative">
+          <p className="text-xs font-medium text-neutral-500">{new Date(now).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Good {hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"}, {admin.name.split(" ")[0]}</h1>
+          <p className="mt-1 text-sm text-neutral-500">Here&apos;s what&apos;s happening across trains, flights, buses, hotels and packages.</p>
+        </div>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-3">
-        <Card className="p-6 xl:col-span-2">
-          <div className="flex items-center justify-between">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Total users" value={s?.users.total ?? "—"} hint={`${s?.users.active ?? 0} active accounts`} icon={<Users />} />
+        <StatCard label="New today" value={s?.users.today ?? "—"} hint={`${s?.users.week ?? 0} in the last 7 days`} icon={<UserPlus />} tone="mint" />
+        <StatCard label="Online now" value={s?.sessions.live ?? "—"} hint="active in last 30 min" icon={<Activity />} tone="sky" />
+        <StatCard label="Logins (24h)" value={s?.sessions.logins24 ?? "—"} hint="new sessions" icon={<LogIn />} tone="iris" />
+      </div>
+
+      <div className="mt-3 grid gap-3 xl:grid-cols-3">
+        <Card className="p-5 xl:col-span-2">
+          <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-bold">New sign-ups</h3>
-              <p className="text-xs text-muted">Last 14 days</p>
+              <h3 className="text-sm font-semibold">New sign-ups</h3>
+              <p className="text-xs text-neutral-500">Last 14 days</p>
             </div>
-            <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold">{days.reduce((a, b) => a + b.n, 0)} total</span>
+            <span className="text-2xl font-semibold tabular-nums">{days.reduce((a, b) => a + b.n, 0)}</span>
           </div>
-          <div className="mt-6 flex h-48 items-end gap-2">
+          <div className="mt-6 flex h-44 items-end gap-1.5">
             {days.map((d, i) => (
               <div key={d.d} className="group relative flex h-full flex-1 flex-col justify-end">
                 <motion.div
                   initial={{ height: 0 }}
-                  animate={{ height: `${Math.max(4, (d.n / max) * 100)}%` }}
-                  transition={{ delay: i * 0.03, type: "spring", stiffness: 120, damping: 18 }}
-                  className={`w-full rounded-t-md ${d.n ? "bg-gradient-to-t from-brand to-brand-2" : "bg-line"}`}
+                  animate={{ height: `${Math.max(3, (d.n / max) * 100)}%` }}
+                  transition={{ delay: i * 0.025, type: "spring", stiffness: 140, damping: 20 }}
+                  className={`w-full rounded-[4px] ${d.n ? "bg-neutral-900 group-hover:bg-brand" : "bg-neutral-100"}`}
                 />
-                <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[10px] font-bold text-white opacity-0 transition group-hover:opacity-100">
+                <span className="pointer-events-none absolute -top-7 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-[10px] font-medium text-white opacity-0 transition group-hover:opacity-100">
                   {d.n} · {new Date(d.d).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                 </span>
               </div>
             ))}
           </div>
-          <div className="mt-2 flex justify-between text-[10px] font-semibold text-muted">
+          <div className="mt-2 flex justify-between text-[11px] text-neutral-400">
             <span>{new Date(days[0].d).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
             <span>Today</span>
           </div>
         </Card>
 
-        <Card className="p-6">
+        <Card className="flex flex-col p-5">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold">Newest travellers</h3>
-            {admin.can("users.view") && <Link href="/admin/users" className="text-xs font-bold text-brand">View all</Link>}
+            <h3 className="text-sm font-semibold">Newest travellers</h3>
+            {admin.can("users.view") && <Link href="/admin/users" className="text-xs font-medium text-neutral-500 hover:text-neutral-900">View all →</Link>}
           </div>
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 flex-1 space-y-1">
             {(s?.recent || []).map((u) => (
-              <div key={u.uid} className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-brand/20 to-iris/20 text-sm font-bold text-ink">{(u.name || "T")[0]}</div>
+              <Link key={u.uid} href={`/admin/users/${u.id}`} className="flex items-center gap-3 rounded-lg p-2 transition hover:bg-neutral-50">
+                <Avatar name={u.name} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">{u.name || "Unnamed traveller"}</div>
-                  <div className="truncate text-xs text-muted">{u.email_masked || u.phone_masked} · {u.last_location || "—"}</div>
+                  <div className="truncate text-[13px] font-medium">{u.name || "Unnamed traveller"}</div>
+                  <div className="truncate text-xs text-neutral-500">{u.email || (u.phone ? `+91 ${u.phone}` : "—")}</div>
                 </div>
-                <span className="text-[11px] text-muted">{timeAgo(u.created_at)}</span>
-              </div>
+                <div className="text-right">
+                  <div className="font-mono text-[10px] text-neutral-500">{u.uid}</div>
+                  <div className="text-[11px] text-neutral-400">{timeAgo(u.created_at)}</div>
+                </div>
+              </Link>
             ))}
-            {s && s.recent.length === 0 && <p className="py-6 text-center text-sm text-muted">No sign-ups yet.</p>}
+            {s && s.recent.length === 0 && <p className="py-6 text-center text-sm text-neutral-400">No sign-ups yet.</p>}
           </div>
         </Card>
       </div>
 
-      <h3 className="mb-4 mt-8 font-bold">Bookings by service</h3>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <h3 className="mb-3 mt-8 text-sm font-semibold">Bookings by service</h3>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {SVC.map((v) => {
           const row = s?.byService.find((b) => b.service === v.key);
           const allowed = admin.can(`bookings.${v.key}` as never);
           return (
-            <Link key={v.key} href={allowed ? `/admin/bookings/${v.key}` : "#"} className={!allowed ? "pointer-events-none opacity-50" : ""}>
-              <Card className="group relative overflow-hidden p-5 transition hover:-translate-y-0.5 hover:shadow-lift">
-                <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${v.color} text-white`}><v.icon className="h-5 w-5" /></div>
-                <ArrowUpRight className="absolute right-4 top-4 h-4 w-4 text-muted transition group-hover:text-ink" />
-                <div className="mt-4 text-sm font-semibold text-muted">{v.label}</div>
-                <div className="text-2xl font-extrabold">{row?.count ?? 0}</div>
-                <div className="text-xs text-muted">{formatINR(row?.revenuePaise ?? 0)} revenue</div>
+            <Link key={v.key} href={allowed ? `/admin/bookings/${v.key}` : "#"} className={allowed ? "group" : "pointer-events-none opacity-50"}>
+              <Card className="relative p-4 transition group-hover:border-neutral-300 group-hover:shadow-[0_4px_16px_-6px_rgba(0,0,0,0.1)]">
+                <div className="flex items-center justify-between">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-700 transition group-hover:border-brand/30 group-hover:bg-brand-soft group-hover:text-brand"><v.icon className="h-4 w-4" /></div>
+                  <ArrowUpRight className="h-4 w-4 text-neutral-300 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-neutral-700" />
+                </div>
+                <div className="mt-4 text-xs text-neutral-500">{v.label}</div>
+                <div className="text-xl font-semibold tabular-nums">{row?.count ?? 0}</div>
+                <div className="text-[11px] text-neutral-400">{formatINR(row?.revenuePaise ?? 0)} revenue</div>
               </Card>
             </Link>
           );

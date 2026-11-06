@@ -1,10 +1,15 @@
 import "server-only";
 import { query, queryOne } from "../db";
-import { blindIndex, decrypt } from "../crypto";
-import { parseIdentifier } from "../validators";
+import { blindIndex, decrypt, isSkyoId } from "../crypto";
+import { maskEmail, maskPhone, parseIdentifier } from "../validators";
 import type { ServiceKey } from "@/lib/permissions";
 
-/* Admin-only read models. Every query is parameterised; LIMIT/OFFSET are clamped integers. */
+/*
+ * Admin-only read models. Data is stored KMS-encrypted; values are decrypted here
+ * for authorised agents. Admins (and staff with `users.contact`) see full values;
+ * other staff get masked contact details.
+ * Search is exact-match through blind indexes (encrypted data can't be LIKE-searched).
+ */
 
 export function paging(sp: URLSearchParams, defSize = 20) {
   const page = Math.max(1, Math.min(10_000, parseInt(sp.get("page") || "1", 10) || 1));
@@ -12,7 +17,28 @@ export function paging(sp: URLSearchParams, defSize = 20) {
   return { page, size, offset: (page - 1) * size };
 }
 
-export async function dashboardStats() {
+const IP_RE = /^(\d{1,3}\.){3}\d{1,3}$|^[0-9a-f:]{3,45}$/i;
+
+async function contact(emailEnc: string | null, phoneEnc: string | null, full: boolean) {
+  const [email, phone] = await Promise.all([decrypt(emailEnc), decrypt(phoneEnc)]);
+  return {
+    email: email ? (full ? email : maskEmail(email)) : null,
+    phone: phone ? (full ? phone : maskPhone(phone)) : null,
+  };
+}
+
+/** Builds a WHERE clause for user search: SKYO id, email, mobile, IP or exact full name. */
+function userSearch(q: string, alias = "u") {
+  const v = q.trim();
+  if (!v) return null;
+  if (isSkyoId(v)) return { sql: `${alias}.uid = ?`, params: [v.toUpperCase()] };
+  const id = parseIdentifier(v);
+  if (id) return { sql: `${alias}.${id.channel === "email" ? "email_bidx" : "phone_bidx"} = ?`, params: [blindIndex(id.channel, id.value)] };
+  if (IP_RE.test(v)) return { sql: `${alias}.last_login_ip_bidx = ?`, params: [blindIndex("ip", v)] };
+  return { sql: `${alias}.name_bidx = ?`, params: [blindIndex("name", v)] };
+}
+
+export async function dashboardStats(full: boolean) {
   const [u] = await query<{ total: number; active: number; today: number; week: number }>(
     `SELECT COUNT(*) total, SUM(status='active') active,
             SUM(created_at >= UTC_DATE()) today, SUM(created_at >= UTC_TIMESTAMP() - INTERVAL 7 DAY) week FROM users`,
@@ -28,8 +54,18 @@ export async function dashboardStats() {
     `SELECT DATE_FORMAT(created_at, '%Y-%m-%d') d, COUNT(*) n FROM users
       WHERE created_at >= UTC_DATE() - INTERVAL 13 DAY GROUP BY d ORDER BY d`,
   );
-  const recent = await query<{ uid: string; name: string | null; email_masked: string | null; phone_masked: string | null; last_location: string | null; created_at: Date }>(
-    "SELECT uid, name, email_masked, phone_masked, last_location, created_at FROM users ORDER BY id DESC LIMIT 6",
+  const recentRows = await query<{ id: number; uid: string; name_enc: string | null; email_enc: string | null; phone_enc: string | null; last_location_enc: string | null; created_at: Date }>(
+    "SELECT id, uid, name_enc, email_enc, phone_enc, last_location_enc, created_at FROM users ORDER BY id DESC LIMIT 6",
+  );
+  const recent = await Promise.all(
+    recentRows.map(async (r) => ({
+      id: r.id,
+      uid: r.uid,
+      name: (await decrypt(r.name_enc)) || null,
+      location: (await decrypt(r.last_location_enc)) || null,
+      created_at: r.created_at,
+      ...(await contact(r.email_enc, r.phone_enc, full)),
+    })),
   );
   return {
     users: { total: Number(u?.total || 0), active: Number(u?.active || 0), today: Number(u?.today || 0), week: Number(u?.week || 0) },
@@ -40,104 +76,174 @@ export async function dashboardStats() {
   };
 }
 
-export async function listUsers(sp: URLSearchParams, unmask: boolean) {
+export async function listUsers(sp: URLSearchParams, full: boolean) {
   const { page, size, offset } = paging(sp);
   const where: string[] = [];
   const params: (string | number)[] = [];
-  const q = (sp.get("q") || "").trim().slice(0, 100);
-  if (q) {
-    const id = parseIdentifier(q);
-    if (id) {
-      where.push(`${id.channel === "email" ? "email_bidx" : "phone_bidx"} = ?`);
-      params.push(blindIndex(id.channel, id.value));
-    } else {
-      where.push("(name LIKE ? OR uid = ? OR last_login_ip = ?)");
-      params.push(`%${q.replace(/[%_\\]/g, "\\$&")}%`, q.toUpperCase(), q);
-    }
+  const search = userSearch((sp.get("q") || "").slice(0, 100));
+  if (search) {
+    where.push(search.sql);
+    params.push(...search.params);
   }
   const status = sp.get("status");
   if (status === "active" || status === "inactive" || status === "blocked") {
-    where.push("status = ?");
+    where.push("u.status = ?");
     params.push(status);
   }
   const w = where.length ? "WHERE " + where.join(" AND ") : "";
-  const total = (await queryOne<{ n: number }>(`SELECT COUNT(*) n FROM users ${w}`, params))?.n ?? 0;
+  const total = (await queryOne<{ n: number }>(`SELECT COUNT(*) n FROM users u ${w}`, params))?.n ?? 0;
   const rows = await query<{
-    id: number; uid: string; name: string | null; email_enc: string | null; phone_enc: string | null; email_masked: string | null; phone_masked: string | null;
-    email_verified_at: Date | null; phone_verified_at: Date | null; status: string; signup_method: string; last_login_at: Date | null; last_login_ip: string | null;
-    last_location: string | null; last_device: string | null; created_at: Date; active_sessions: number;
+    id: number; uid: string; name_enc: string | null; email_enc: string | null; phone_enc: string | null; email_verified_at: Date | null; phone_verified_at: Date | null;
+    status: string; signup_method: string; last_login_at: Date | null; last_login_ip_enc: string | null; last_location_enc: string | null; last_device_enc: string | null;
+    created_at: Date; active_sessions: number; bookings: number;
   }>(
-    `SELECT u.id, u.uid, u.name, u.email_enc, u.phone_enc, u.email_masked, u.phone_masked, u.email_verified_at, u.phone_verified_at, u.status,
-            u.signup_method, u.last_login_at, u.last_login_ip, u.last_location, u.last_device, u.created_at,
-            (SELECT COUNT(*) FROM user_sessions s WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > UTC_TIMESTAMP()) active_sessions
+    `SELECT u.id, u.uid, u.name_enc, u.email_enc, u.phone_enc, u.email_verified_at, u.phone_verified_at, u.status, u.signup_method,
+            u.last_login_at, u.last_login_ip_enc, u.last_location_enc, u.last_device_enc, u.created_at,
+            (SELECT COUNT(*) FROM user_sessions s WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > UTC_TIMESTAMP()) active_sessions,
+            (SELECT COUNT(*) FROM bookings b WHERE b.user_uid = u.uid) bookings
        FROM users u ${w} ORDER BY u.id DESC LIMIT ? OFFSET ?`,
     [...params, size, offset],
   );
   const users = await Promise.all(
-    rows.map(async ({ email_enc, phone_enc, ...r }) => ({
-      ...r,
-      email: unmask ? await decrypt(email_enc) : r.email_masked,
-      phone: unmask ? await decrypt(phone_enc) : r.phone_masked,
+    rows.map(async (r) => ({
+      id: r.id,
+      uid: r.uid,
+      name: (await decrypt(r.name_enc)) || null,
+      ...(await contact(r.email_enc, r.phone_enc, full)),
+      email_verified_at: r.email_verified_at,
+      phone_verified_at: r.phone_verified_at,
+      status: r.status,
+      signup_method: r.signup_method,
+      last_login_at: r.last_login_at,
+      last_login_ip: (await decrypt(r.last_login_ip_enc)) || null,
+      last_location: (await decrypt(r.last_location_enc)) || null,
+      last_device: (await decrypt(r.last_device_enc)) || null,
+      created_at: r.created_at,
       active_sessions: Number(r.active_sessions),
+      bookings: Number(r.bookings),
     })),
   );
   return { users, total: Number(total), page, size };
 }
 
-export async function getUserDetail(id: number, unmask: boolean) {
-  const u = await queryOne<Record<string, unknown> & { email_enc: string | null; phone_enc: string | null }>(
-    `SELECT id, uid, name, email_enc, phone_enc, email_masked, phone_masked, email_verified_at, phone_verified_at, status, signup_method,
-            consent_at, consent_version, signup_ip, last_login_at, last_login_ip, last_location, last_device, created_at FROM users WHERE id = ?`,
+export async function getUserDetail(id: number, full: boolean) {
+  const u = await queryOne<{
+    id: number; uid: string; name_enc: string | null; email_enc: string | null; phone_enc: string | null; email_verified_at: Date | null; phone_verified_at: Date | null;
+    status: string; signup_method: string; consent_at: Date | null; consent_version: string | null; signup_ip_enc: string | null; last_login_at: Date | null;
+    last_login_ip_enc: string | null; last_location_enc: string | null; last_device_enc: string | null; created_at: Date;
+  }>(
+    `SELECT id, uid, name_enc, email_enc, phone_enc, email_verified_at, phone_verified_at, status, signup_method, consent_at, consent_version,
+            signup_ip_enc, last_login_at, last_login_ip_enc, last_location_enc, last_device_enc, created_at FROM users WHERE id = ?`,
     [id],
   );
   if (!u) return null;
-  const { email_enc, phone_enc, ...rest } = u;
-  const sessions = await query(
-    `SELECT id, ip, location, device, client, login_method, created_at, last_seen_at, expires_at, revoked_at, revoked_reason,
+  const sessRows = await query<{
+    id: number; ip_enc: string | null; location_enc: string | null; device_enc: string | null; user_agent_enc: string | null; client: string; login_method: string;
+    created_at: Date; last_seen_at: Date; expires_at: Date; revoked_at: Date | null; revoked_reason: string | null; active: number;
+  }>(
+    `SELECT id, ip_enc, location_enc, device_enc, user_agent_enc, client, login_method, created_at, last_seen_at, expires_at, revoked_at, revoked_reason,
             (revoked_at IS NULL AND expires_at > UTC_TIMESTAMP()) AS active
        FROM user_sessions WHERE user_id = ? ORDER BY id DESC LIMIT 50`,
     [id],
   );
-  const bookings = await query(
-    "SELECT booking_ref, service, status, title, travel_date, amount_paise, created_at FROM bookings WHERE user_id = ? ORDER BY id DESC LIMIT 20",
-    [id],
+  const bookRows = await query<{ booking_ref: string; service: string; status: string; title_enc: string; travel_date: Date | null; amount_paise: number; created_at: Date }>(
+    "SELECT booking_ref, service, status, title_enc, travel_date, amount_paise, created_at FROM bookings WHERE user_uid = ? ORDER BY id DESC LIMIT 20",
+    [u.uid],
   );
   return {
-    user: { ...rest, email: unmask ? await decrypt(email_enc) : rest.email_masked, phone: unmask ? await decrypt(phone_enc) : rest.phone_masked },
-    sessions,
-    bookings,
+    user: {
+      id: u.id,
+      uid: u.uid,
+      name: (await decrypt(u.name_enc)) || null,
+      ...(await contact(u.email_enc, u.phone_enc, full)),
+      email_verified_at: u.email_verified_at,
+      phone_verified_at: u.phone_verified_at,
+      status: u.status,
+      signup_method: u.signup_method,
+      consent_at: u.consent_at,
+      consent_version: u.consent_version,
+      signup_ip: (await decrypt(u.signup_ip_enc)) || null,
+      last_login_at: u.last_login_at,
+      last_login_ip: (await decrypt(u.last_login_ip_enc)) || null,
+      last_location: (await decrypt(u.last_location_enc)) || null,
+      last_device: (await decrypt(u.last_device_enc)) || null,
+      created_at: u.created_at,
+    },
+    sessions: await Promise.all(
+      sessRows.map(async ({ ip_enc, location_enc, device_enc, user_agent_enc, ...r }) => ({
+        ...r,
+        active: Number(r.active),
+        ip: await decrypt(ip_enc),
+        location: (await decrypt(location_enc)) || null,
+        device: (await decrypt(device_enc)) || "Unknown",
+        user_agent: await decrypt(user_agent_enc),
+      })),
+    ),
+    bookings: await Promise.all(bookRows.map(async ({ title_enc, ...b }) => ({ ...b, title: await decrypt(title_enc) }))),
   };
 }
 
-export async function listSessions(sp: URLSearchParams) {
+export async function listSessions(sp: URLSearchParams, full: boolean) {
   const { page, size, offset } = paging(sp, 25);
   const kind = sp.get("kind") === "admin" ? "admin" : "user";
   const onlyActive = sp.get("active") === "1";
-  const q = (sp.get("q") || "").trim().slice(0, 60);
+  const q = (sp.get("q") || "").trim().slice(0, 100);
   const where: string[] = [];
   const params: (string | number)[] = [];
   if (onlyActive) where.push("s.revoked_at IS NULL AND s.expires_at > UTC_TIMESTAMP()");
   if (q) {
-    where.push(kind === "admin" ? "(s.ip = ? OR a.email LIKE ? OR a.name LIKE ?)" : "(s.ip = ? OR u.uid = ? OR u.name LIKE ?)");
-    const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
-    params.push(q, kind === "admin" ? like : q.toUpperCase(), like);
+    if (IP_RE.test(q) && !/^\d{10}$/.test(q)) {
+      where.push("s.ip_bidx = ?");
+      params.push(blindIndex("ip", q));
+    } else if (kind === "admin") {
+      where.push("a.email_bidx = ?");
+      params.push(blindIndex("email", q));
+    } else {
+      const s = userSearch(q, "u");
+      if (s) {
+        where.push(s.sql);
+        params.push(...s.params);
+      }
+    }
   }
   const w = where.length ? "WHERE " + where.join(" AND ") : "";
-  const sql =
-    kind === "admin"
-      ? `FROM admin_sessions s JOIN admins a ON a.id = s.admin_id ${w}`
-      : `FROM user_sessions s JOIN users u ON u.id = s.user_id ${w}`;
+  const from = kind === "admin" ? `FROM admin_sessions s JOIN admins a ON a.id = s.admin_id ${w}` : `FROM user_sessions s JOIN users u ON u.id = s.user_id ${w}`;
   const cols =
     kind === "admin"
-      ? "s.id, a.id AS owner_id, a.name, a.email AS contact, a.role, s.ip, s.location, s.device, 'web' AS client, 'password' AS login_method"
-      : "s.id, u.id AS owner_id, u.name, COALESCE(u.email_masked, u.phone_masked) AS contact, u.uid AS role, s.ip, s.location, s.device, s.client, s.login_method";
-  const total = (await queryOne<{ n: number }>(`SELECT COUNT(*) n ${sql}`, params))?.n ?? 0;
-  const rows = await query(
-    `SELECT ${cols}, s.created_at, s.last_seen_at, s.expires_at, s.revoked_at, s.revoked_reason,
-            (s.revoked_at IS NULL AND s.expires_at > UTC_TIMESTAMP()) AS active ${sql} ORDER BY s.id DESC LIMIT ? OFFSET ?`,
+      ? "a.id AS owner_id, a.name_enc, a.email_enc, NULL AS phone_enc, a.role AS ref, 'web' AS client, 'password' AS login_method"
+      : "u.id AS owner_id, u.name_enc, u.email_enc, u.phone_enc, u.uid AS ref, s.client, s.login_method";
+  const total = (await queryOne<{ n: number }>(`SELECT COUNT(*) n ${from}`, params))?.n ?? 0;
+  const rows = await query<{
+    id: number; owner_id: number; name_enc: string | null; email_enc: string | null; phone_enc: string | null; ref: string; client: string; login_method: string;
+    ip_enc: string | null; location_enc: string | null; device_enc: string | null; created_at: Date; last_seen_at: Date; expires_at: Date; revoked_at: Date | null; revoked_reason: string | null; active: number;
+  }>(
+    `SELECT s.id, ${cols}, s.ip_enc, s.location_enc, s.device_enc, s.created_at, s.last_seen_at, s.expires_at, s.revoked_at, s.revoked_reason,
+            (s.revoked_at IS NULL AND s.expires_at > UTC_TIMESTAMP()) AS active ${from} ORDER BY s.id DESC LIMIT ? OFFSET ?`,
     [...params, size, offset],
   );
-  return { kind, sessions: rows, total: Number(total), page, size };
+  const sessions = await Promise.all(
+    rows.map(async (r) => {
+      const c = await contact(r.email_enc, r.phone_enc, full || kind === "admin");
+      return {
+        id: r.id,
+        owner_id: r.owner_id,
+        name: (await decrypt(r.name_enc)) || null,
+        contact: c.email || (c.phone ? `+91 ${c.phone}` : null),
+        ref: r.ref,
+        client: r.client,
+        login_method: r.login_method,
+        ip: await decrypt(r.ip_enc),
+        location: (await decrypt(r.location_enc)) || null,
+        device: (await decrypt(r.device_enc)) || "Unknown",
+        created_at: r.created_at,
+        last_seen_at: r.last_seen_at,
+        revoked_at: r.revoked_at,
+        revoked_reason: r.revoked_reason,
+        active: Number(r.active),
+      };
+    }),
+  );
+  return { kind, sessions, total: Number(total), page, size };
 }
 
 export async function listBookings(service: ServiceKey, sp: URLSearchParams) {
@@ -151,16 +257,34 @@ export async function listBookings(service: ServiceKey, sp: URLSearchParams) {
   }
   const q = (sp.get("q") || "").trim().slice(0, 60);
   if (q) {
-    where.push("(b.booking_ref = ? OR b.title LIKE ? OR b.provider_ref = ?)");
-    params.push(q.toUpperCase(), `%${q.replace(/[%_\\]/g, "\\$&")}%`, q);
+    if (isSkyoId(q)) {
+      where.push("b.user_uid = ?");
+      params.push(q.toUpperCase());
+    } else {
+      where.push("(b.booking_ref = ? OR b.provider_ref_bidx = ?)");
+      params.push(q.toUpperCase(), blindIndex("ref", q));
+    }
   }
   const w = "WHERE " + where.join(" AND ");
   const total = (await queryOne<{ n: number }>(`SELECT COUNT(*) n FROM bookings b ${w}`, params))?.n ?? 0;
-  const rows = await query(
-    `SELECT b.id, b.booking_ref, b.status, b.payment_status, b.title, b.origin, b.destination, b.travel_date, b.travellers,
-            b.amount_paise, b.provider, b.created_at, u.id AS user_id, u.name AS user_name, u.uid AS user_uid
-       FROM bookings b JOIN users u ON u.id = b.user_id ${w} ORDER BY b.id DESC LIMIT ? OFFSET ?`,
+  const rows = await query<{
+    id: number; booking_ref: string; status: string; payment_status: string; title_enc: string; origin_enc: string | null; destination_enc: string | null; provider_ref_enc: string | null;
+    travel_date: Date | null; travellers: number; amount_paise: number; provider: string | null; created_at: Date; user_id: number; user_uid: string; user_name_enc: string | null;
+  }>(
+    `SELECT b.id, b.booking_ref, b.status, b.payment_status, b.title_enc, b.origin_enc, b.destination_enc, b.provider_ref_enc, b.travel_date, b.travellers,
+            b.amount_paise, b.provider, b.created_at, u.id AS user_id, b.user_uid, u.name_enc AS user_name_enc
+       FROM bookings b JOIN users u ON u.uid = b.user_uid ${w} ORDER BY b.id DESC LIMIT ? OFFSET ?`,
     [...params, size, offset],
+  );
+  const bookings = await Promise.all(
+    rows.map(async ({ title_enc, origin_enc, destination_enc, provider_ref_enc, user_name_enc, ...r }) => ({
+      ...r,
+      title: await decrypt(title_enc),
+      origin: (await decrypt(origin_enc)) || null,
+      destination: (await decrypt(destination_enc)) || null,
+      provider_ref: (await decrypt(provider_ref_enc)) || null,
+      user_name: (await decrypt(user_name_enc)) || null,
+    })),
   );
   const [sum] = await query<{ confirmed: number; pending: number; cancelled: number; revenue: number }>(
     `SELECT SUM(status='confirmed') confirmed, SUM(status='pending') pending, SUM(status IN ('cancelled','refunded')) cancelled,
@@ -168,7 +292,7 @@ export async function listBookings(service: ServiceKey, sp: URLSearchParams) {
     [service],
   );
   return {
-    bookings: rows,
+    bookings,
     total: Number(total),
     page,
     size,
@@ -192,14 +316,32 @@ export async function listAudit(sp: URLSearchParams) {
   }
   const w = where.length ? "WHERE " + where.join(" AND ") : "";
   const total = (await queryOne<{ n: number }>(`SELECT COUNT(*) n FROM audit_logs l ${w}`, params))?.n ?? 0;
-  const rows = await query(
-    `SELECT l.id, l.actor_type, l.actor_id, l.action, l.target_type, l.target_id, l.ip, l.meta, l.created_at,
-            CASE l.actor_type WHEN 'admin' THEN a.name WHEN 'user' THEN COALESCE(u.name, u.uid) ELSE 'system' END AS actor_name
+  const rows = await query<{
+    id: number; actor_type: string; actor_id: number | null; action: string; target_type: string | null; target_id: string | null; ip_enc: string | null; meta_enc: string | null;
+    created_at: Date; admin_name_enc: string | null; user_name_enc: string | null; user_uid: string | null;
+  }>(
+    `SELECT l.id, l.actor_type, l.actor_id, l.action, l.target_type, l.target_id, l.ip_enc, l.meta_enc, l.created_at,
+            a.name_enc AS admin_name_enc, u.name_enc AS user_name_enc, u.uid AS user_uid
        FROM audit_logs l
        LEFT JOIN admins a ON l.actor_type = 'admin' AND a.id = l.actor_id
        LEFT JOIN users u ON l.actor_type = 'user' AND u.id = l.actor_id
        ${w} ORDER BY l.id DESC LIMIT ? OFFSET ?`,
     [...params, size, offset],
   );
-  return { logs: rows, total: Number(total), page, size };
+  const logs = await Promise.all(
+    rows.map(async (r) => ({
+      id: r.id,
+      actor_type: r.actor_type,
+      actor_id: r.actor_id,
+      actor_name:
+        r.actor_type === "admin" ? await decrypt(r.admin_name_enc) : r.actor_type === "user" ? (await decrypt(r.user_name_enc)) || r.user_uid : "system",
+      action: r.action,
+      target_type: r.target_type,
+      target_id: r.target_id,
+      ip: (await decrypt(r.ip_enc)) || null,
+      meta: (await decrypt(r.meta_enc)) || null,
+      created_at: r.created_at,
+    })),
+  );
+  return { logs, total: Number(total), page, size };
 }

@@ -1,5 +1,6 @@
 import "server-only";
 import { exec, queryOne } from "./db";
+import { sha256 } from "./crypto";
 
 /**
  * Fixed-window limiter stored in MySQL so it works across multiple Node
@@ -7,7 +8,7 @@ import { exec, queryOne } from "./db";
  * Returns { ok, retryAfter } — retryAfter in seconds.
  */
 export async function rateLimit(bucket: string, limit: number, windowSec: number) {
-  const key = bucket.slice(0, 191);
+  const key = sha256(bucket); // never store raw IPs / identifiers
   await exec(
     `INSERT INTO rate_limits (bucket, hits, window_start) VALUES (?, 1, UTC_TIMESTAMP())
      ON DUPLICATE KEY UPDATE
@@ -25,5 +26,5 @@ export async function rateLimit(bucket: string, limit: number, windowSec: number
 }
 
 export async function clearRateLimit(bucket: string) {
-  await exec("DELETE FROM rate_limits WHERE bucket = ?", [bucket.slice(0, 191)]);
+  await exec("DELETE FROM rate_limits WHERE bucket = ?", [sha256(bucket)]);
 }

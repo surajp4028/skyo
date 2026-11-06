@@ -3,15 +3,28 @@ import { z } from "zod";
 import { ApiError, ok, readJson, route } from "@/lib/server/http";
 import { requireUser, revokeAllUserSessions, revokeUserSession } from "@/lib/server/session";
 import { query, queryOne } from "@/lib/server/db";
+import { decrypt } from "@/lib/server/crypto";
 
 /** The signed-in customer's own active devices. */
 export const GET = route(async () => {
   const u = await requireUser();
-  const rows = await query<{ id: number; device: string; location: string | null; ip: string; client: string; created_at: Date; last_seen_at: Date }>(
-    "SELECT id, device, location, ip, client, created_at, last_seen_at FROM user_sessions WHERE user_id = ? AND revoked_at IS NULL AND expires_at > UTC_TIMESTAMP() ORDER BY last_seen_at DESC LIMIT 50",
+  const rows = await query<{ id: number; device_enc: string | null; location_enc: string | null; ip_enc: string | null; client: string; created_at: Date; last_seen_at: Date }>(
+    "SELECT id, device_enc, location_enc, ip_enc, client, created_at, last_seen_at FROM user_sessions WHERE user_id = ? AND revoked_at IS NULL AND expires_at > UTC_TIMESTAMP() ORDER BY last_seen_at DESC LIMIT 50",
     [u.id],
   );
-  return ok({ sessions: rows.map((r) => ({ ...r, current: r.id === u.sessionId })) });
+  const sessions = await Promise.all(
+    rows.map(async (r) => ({
+      id: r.id,
+      device: (await decrypt(r.device_enc)) || "Unknown device",
+      location: (await decrypt(r.location_enc)) || null,
+      ip: await decrypt(r.ip_enc),
+      client: r.client,
+      created_at: r.created_at,
+      last_seen_at: r.last_seen_at,
+      current: r.id === u.sessionId,
+    })),
+  );
+  return ok({ sessions });
 });
 
 /** Revoke one device ({id}) or all other devices ({all:true}). */

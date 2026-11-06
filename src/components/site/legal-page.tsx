@@ -4,7 +4,7 @@ import { Footer } from "./footer";
 
 export function LegalPage({ title, updated, children }: { title: string; updated: string; children: ReactNode }) {
   return (
-    <>
+    <div className="relative">
       <Navbar overHero={false} />
       <main className="mx-auto max-w-3xl px-5 py-14">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand">Legal</p>
@@ -13,6 +13,6 @@ export function LegalPage({ title, updated, children }: { title: string; updated
         <article className="mt-10 space-y-6 text-[15px] leading-relaxed text-ink/80 [&_h2]:mt-10 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-ink [&_li]:ml-5 [&_li]:list-disc">{children}</article>
       </main>
       <Footer />
-    </>
+    </div>
   );
 }

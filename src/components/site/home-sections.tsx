@@ -7,7 +7,6 @@ import {
   ArrowRight, BadgePercent, BusFront, Building2, CalendarClock, Clock3, CreditCard, Gift, Headphones, Palmtree, Plane,
   ShieldCheck, Smartphone, Sparkles, TrainFront, Undo2, Wallet, Star, MapPin,
 } from "lucide-react";
-import { Aurora } from "@/components/ui/aurora";
 import { Spotlight } from "@/components/ui/spotlight";
 import { FlipWords } from "@/components/ui/flip-words";
 import { HoverEffect } from "@/components/ui/hover-effect";
@@ -24,36 +23,103 @@ const fadeUp = { initial: { opacity: 0, y: 24 }, whileInView: { opacity: 1, y: 0
 export function Hero() {
   const site = useSite();
   return (
-    <section className="relative -mt-20 overflow-hidden bg-ink pb-40 pt-36 md:pb-48 md:pt-44">
-      <div className="absolute inset-0">
-        <Image src={img(IMAGES.taj, 2000)} alt="" fill priority sizes="100vw" className="object-cover opacity-[0.18]" />
-        <div className="absolute inset-0 bg-gradient-to-b from-ink/70 via-ink/80 to-ink" />
-      </div>
-      <Aurora />
-      <div className="bg-grid absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
-      <Spotlight className="-top-40 left-0 md:-top-20 md:left-60" fill="#ff8a3d" />
+    <section className="relative -mt-20 overflow-hidden pb-44 pt-32 md:pb-52 md:pt-40">
+      {/* bluish sky */}
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,#1e7bf0_0%,#3d9bff_22%,#7cc4ff_52%,#c8e8ff_78%,#f6f7fb_100%)]" />
+      <div className="absolute -right-24 -top-32 h-[520px] w-[520px] rounded-full bg-[radial-gradient(circle,rgba(255,244,214,0.95)_0%,rgba(255,220,150,0.45)_30%,transparent_65%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.25),transparent_60%)]" />
+      <Clouds />
+      <FlightPath />
+      <Spotlight className="-top-40 left-0 md:-top-20 md:left-60" fill="white" />
+
       <div className="relative z-10 mx-auto max-w-7xl px-5">
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold text-white/80 backdrop-blur">
-          <Sparkles className="h-3.5 w-3.5 text-brand-2" /> India&apos;s smartest way to travel · {site.site_name}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-white/50 bg-white/30 px-4 py-1.5 text-xs font-semibold text-ink shadow-[0_8px_30px_-12px_rgba(10,15,31,0.35)] backdrop-blur-md">
+          <Sparkles className="h-3.5 w-3.5 text-brand" /> India&apos;s smartest way to travel · {site.site_name}
         </motion.div>
-        <h1 className="mx-auto max-w-4xl text-center text-4xl font-extrabold leading-[1.08] tracking-tight text-white md:text-7xl">
+        <h1 className="mx-auto max-w-4xl text-center text-4xl font-extrabold leading-[1.06] tracking-tight text-ink md:text-7xl">
           Book{" "}
-          <FlipWords words={["trains", "flights", "buses", "hotels", "holidays"]} className="font-display italic font-normal text-gradient" />
-          <br className="hidden md:block" /> without the chaos.
+          <FlipWords words={["flights", "trains", "buses", "hotels", "holidays"]} className="font-display font-normal italic text-gradient-deep" />
+          <br className="hidden md:block" /> <span className="relative">without the chaos.</span>
         </h1>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mx-auto mt-6 max-w-2xl text-center text-base text-white/60 md:text-lg">
+        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mx-auto mt-6 max-w-2xl text-center text-base font-medium text-ink/70 md:text-lg">
           {site.site_tagline} Confirmed-seat predictions, instant refunds and zero hidden fees.
         </motion.p>
-        <div className="mx-auto mt-8 flex max-w-xl flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-white/70">
+        <div className="mx-auto mt-8 flex max-w-xl flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-ink/70">
           {[["10Cr+", "tickets booked"], ["4.8★", "app rating"], ["₹0", "convenience fee on UPI"]].map(([a, b]) => (
             <div key={b} className="flex items-baseline gap-2">
-              <span className="text-xl font-extrabold text-white">{a}</span>
+              <span className="text-xl font-extrabold text-ink">{a}</span>
               {b}
             </div>
           ))}
         </div>
       </div>
+
+      {/* floating boarding passes (desktop) */}
+      <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6, type: "spring" }} className="absolute left-[4%] top-[46%] z-10 hidden w-60 -rotate-6 xl:block">
+        <div className="animate-float rounded-2xl border border-white/60 bg-white/80 p-4 shadow-[0_24px_60px_-20px_rgba(10,15,31,0.45)] backdrop-blur-xl">
+          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted"><span>Boarding pass</span><Plane className="h-3.5 w-3.5 text-brand" /></div>
+          <div className="mt-2 flex items-end justify-between">
+            <div><div className="text-2xl font-extrabold text-ink">DEL</div><div className="text-[10px] text-muted">06:15</div></div>
+            <div className="mb-2 flex-1 border-t-2 border-dashed border-ink/15 mx-2" />
+            <div className="text-right"><div className="text-2xl font-extrabold text-ink">BOM</div><div className="text-[10px] text-muted">08:25</div></div>
+          </div>
+          <div className="mt-3 flex items-center justify-between rounded-xl bg-surface px-3 py-2 text-[11px] font-semibold"><span>Seat 12A · Window</span><span className="text-mint">On time</span></div>
+        </div>
+      </motion.div>
+      <motion.div initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.8, type: "spring" }} className="absolute right-[4%] top-[40%] z-10 hidden w-56 rotate-6 xl:block">
+        <div className="animate-float rounded-2xl border border-white/60 bg-white/80 p-4 shadow-[0_24px_60px_-20px_rgba(10,15,31,0.45)] backdrop-blur-xl [animation-delay:1.2s]">
+          <div className="flex items-center gap-2 text-[11px] font-bold text-mint"><span className="h-1.5 w-1.5 rounded-full bg-mint" /> FARE ALERT</div>
+          <div className="mt-1.5 text-sm font-bold text-ink">Bengaluru → Goa</div>
+          <div className="mt-1 flex items-baseline gap-2"><span className="text-2xl font-extrabold text-ink">₹2,899</span><span className="text-xs text-muted line-through">₹4,150</span></div>
+          <div className="mt-2 text-[11px] font-medium text-muted">Lowest this month · Fri, 14 Nov</div>
+        </div>
+      </motion.div>
     </section>
+  );
+}
+
+function Clouds() {
+  const clouds = [
+    { top: "14%", w: 260, dur: 70, delay: -10, op: 0.9 },
+    { top: "30%", w: 380, dur: 95, delay: -40, op: 0.75 },
+    { top: "52%", w: 300, dur: 80, delay: -25, op: 0.85 },
+    { top: "8%", w: 200, dur: 60, delay: -50, op: 0.6 },
+    { top: "64%", w: 420, dur: 110, delay: -70, op: 0.7 },
+  ];
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      {clouds.map((c, i) => (
+        <div key={i} className="absolute left-0 animate-[drift_var(--d)_linear_infinite]" style={{ top: c.top, ["--d" as string]: `${c.dur}s`, animationDelay: `${c.delay}s`, opacity: c.op }}>
+          <div className="relative" style={{ width: c.w, height: c.w * 0.32 }}>
+            <span className="absolute bottom-0 left-0 h-[60%] w-full rounded-full bg-white blur-[6px]" />
+            <span className="absolute bottom-[20%] left-[18%] h-[85%] w-[40%] rounded-full bg-white blur-[6px]" />
+            <span className="absolute bottom-[25%] left-[45%] h-[100%] w-[38%] rounded-full bg-white blur-[6px]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Plane flying along a dashed arc across the sky. */
+function FlightPath() {
+  const d = "M -80 420 C 300 120, 820 80, 1600 260";
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 hidden md:block">
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1440 700" preserveAspectRatio="xMidYMid slice">
+        <motion.path d={d} fill="none" stroke="white" strokeWidth="2" strokeDasharray="6 10" strokeLinecap="round" initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 0.8 }} transition={{ duration: 2.4, ease: "easeInOut" }} />
+        <g>
+          <path d="M0 0 L18 6 L36 2 L40 6 L36 10 L18 6 Z" fill="white" opacity="0" />
+          <g>
+            <animateMotion dur="14s" repeatCount="indefinite" rotate="auto" path={d} />
+            <g transform="translate(-22,-14)">
+              <path d="M44 14c0-1.6-1.4-3-3.2-3H30L19.5 0h-4l5 11H11L7.6 6.6H4.4L6.6 14l-2.2 7.4h3.2L11 17h9.5l-5 11h4L30 17h10.8c1.8 0 3.2-1.4 3.2-3z" fill="white" />
+              <path d="M44 14c0-1.6-1.4-3-3.2-3H30L19.5 0h-4l5 11H11L7.6 6.6H4.4L6.6 14l-2.2 7.4h3.2L11 17h9.5l-5 11h4L30 17h10.8c1.8 0 3.2-1.4 3.2-3z" fill="#ff5a1f" opacity="0.15" />
+            </g>
+          </g>
+        </g>
+      </svg>
+    </div>
   );
 }
 

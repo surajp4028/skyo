@@ -23,10 +23,10 @@ export function Navbar({ overHero = true }: { overHero?: boolean }) {
   const { user, logout } = useAuth();
   const site = useSite();
   useMotionValueEvent(scrollY, "change", (v) => overHero && setScrolled(v > 40));
-  const dark = overHero && !scrolled;
+  const dark = false; // hero is a light sky now — keep ink text everywhere
 
   return (
-    <>
+    <div className="contents">
       {site.maintenance_mode === "on" && (
         <div className="relative z-[60] bg-gradient-to-r from-brand to-brand-2 px-4 py-2 text-center text-xs font-semibold text-white">{site.maintenance_message}</div>
       )}
@@ -83,7 +83,7 @@ export function Navbar({ overHero = true }: { overHero?: boolean }) {
           )}
         </AnimatePresence>
       </motion.header>
-    </>
+    </div>
   );
 }
 

@@ -3,13 +3,13 @@ import crypto from "node:crypto";
 import { exec, queryOne, sqlDate } from "./db";
 import { env } from "./env";
 import { ApiError } from "./http";
-import { blindIndex, decrypt, encrypt, hashOtp, randomOtp, safeEqualHex } from "./crypto";
+import { blindIndex, decrypt, encOpt, encrypt, hashOtp, randomOtp, safeEqualHex } from "./crypto";
 import { rateLimit } from "./ratelimit";
 import { getSetting } from "./settings";
 import { sendEmailTemplate, sendOtpSms } from "./notify";
 import { maskEmail, maskPhone } from "./validators";
 
-export type OtpPurpose = "login" | "register_email" | "register_phone";
+export type OtpPurpose = "login" | "register_email" | "register_phone" | "change_email" | "change_phone";
 export type Channel = "email" | "phone";
 
 /**
@@ -19,7 +19,7 @@ export type Channel = "email" | "phone";
  *  - previous open challenges for the same identifier+purpose are invalidated
  *  - only an HMAC of the code is stored; max 5 verify attempts; single use
  */
-export async function issueOtp(opts: { channel: Channel; value: string; purpose: OtpPurpose; ip: string; name?: string }) {
+export async function issueOtp(opts: { channel: Channel; value: string; purpose: OtpPurpose; ip: string; name?: string; subjectUserId?: number }) {
   const bidx = blindIndex(opts.channel, opts.value);
 
   const ipRl = await rateLimit(`otp:ip:${opts.ip}`, 20, 900);
@@ -48,15 +48,16 @@ export async function issueOtp(opts: { channel: Channel; value: string; purpose:
   const code = randomOtp();
   const now = new Date();
   await exec(
-    "INSERT INTO otp_challenges (challenge_id, channel, purpose, identifier_bidx, identifier_enc, code_hash, ip, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?,?)",
+    "INSERT INTO otp_challenges (challenge_id, channel, purpose, subject_user_id, identifier_bidx, identifier_enc, code_hash, ip_enc, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
     [
       challengeId,
       opts.channel,
       opts.purpose,
+      opts.subjectUserId ?? null,
       bidx,
       await encrypt(opts.value),
       hashOtp(challengeId, code),
-      opts.ip,
+      await encOpt(opts.ip),
       sqlDate(now),
       sqlDate(new Date(now.getTime() + env.otpTtlSeconds * 1000)),
     ],
@@ -66,7 +67,7 @@ export async function issueOtp(opts: { channel: Channel; value: string; purpose:
   if (env.otpDryRun) {
     // no provider call
   } else if (opts.channel === "email") {
-    delivered = await sendEmailTemplate(opts.value, opts.name || "", opts.purpose === "login" ? "verify_otp" : "register_otp", {
+    delivered = await sendEmailTemplate(opts.value, opts.name || "", opts.purpose.startsWith("register") ? "register_otp" : "verify_otp", {
       OTP: code,
       NAME: opts.name || "Traveller",
     });
@@ -99,6 +100,7 @@ export async function verifyOtp(challengeId: string, code: string, purposes: Otp
   const row = await queryOne<{
     channel: Channel;
     purpose: OtpPurpose;
+    subject_user_id: number | null;
     identifier_bidx: string;
     identifier_enc: string;
     code_hash: string;
@@ -107,7 +109,7 @@ export async function verifyOtp(challengeId: string, code: string, purposes: Otp
     expired: number;
     consumed_at: Date | null;
   }>(
-    "SELECT channel, purpose, identifier_bidx, identifier_enc, code_hash, attempts, max_attempts, (expires_at < UTC_TIMESTAMP()) AS expired, consumed_at FROM otp_challenges WHERE challenge_id = ?",
+    "SELECT channel, purpose, subject_user_id, identifier_bidx, identifier_enc, code_hash, attempts, max_attempts, (expires_at < UTC_TIMESTAMP()) AS expired, consumed_at FROM otp_challenges WHERE challenge_id = ?",
     [challengeId],
   );
   if (!row || !purposes.includes(row.purpose)) throw new ApiError(400, "OTP_INVALID", "This code is invalid. Request a new one.");
@@ -135,5 +137,5 @@ export async function verifyOtp(challengeId: string, code: string, purposes: Otp
   );
   if (consumed.affectedRows !== 1) throw new ApiError(400, "OTP_USED", "This code has already been used.");
 
-  return { channel: row.channel, purpose: row.purpose, bidx: row.identifier_bidx, value: await decrypt(row.identifier_enc) };
+  return { channel: row.channel, purpose: row.purpose, subjectUserId: row.subject_user_id, bidx: row.identifier_bidx, value: await decrypt(row.identifier_enc) };
 }

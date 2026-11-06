@@ -27,7 +27,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const [settings, session] = await Promise.all([getPublicSettings(), getSessionUser()]);
   const me = session ? await loadMe(session.id) : null;
   return (
-    <html lang="en" className={`${jakarta.variable} ${serif.variable}`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`${jakarta.variable} ${serif.variable}`}>
       <body className="min-h-screen">
         <Providers settings={settings} initialUser={me ? { ...me, memberSince: new Date(me.memberSince).toISOString() } : null}>
           {children}

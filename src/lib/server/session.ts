@@ -2,7 +2,7 @@ import "server-only";
 import { cookies, headers } from "next/headers";
 import { exec, queryOne, sqlDate } from "./db";
 import { env, isProd } from "./env";
-import { randomToken, sha256 } from "./crypto";
+import { bidxOpt, decrypt, encOpt, randomToken, sha256 } from "./crypto";
 import { ApiError } from "./http";
 import type { ClientInfo } from "./request";
 import { ADMIN_ONLY, can, isPermission, type AdminIdentity, type Permission } from "../permissions";
@@ -28,30 +28,28 @@ async function bearer(): Promise<string | null> {
 
 /* ----------------------------- Customers ----------------------------- */
 
-export type SessionUser = {
-  id: number;
-  uid: string;
-  name: string | null;
-  emailMasked: string | null;
-  phoneMasked: string | null;
-  emailVerified: boolean;
-  phoneVerified: boolean;
-  sessionId: number;
-};
+export type SessionUser = { id: number; uid: string; sessionId: number };
+
+async function encClient(info: ClientInfo & { location: string }) {
+  const [ip, location, ua, device] = await Promise.all([encOpt(info.ip), encOpt(info.location), encOpt(info.userAgent), encOpt(info.device)]);
+  return { ip, ipBidx: bidxOpt("ip", info.ip), location, ua, device };
+}
 
 export async function createUserSession(userId: number, info: ClientInfo & { location: string }, method: string) {
   const token = randomToken(32);
   const now = new Date();
   const expires = new Date(now.getTime() + env.userSessionDays * 86400_000);
+  const e = await encClient(info);
   await exec(
-    "INSERT INTO user_sessions (user_id, token_hash, ip, location, user_agent, device, client, login_method, created_at, last_seen_at, expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-    [userId, sha256(token), info.ip, info.location || null, info.userAgent, info.device, info.client, method, sqlDate(now), sqlDate(now), sqlDate(expires)],
+    "INSERT INTO user_sessions (user_id, token_hash, ip_enc, ip_bidx, location_enc, user_agent_enc, device_enc, client, login_method, created_at, last_seen_at, expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [userId, sha256(token), e.ip, e.ipBidx, e.location, e.ua, e.device, info.client, method, sqlDate(now), sqlDate(now), sqlDate(expires)],
   );
-  await exec("UPDATE users SET last_login_at = ?, last_login_ip = ?, last_location = ?, last_device = ? WHERE id = ?", [
+  await exec("UPDATE users SET last_login_at = ?, last_login_ip_enc = ?, last_login_ip_bidx = ?, last_location_enc = ?, last_device_enc = ? WHERE id = ?", [
     sqlDate(now),
-    info.ip,
-    info.location || null,
-    info.device,
+    e.ip,
+    e.ipBidx,
+    e.location,
+    e.device,
     userId,
   ]);
   if (info.client === "web") {
@@ -63,19 +61,8 @@ export async function createUserSession(userId: number, info: ClientInfo & { loc
 export async function getSessionUser(): Promise<SessionUser | null> {
   const token = (await bearer()) || (await cookies()).get(USER_COOKIE)?.value;
   if (!token || token.length > 100) return null;
-  const row = await queryOne<{
-    sid: number;
-    stale: number;
-    id: number;
-    uid: string;
-    name: string | null;
-    email_masked: string | null;
-    phone_masked: string | null;
-    email_verified_at: Date | null;
-    phone_verified_at: Date | null;
-  }>(
-    `SELECT s.id AS sid, (s.last_seen_at < UTC_TIMESTAMP() - INTERVAL 5 MINUTE) AS stale,
-            u.id, u.uid, u.name, u.email_masked, u.phone_masked, u.email_verified_at, u.phone_verified_at
+  const row = await queryOne<{ sid: number; stale: number; id: number; uid: string }>(
+    `SELECT s.id AS sid, (s.last_seen_at < UTC_TIMESTAMP() - INTERVAL 5 MINUTE) AS stale, u.id, u.uid
        FROM user_sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > UTC_TIMESTAMP() AND u.status = 'active'`,
     [sha256(token)],
@@ -88,16 +75,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       row.sid,
     ]);
   }
-  return {
-    id: row.id,
-    uid: row.uid,
-    name: row.name,
-    emailMasked: row.email_masked,
-    phoneMasked: row.phone_masked,
-    emailVerified: !!row.email_verified_at,
-    phoneVerified: !!row.phone_verified_at,
-    sessionId: row.sid,
-  };
+  return { id: row.id, uid: row.uid, sessionId: row.sid };
 }
 
 export async function requireUser(): Promise<SessionUser> {
@@ -129,9 +107,10 @@ export async function createAdminSession(adminId: number, info: ClientInfo & { l
   const token = randomToken(32);
   const now = new Date();
   const expires = new Date(now.getTime() + env.adminSessionHours * 3600_000);
+  const e = await encClient(info);
   await exec(
-    "INSERT INTO admin_sessions (admin_id, token_hash, ip, location, user_agent, device, created_at, last_seen_at, expires_at) VALUES (?,?,?,?,?,?,?,?,?)",
-    [adminId, sha256(token), info.ip, info.location || null, info.userAgent, info.device, sqlDate(now), sqlDate(now), sqlDate(expires)],
+    "INSERT INTO admin_sessions (admin_id, token_hash, ip_enc, ip_bidx, location_enc, user_agent_enc, device_enc, created_at, last_seen_at, expires_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+    [adminId, sha256(token), e.ip, e.ipBidx, e.location, e.ua, e.device, sqlDate(now), sqlDate(now), sqlDate(expires)],
   );
   // No `expires` → browser-session cookie (cleared when the browser closes)
   (await cookies()).set(ADMIN_COOKIE, token, { ...baseCookie, sameSite: "strict" });
@@ -144,13 +123,13 @@ export async function getSessionAdmin(): Promise<SessionAdmin | null> {
     sid: number;
     idle: number;
     id: number;
-    name: string;
-    email: string;
+    name_enc: string;
+    email_enc: string;
     role: "admin" | "staff";
     permissions: string | string[] | null;
   }>(
     `SELECT s.id AS sid, TIMESTAMPDIFF(SECOND, s.last_seen_at, UTC_TIMESTAMP()) AS idle,
-            a.id, a.name, a.email, a.role, a.permissions
+            a.id, a.name_enc, a.email_enc, a.role, a.permissions
        FROM admin_sessions s JOIN admins a ON a.id = s.admin_id
       WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > UTC_TIMESTAMP() AND a.status = 'active'`,
     [sha256(token)],
@@ -164,8 +143,8 @@ export async function getSessionAdmin(): Promise<SessionAdmin | null> {
   const raw = typeof row.permissions === "string" ? (JSON.parse(row.permissions) as string[]) : row.permissions || [];
   return {
     id: row.id,
-    name: row.name,
-    email: row.email,
+    name: await decrypt(row.name_enc),
+    email: await decrypt(row.email_enc),
     role: row.role,
     permissions: raw.filter(isPermission) as Permission[],
     sessionId: row.sid,

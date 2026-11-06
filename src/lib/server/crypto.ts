@@ -108,10 +108,25 @@ export const encryptionMode = (): "aws-kms" | "local-aes" => (kms ? "aws-kms" : 
  * Hashing helpers
  * ------------------------------------------------------------------- */
 
-/** Deterministic keyed hash for exact-match lookups of encrypted columns. */
-export function blindIndex(kind: "email" | "phone", value: string): string {
-  return crypto.createHmac("sha256", env.hmacSecret).update(`bidx:${kind}:${value}`).digest("hex");
+/** Encrypt when there is a value; null otherwise (for nullable *_enc columns). */
+export async function encOpt(v: string | null | undefined): Promise<string | null> {
+  return v === null || v === undefined || v === "" ? null : encrypt(String(v));
 }
+
+export type BidxKind = "email" | "phone" | "name" | "ip" | "ref";
+
+export function normalizeForIndex(kind: BidxKind, value: string): string {
+  const v = value.trim();
+  if (kind === "name") return v.toLowerCase().replace(/\s+/g, " ");
+  if (kind === "email" || kind === "ref") return v.toLowerCase();
+  return v;
+}
+
+/** Deterministic keyed hash for exact-match lookups of encrypted columns. */
+export function blindIndex(kind: BidxKind, value: string): string {
+  return crypto.createHmac("sha256", env.hmacSecret).update(`bidx:${kind}:${normalizeForIndex(kind, value)}`).digest("hex");
+}
+export const bidxOpt = (kind: BidxKind, v: string | null | undefined) => (v ? blindIndex(kind, v) : null);
 
 /** Keyed hash for OTP codes (bound to challenge id so hashes are not reusable). */
 export function hashOtp(challengeId: string, code: string): string {
@@ -136,11 +151,11 @@ export function safeEqualHex(a: string, b: string): boolean {
   return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
 }
 
-/** Sortable 26-char public id. */
-export function newUid(): string {
-  const time = Date.now().toString(36).padStart(10, "0");
-  return (time + crypto.randomBytes(10).toString("hex")).slice(0, 26).toUpperCase();
+/** Customer public id: "SKYO" + 8 random digits, e.g. SKYO67682378 (caller retries on collision). */
+export function newSkyoId(): string {
+  return "SKYO" + crypto.randomInt(10_000_000, 100_000_000).toString();
 }
+export const isSkyoId = (v: string) => /^SKYO\d{8}$/i.test(v.trim());
 
 /* ---------------------------------------------------------------------
  * Passwords — scrypt (memory hard), N=2^15, r=8, p=1, 64-byte key

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { BusFront, Building2, CheckCircle2, Clock, IndianRupee, Palmtree, Plane, TrainFront, XCircle } from "lucide-react";
 import { useFetch } from "./use-fetch";
-import { Badge, Card, PageHeader, Pager, SearchBox, Select, StatCard, Table, usePage } from "./ui";
+import { Badge, Card, PageHeader, Pager, SearchBox, Select, StatCard, Table, Td, Toolbar, usePage } from "./ui";
 import { useDebounced } from "./users";
 import { formatINR, timeAgo } from "@/lib/utils";
 import type { ServiceKey } from "@/lib/permissions";
@@ -16,7 +16,7 @@ const META: Record<ServiceKey, { title: string; icon: typeof Plane; sub: string;
   package: { title: "Package bookings", icon: Palmtree, sub: "Holiday packages and itineraries.", trip: "Package" },
 };
 
-type B = { id: number; booking_ref: string; status: string; payment_status: string; title: string; origin: string | null; destination: string | null; travel_date: string | null; travellers: number; amount_paise: number; provider: string | null; created_at: string; user_id: number; user_name: string | null; user_uid: string };
+type B = { id: number; booking_ref: string; status: string; payment_status: string; title: string; origin: string | null; destination: string | null; travel_date: string | null; travellers: number; amount_paise: number; provider: string | null; created_at: string; user_id: number; user_name: string | null; user_uid: string; provider_ref: string | null };
 
 export function BookingsView({ service }: { service: ServiceKey }) {
   const m = META[service];
@@ -29,31 +29,31 @@ export function BookingsView({ service }: { service: ServiceKey }) {
   );
   return (
     <>
-      <PageHeader icon={<m.icon className="h-6 w-6" />} title={m.title} sub={m.sub} />
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Confirmed" value={data?.summary.confirmed ?? "—"} icon={<CheckCircle2 className="h-5 w-5" />} tone="mint" />
-        <StatCard label="Pending" value={data?.summary.pending ?? "—"} icon={<Clock className="h-5 w-5" />} tone="sky" />
-        <StatCard label="Cancelled / refunded" value={data?.summary.cancelled ?? "—"} icon={<XCircle className="h-5 w-5" />} tone="iris" />
-        <StatCard label="Revenue" value={data ? formatINR(data.summary.revenuePaise) : "—"} icon={<IndianRupee className="h-5 w-5" />} />
+      <PageHeader icon={<m.icon />} title={m.title} sub={m.sub} />
+      <div className="mb-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Confirmed" value={data?.summary.confirmed ?? "—"} icon={<CheckCircle2 />} tone="mint" />
+        <StatCard label="Pending" value={data?.summary.pending ?? "—"} icon={<Clock />} tone="sky" />
+        <StatCard label="Cancelled / refunded" value={data?.summary.cancelled ?? "—"} icon={<XCircle />} tone="iris" />
+        <StatCard label="Revenue" value={data ? formatINR(data.summary.revenuePaise) : "—"} icon={<IndianRupee />} />
       </div>
       <Card>
-        <div className="flex flex-wrap items-center gap-3 border-b border-line p-4">
-          <SearchBox value={q} onChange={setQ} placeholder="Booking ref, PNR or route" />
+        <Toolbar>
+          <SearchBox value={q} onChange={setQ} placeholder="Booking ref, PNR / provider ref, or SKYO ID" />
           <Select value={status} onChange={setStatus} options={[["", "All statuses"], ["confirmed", "Confirmed"], ["pending", "Pending"], ["cancelled", "Cancelled"], ["failed", "Failed"], ["refunded", "Refunded"]]} />
-          {service === "train" && <span className="ml-auto rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand">Live IRCTC integration: coming next</span>}
-        </div>
-        <Table head={["Ref", m.trip, "Traveller", "Travel date", "Pax", "Amount", "Payment", "Status", "Booked"]} loading={loading} empty={!data?.bookings.length}>
+          {service === "train" && <span className="ml-auto rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-700">Live IRCTC integration: coming next</span>}
+        </Toolbar>
+        <Table head={["Ref", m.trip, "SKYO ID", "Travel date", "Pax", "Amount", "Payment", "Status", "Booked"]} loading={loading} empty={!data?.bookings.length}>
           {data?.bookings.map((b) => (
-            <tr key={b.id} className="hover:bg-surface/60">
-              <td className="px-5 py-3 font-mono text-xs font-bold">{b.booking_ref}</td>
-              <td className="px-5 py-3 text-xs"><div className="font-semibold">{b.title}</div><div className="text-muted">{[b.origin, b.destination].filter(Boolean).join(" → ")}</div></td>
-              <td className="px-5 py-3 text-xs"><Link href={`/admin/users/${b.user_id}`} className="font-semibold hover:text-brand">{b.user_name || b.user_uid}</Link></td>
-              <td className="px-5 py-3 text-xs">{b.travel_date ? new Date(b.travel_date).toLocaleDateString("en-IN") : "—"}</td>
-              <td className="px-5 py-3 text-center text-xs">{b.travellers}</td>
-              <td className="px-5 py-3 text-xs font-bold">{formatINR(b.amount_paise)}</td>
+            <tr key={b.id} className="hover:bg-neutral-50/70">
+              <td className="px-4 py-3 font-mono text-xs font-bold">{b.booking_ref}</td>
+              <td className="px-4 py-3 text-xs"><div className="font-semibold">{b.title}</div><div className="text-muted">{[b.origin, b.destination].filter(Boolean).join(" → ")}</div></td>
+              <Td><Link href={`/admin/users/${b.user_id}`} className="hover:underline"><div className="font-mono text-xs">{b.user_uid}</div><div className="text-[11px] text-neutral-500">{b.user_name}</div></Link></Td>
+              <td className="px-4 py-3 text-xs">{b.travel_date ? new Date(b.travel_date).toLocaleDateString("en-IN") : "—"}</td>
+              <td className="px-4 py-3 text-center text-xs">{b.travellers}</td>
+              <td className="px-4 py-3 text-xs font-bold">{formatINR(b.amount_paise)}</td>
               <td className="px-5 py-3"><Badge>{b.payment_status}</Badge></td>
               <td className="px-5 py-3"><Badge>{b.status}</Badge></td>
-              <td className="px-5 py-3 text-xs text-muted">{timeAgo(b.created_at)}</td>
+              <td className="px-4 py-3 text-xs text-muted">{timeAgo(b.created_at)}</td>
             </tr>
           ))}
         </Table>

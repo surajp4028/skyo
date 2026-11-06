@@ -1,8 +1,7 @@
 import "server-only";
 import { exec, queryOne, sqlDate } from "./db";
-import { blindIndex, decrypt, encrypt, newUid, randomToken, sha256 } from "./crypto";
+import { bidxOpt, blindIndex, decrypt, encOpt, encrypt, newSkyoId, randomToken, sha256 } from "./crypto";
 import { ApiError } from "./http";
-import { maskEmail, maskPhone } from "./validators";
 
 export const CONSENT_VERSION = "2026-11";
 
@@ -18,6 +17,7 @@ export function assertActive(u: UserRow) {
   }
 }
 
+/** Creates a customer with a fresh SKYO######## id. All personal fields are KMS-encrypted. */
 export async function createUser(input: {
   name?: string | null;
   email?: string | null;
@@ -29,37 +29,44 @@ export async function createUser(input: {
   ip: string;
 }): Promise<UserRow> {
   const now = sqlDate();
-  const uid = newUid();
-  try {
-    const res = await exec(
-      `INSERT INTO users (uid, name, email_enc, email_bidx, email_masked, email_verified_at,
-                          phone_enc, phone_bidx, phone_masked, phone_verified_at,
-                          signup_method, consent_at, consent_version, signup_ip)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        uid,
-        input.name ?? null,
-        input.email ? await encrypt(input.email) : null,
-        input.email ? blindIndex("email", input.email) : null,
-        input.email ? maskEmail(input.email) : null,
-        input.email && input.emailVerified ? now : null,
-        input.phone ? await encrypt(input.phone) : null,
-        input.phone ? blindIndex("phone", input.phone) : null,
-        input.phone ? maskPhone(input.phone) : null,
-        input.phone && input.phoneVerified ? now : null,
-        input.method,
-        input.consent ? now : null,
-        input.consent ? CONSENT_VERSION : null,
-        input.ip,
-      ],
-    );
-    return { id: res.insertId, uid, status: "active" };
-  } catch (e) {
-    if ((e as { code?: string }).code === "ER_DUP_ENTRY") {
-      throw new ApiError(409, "ALREADY_REGISTERED", "An account with these details already exists. Please log in.");
+  const enc = {
+    name: await encOpt(input.name),
+    email: await encOpt(input.email),
+    phone: await encOpt(input.phone),
+    ip: await encOpt(input.ip),
+  };
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const uid = newSkyoId();
+    try {
+      const res = await exec(
+        `INSERT INTO users (uid, name_enc, name_bidx, email_enc, email_bidx, email_verified_at,
+                            phone_enc, phone_bidx, phone_verified_at, signup_method, consent_at, consent_version, signup_ip_enc)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          uid,
+          enc.name,
+          bidxOpt("name", input.name),
+          enc.email,
+          bidxOpt("email", input.email),
+          input.email && input.emailVerified ? now : null,
+          enc.phone,
+          bidxOpt("phone", input.phone),
+          input.phone && input.phoneVerified ? now : null,
+          input.method,
+          input.consent ? now : null,
+          input.consent ? CONSENT_VERSION : null,
+          enc.ip,
+        ],
+      );
+      return { id: res.insertId, uid, status: "active" };
+    } catch (e) {
+      const err = e as { code?: string; message?: string };
+      if (err.code === "ER_DUP_ENTRY" && err.message?.includes("uq_users_uid")) continue; // id collision → retry
+      if (err.code === "ER_DUP_ENTRY") throw new ApiError(409, "ALREADY_REGISTERED", "An account with these details already exists. Please log in.");
+      throw e;
     }
-    throw e;
   }
+  throw new ApiError(500, "ID_EXHAUSTED", "Could not allocate an account id. Please retry.");
 }
 
 /* ---------- Registration verification tickets (proof of OTP success) ---------- */

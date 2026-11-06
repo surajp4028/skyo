@@ -6,8 +6,9 @@ Trains · Flights · Buses · Hotels · Packages. Next.js 16 (App Router) + MySQ
 
 ```bash
 npm install
-npm run db:setup     # creates DB `skyo`, tables, seeds admin@gmail.com / Password555@
-npm run dev          # http://localhost:3000
+npm run db:setup       # fresh install: DB `skyo`, v2 tables, seeds admin@gmail.com / Password555@
+npm run db:migrate-v2  # only for an existing v1 database (take a mysqldump first)
+npm run dev            # http://localhost:3000
 ```
 
 - Traveller login: http://localhost:3000/login (email **or** mobile → OTP, account auto-created)
@@ -52,20 +53,23 @@ src/
       ├─ session.ts             # user + agent sessions
       ├─ settings.ts  audit.ts  ratelimit.ts  request.ts  validators.ts  http.ts
       └─ admin/                 # ⟵ ADMIN queries + page guard (separate)
-database/schema.sql             # import in phpMyAdmin or run db:setup
-scripts/db-setup.mjs
+database/schema.sql             # v2 schema (db:setup applies it)
+scripts/db-setup.mts            # fresh install + encrypted admin seed
+scripts/migrate-v2.mts          # v1 → v2 re-encryption migration
 ```
 
 ## Security & compliance
 
 | Area | What's implemented |
 |---|---|
-| PII at rest | Email + phone encrypted with AES-256-GCM; data keys from **AWS KMS** (`AWS_KMS_KEY_ID`), local key fallback for dev. HMAC blind indexes for lookup. |
+| Data at rest | **Every** personal value — customer & agent names, emails, phones, IPs, locations, devices, user-agents, audit details, booking trip/passenger data — is stored only as AWS KMS envelope ciphertext (AES-256-GCM). Full, unmasked values; decrypted in the app for authorised viewers. HMAC blind indexes allow exact search (SKYO ID, email, mobile, IP, full name). Rate-limit keys are hashed. |
+| Customer ID | `SKYO` + 8 digits (e.g. `SKYO67682378`); bookings are mapped to it. |
+| Contact change | Customers add/change email or mobile from My Account via OTP to the new value; values already used by another account are rejected. |
 | Passwords | Agents only — scrypt (N=2¹⁵). Travellers are passwordless (OTP). |
 | OTP | 6 digits, HMAC-hashed, 5-min TTL, 5 attempts (atomic), single use, resend cooldown, per-IP + per-identifier rate limits. |
 | Sessions | 256-bit opaque tokens, only SHA-256 stored. Traveller: HttpOnly cookie, 180-day rolling ("logged in until logout"), profile snapshot in localStorage. Agent: browser-session cookie, 30-min idle + 12 h absolute, SameSite=Strict. |
 | Web | Nonce CSP, HSTS, X-Frame-Options DENY, nosniff, Referrer & Permissions policy, CSRF (Origin + Sec-Fetch-Site + custom header). |
-| Access control | Admin (all) / Staff (granular permissions) enforced on every API + page; last-admin and self-demotion protection; lockout after 5 failed logins. |
+| Access control | Admin (all) / Staff (granular permissions) enforced on every API + page; admins see full PII, staff only with `users.contact`; force-logout per user or for everyone (typed confirmation); last-admin and self-demotion protection; lockout after 5 failed logins. |
 | Audit | Logins, failures, lockouts, PII reveals, status/permission/settings changes. |
 | DPDP 2023 | Consent captured with version + timestamp, privacy notice, grievance officer, device sign-out, masked PII by default in admin. |
 | Mobile-ready | Send `X-Skyo-Client: android|ios` → APIs return a bearer token; use `Authorization: Bearer …`. |

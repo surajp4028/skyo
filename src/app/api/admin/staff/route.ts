@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ApiError, ok, readJson, route } from "@/lib/server/http";
 import { requireAdmin } from "@/lib/server/session";
 import { exec, query } from "@/lib/server/db";
-import { hashPassword } from "@/lib/server/crypto";
+import { blindIndex, decrypt, encrypt, hashPassword } from "@/lib/server/crypto";
 import { emailSchema, nameSchema, strongPassword } from "@/lib/server/validators";
 import { isPermission } from "@/lib/permissions";
 import { audit } from "@/lib/server/audit";
@@ -11,13 +11,21 @@ import { getClientIp } from "@/lib/server/request";
 
 export const GET = route(async () => {
   await requireAdmin("staff.manage");
-  const rows = await query(
-    `SELECT a.id, a.name, a.email, a.role, a.permissions, a.status, a.last_login_at, a.last_login_ip, a.created_at,
+  const rows = await query<{ id: number; name_enc: string; email_enc: string; last_login_ip_enc: string | null } & Record<string, unknown>>(
+    `SELECT a.id, a.name_enc, a.email_enc, a.role, a.permissions, a.status, a.last_login_at, a.last_login_ip_enc, a.created_at,
             (a.locked_until IS NOT NULL AND a.locked_until > UTC_TIMESTAMP()) AS locked,
             (SELECT COUNT(*) FROM admin_sessions s WHERE s.admin_id = a.id AND s.revoked_at IS NULL AND s.expires_at > UTC_TIMESTAMP()) AS active_sessions
        FROM admins a ORDER BY a.role = 'admin' DESC, a.id`,
   );
-  return ok({ staff: rows });
+  const staff = await Promise.all(
+    rows.map(async ({ name_enc, email_enc, last_login_ip_enc, ...r }) => ({
+      ...r,
+      name: await decrypt(name_enc),
+      email: await decrypt(email_enc),
+      last_login_ip: (await decrypt(last_login_ip_enc)) || null,
+    })),
+  );
+  return ok({ staff });
 });
 
 const staffSchema = z.object({
@@ -33,8 +41,8 @@ export const POST = route(async (req: NextRequest) => {
   const body = await readJson(req, staffSchema);
   try {
     const r = await exec(
-      "INSERT INTO admins (name, email, password_hash, role, permissions, created_by, password_changed_at) VALUES (?,?,?,?,?,?, UTC_TIMESTAMP())",
-      [body.name, body.email, await hashPassword(body.password), body.role, JSON.stringify(body.role === "admin" ? [] : body.permissions), a.id],
+      "INSERT INTO admins (name_enc, email_enc, email_bidx, password_hash, role, permissions, created_by, password_changed_at) VALUES (?,?,?,?,?,?,?, UTC_TIMESTAMP())",
+      [await encrypt(body.name), await encrypt(body.email), blindIndex("email", body.email), await hashPassword(body.password), body.role, JSON.stringify(body.role === "admin" ? [] : body.permissions), a.id],
     );
     await audit({ actorType: "admin", actorId: a.id, action: "staff.create", targetType: "admin", targetId: r.insertId, ip: getClientIp(req.headers), meta: { role: body.role } });
     return ok({ id: r.insertId });

@@ -3,9 +3,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Database, KeyRound, Mail, MessageSquare, Settings2, ShieldCheck, Timer } from "lucide-react";
 import { useFetch } from "./use-fetch";
-import { Card, PageHeader } from "./ui";
+import { Btn, Card, PageHeader } from "./ui";
 import { api, errMsg } from "@/lib/client/api";
-import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 
@@ -22,12 +21,13 @@ export function SettingsView() {
   return (
     <>
       <PageHeader
-        icon={<Settings2 className="h-6 w-6" />}
+        icon={<Settings2 />}
         title="Settings"
         sub="Branding and behaviour. Changing the website name updates every page, email sender label stays in .env."
         actions={
-          <Button
-            loading={busy}
+          <Btn
+            variant="dark"
+            disabled={busy}
             onClick={async () => {
               setBusy(true);
               try {
@@ -41,7 +41,7 @@ export function SettingsView() {
             }}
           >
             Save settings
-          </Button>
+          </Btn>
         }
       />
       <div className="grid gap-6 xl:grid-cols-3">

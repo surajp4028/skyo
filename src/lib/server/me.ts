@@ -1,18 +1,20 @@
 import "server-only";
 import { queryOne } from "./db";
+import { decrypt } from "./crypto";
 
-/** Public-safe profile of the signed-in customer (masked contact details only). */
+/** The signed-in customer's own profile — full values (they own the data). */
 export async function loadMe(userId: number) {
-  const u = await queryOne<{ uid: string; name: string | null; email_masked: string | null; phone_masked: string | null; email_verified_at: Date | null; phone_verified_at: Date | null; created_at: Date }>(
-    "SELECT uid, name, email_masked, phone_masked, email_verified_at, phone_verified_at, created_at FROM users WHERE id = ?",
+  const u = await queryOne<{ uid: string; name_enc: string | null; email_enc: string | null; phone_enc: string | null; email_verified_at: Date | null; phone_verified_at: Date | null; created_at: Date }>(
+    "SELECT uid, name_enc, email_enc, phone_enc, email_verified_at, phone_verified_at, created_at FROM users WHERE id = ?",
     [userId],
   );
   if (!u) return null;
+  const [name, email, phone] = await Promise.all([decrypt(u.name_enc), decrypt(u.email_enc), decrypt(u.phone_enc)]);
   return {
     uid: u.uid,
-    name: u.name,
-    email: u.email_masked,
-    phone: u.phone_masked ? `+91 ${u.phone_masked}` : null,
+    name: name || null,
+    email: email || null,
+    phone: phone ? `+91 ${phone}` : null,
     emailVerified: !!u.email_verified_at,
     phoneVerified: !!u.phone_verified_at,
     memberSince: u.created_at,

@@ -11,10 +11,10 @@ export default async function AccountPage() {
   const u = await getSessionUser();
   if (!u) redirect("/login?next=/account");
   return (
-    <>
+    <div className="relative">
       <Navbar overHero={false} />
       <AccountView />
       <Footer />
-    </>
+    </div>
   );
 }

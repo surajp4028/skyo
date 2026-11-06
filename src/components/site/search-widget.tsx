@@ -1,9 +1,10 @@
 "use client";
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { ArrowLeftRight, BusFront, Building2, CalendarDays, MapPin, Palmtree, Plane, Search, TrainFront, Users, Ticket, Radio, Armchair } from "lucide-react";
+import { ArrowLeftRight, BusFront, Building2, CalendarDays, CloudSun, MapPin, Moon, Palmtree, Plane, Search, Sun, Sunrise, TrainFront, Users, Ticket, Radio, Armchair } from "lucide-react";
+import { DatePicker, toISO } from "@/components/ui/date-picker";
 import { AnimatedTabs } from "@/components/ui/animated-tabs";
 import { cn } from "@/lib/utils";
 
@@ -22,11 +23,10 @@ const STATIONS = [
 ];
 const CITIES = ["Delhi", "Mumbai", "Bengaluru", "Kolkata", "Chennai", "Hyderabad", "Pune", "Goa", "Jaipur", "Ahmedabad", "Lucknow", "Kochi", "Srinagar", "Manali", "Udaipur", "Varanasi"];
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (n: number) => {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  return iso(d);
+  return toISO(d); // local calendar date (IST), not UTC
 };
 
 export function SearchWidget() {
@@ -83,16 +83,6 @@ function Place({ label, value, onChange, list, placeholder }: { label: string; v
   );
 }
 
-function DateBox({ label, value, onChange, min }: { label: string; value: string; onChange: (v: string) => void; min?: string }) {
-  const pretty = useMemo(() => (value ? new Date(value + "T00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : ""), [value]);
-  return (
-    <Box label={label} icon={<CalendarDays className="h-3.5 w-3.5" />} className="md:max-w-[200px]">
-      <input type="date" value={value} min={min || addDays(0)} max={addDays(365)} onChange={(e) => onChange(e.target.value)} className={cn(inputCls, "text-[15px]")} aria-label={label} />
-      {pretty && <span className="text-xs font-medium text-muted">{pretty}</span>}
-    </Box>
-  );
-}
-
 function Swap({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} aria-label="Swap" className="z-10 -my-3 mx-auto flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-full border border-line bg-white text-brand shadow-soft transition hover:rotate-180 hover:border-brand md:-mx-4 md:my-0">
@@ -134,6 +124,7 @@ function TrainForm() {
   const [to, setTo] = useState("Mumbai Central (MMCT)");
   const [date, setDate] = useState(() => addDays(1));
   const [quota, setQuota] = useState<"General" | "Tatkal" | "Ladies" | "Senior Citizen">("General");
+  const [slots, setSlots] = useState<string[]>([]);
   return (
     <form onSubmit={(e) => (e.preventDefault(), soon("Train", !!from && !!to && from !== to, from === to ? "From and To can't be the same" : undefined))} className="space-y-3">
       <datalist id="stations">{STATIONS.map((s) => <option key={s} value={s} />)}</datalist>
@@ -141,7 +132,7 @@ function TrainForm() {
         <Place label="From" value={from} onChange={setFrom} list="stations" placeholder="Enter station" />
         <Swap onClick={() => (setFrom(to), setTo(from))} />
         <Place label="To" value={to} onChange={setTo} list="stations" placeholder="Enter station" />
-        <DateBox label="Departure" value={date} onChange={setDate} />
+        <DatePicker label="Departure" value={date} onChange={setDate} className="md:max-w-[210px]" />
         <SearchBtn label="Search Trains" />
       </div>
       <div className="flex flex-col justify-between gap-3 px-1 md:flex-row md:items-center">
@@ -159,29 +150,30 @@ function TrainForm() {
           <button type="button" onClick={() => soon("Live running status", true)} className="flex items-center gap-1.5 rounded-full bg-sky/10 px-3 py-1.5 text-sky-600"><Radio className="h-3.5 w-3.5" /> Running status</button>
         </div>
       </div>
+      <div className="px-1"><TimeSlots value={slots} onChange={setSlots} /></div>
     </form>
   );
 }
 
 function FlightForm() {
-  const [trip, setTrip] = useState<"One way" | "Round trip">("One way");
   const [from, setFrom] = useState("Delhi");
   const [to, setTo] = useState("Mumbai");
   const [dep, setDep] = useState(() => addDays(3));
-  const [ret, setRet] = useState(() => addDays(6));
+  const [ret, setRet] = useState<string | null>(null);
+  const trip = ret ? "Round trip" : "One way";
+  const [slots, setSlots] = useState<string[]>([]);
   const [pax, setPax] = useState(1);
   const [cabin, setCabin] = useState("Economy");
   const [fare, setFare] = useState<"Regular" | "Student" | "Senior citizen" | "Armed forces">("Regular");
   return (
     <form onSubmit={(e) => (e.preventDefault(), soon("Flight", !!from && !!to && from !== to))} className="space-y-3">
       <datalist id="cities">{CITIES.map((s) => <option key={s} value={s} />)}</datalist>
-      <div className="px-1"><Chips items={["One way", "Round trip"] as ("One way" | "Round trip")[]} value={trip} onChange={setTrip} /></div>
+      <div className="px-1"><Chips items={["One way", "Round trip"] as ("One way" | "Round trip")[]} value={trip} onChange={(t) => setRet(t === "One way" ? null : addDaysTo(dep, 3))} /></div>
       <div className="flex flex-col gap-2 md:flex-row md:items-stretch">
         <Place label="From" value={from} onChange={setFrom} list="cities" placeholder="City or airport" />
         <Swap onClick={() => (setFrom(to), setTo(from))} />
         <Place label="To" value={to} onChange={setTo} list="cities" placeholder="City or airport" />
-        <DateBox label="Departure" value={dep} onChange={setDep} />
-        {trip === "Round trip" && <DateBox label="Return" value={ret} onChange={setRet} min={dep} />}
+        <DatePicker label="Departure" value={dep} onChange={setDep} endLabel="Return" endValue={ret} onEndChange={setRet} className="md:max-w-[340px]" />
         <Box label="Travellers & class" icon={<Users className="h-3.5 w-3.5" />} className="md:max-w-[200px]">
           <div className="mt-1 flex items-center gap-2">
             <button type="button" onClick={() => setPax((p) => Math.max(1, p - 1))} className="h-7 w-7 rounded-full bg-surface font-bold">−</button>
@@ -194,7 +186,10 @@ function FlightForm() {
         </Box>
         <SearchBtn label="Search" />
       </div>
-      <div className="px-1"><Chips items={["Regular", "Student", "Senior citizen", "Armed forces"] as ("Regular" | "Student" | "Senior citizen" | "Armed forces")[]} value={fare} onChange={setFare} /></div>
+      <div className="flex flex-col gap-3 px-1 lg:flex-row lg:items-center lg:justify-between">
+        <Chips items={["Regular", "Student", "Senior citizen", "Armed forces"] as ("Regular" | "Student" | "Senior citizen" | "Armed forces")[]} value={fare} onChange={setFare} />
+        <TimeSlots value={slots} onChange={setSlots} />
+      </div>
     </form>
   );
 }
@@ -204,6 +199,7 @@ function BusForm() {
   const [to, setTo] = useState("Goa");
   const [date, setDate] = useState(() => addDays(1));
   const [kind, setKind] = useState<"Any" | "AC" | "Sleeper" | "Volvo">("Any");
+  const [slots, setSlots] = useState<string[]>([]);
   return (
     <form onSubmit={(e) => (e.preventDefault(), soon("Bus", !!from && !!to && from !== to))} className="space-y-3">
       <datalist id="bcities">{CITIES.map((s) => <option key={s} value={s} />)}</datalist>
@@ -211,12 +207,14 @@ function BusForm() {
         <Place label="From" value={from} onChange={setFrom} list="bcities" placeholder="Leaving from" />
         <Swap onClick={() => (setFrom(to), setTo(from))} />
         <Place label="To" value={to} onChange={setTo} list="bcities" placeholder="Going to" />
-        <DateBox label="Travel date" value={date} onChange={setDate} />
+        <DatePicker label="Travel date" value={date} onChange={setDate} className="md:max-w-[210px]" />
         <SearchBtn label="Search Buses" />
       </div>
-      <div className="flex items-center gap-3 px-1">
+      <div className="flex flex-wrap items-center gap-3 px-1">
         <Armchair className="h-4 w-4 text-muted" />
         <Chips items={["Any", "AC", "Sleeper", "Volvo"] as ("Any" | "AC" | "Sleeper" | "Volvo")[]} value={kind} onChange={setKind} />
+        <span className="mx-1 hidden h-4 w-px bg-line lg:block" />
+        <TimeSlots value={slots} onChange={setSlots} />
       </div>
     </form>
   );
@@ -233,8 +231,7 @@ function HotelForm() {
       <datalist id="hcities">{CITIES.map((s) => <option key={s} value={s} />)}</datalist>
       <div className="flex flex-col gap-2 md:flex-row md:items-stretch">
         <Place label="City, area or hotel" value={city} onChange={setCity} list="hcities" placeholder="Where to?" />
-        <DateBox label="Check-in" value={inD} onChange={setIn} />
-        <DateBox label="Check-out" value={outD} onChange={setOut} min={inD} />
+        <DatePicker label="Check-in" value={inD} onChange={setIn} endLabel="Check-out" endValue={outD} onEndChange={(v) => setOut(v || addDaysTo(inD, 1))} className="md:max-w-[340px]" />
         <Box label="Rooms & guests" icon={<Users className="h-3.5 w-3.5" />} className="md:max-w-[220px]">
           <div className="mt-1 flex items-center gap-3 text-sm font-bold">
             <Counter v={rooms} set={setRooms} min={1} max={8} label="Room" />
@@ -273,5 +270,49 @@ function PackageForm() {
       </div>
       <div className="px-1"><Chips items={["Family", "Honeymoon", "Adventure", "Pilgrimage", "Beach"] as ("Honeymoon" | "Family" | "Adventure" | "Pilgrimage" | "Beach")[]} value={theme} onChange={setTheme} /></div>
     </form>
+  );
+}
+
+const addDaysTo = (iso: string, n: number) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return toISO(new Date(y, m - 1, d + n));
+};
+
+const SLOTS = [
+  { key: "early", label: "Early", range: "12a–6a", icon: Sunrise },
+  { key: "morning", label: "Morning", range: "6a–12p", icon: Sun },
+  { key: "afternoon", label: "Afternoon", range: "12p–6p", icon: CloudSun },
+  { key: "night", label: "Night", range: "6p–12a", icon: Moon },
+];
+
+/** Departure-time preference (multi-select). */
+function TimeSlots({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Departure time</span>
+      <div className="flex gap-1 rounded-2xl bg-surface p-1">
+        {SLOTS.map((s) => {
+          const on = value.includes(s.key);
+          return (
+            <button
+              key={s.key}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onChange(on ? value.filter((v) => v !== s.key) : [...value, s.key])}
+              className={cn(
+                "group flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-left transition",
+                on ? "bg-white text-ink shadow-[0_2px_10px_-4px_rgba(10,15,31,0.25)] ring-1 ring-brand/40" : "text-ink/55 hover:text-ink",
+              )}
+            >
+              <s.icon className={cn("h-4 w-4 transition", on ? "text-brand" : "group-hover:text-brand")} />
+              <span className="leading-tight">
+                <span className="block text-[11px] font-bold">{s.label}</span>
+                <span className="block text-[10px] font-medium opacity-70">{s.range}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
