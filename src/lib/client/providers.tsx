@@ -10,6 +10,14 @@ export type PublicSettings = {
   support_phone: string;
   maintenance_mode: string;
   maintenance_message: string;
+  service_train: string;
+  service_flight: string;
+  service_bus: string;
+  service_hotel: string;
+  service_package: string;
+  train_live: string;
+  max_saved_passengers: string;
+  max_passengers_per_booking: string;
 };
 export type Me = {
   uid: string;

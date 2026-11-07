@@ -16,13 +16,23 @@ export const SETTING_DEFS = {
   user_signup: { label: "Allow new user sign-ups", default: "on", max: 3, public: false },
   ip_geolocation: { label: "IP geolocation for sessions", default: "on", max: 3, public: false },
   otp_resend_seconds: { label: "OTP resend cooldown (s)", default: "45", max: 4, public: false },
+  service_train: { label: "Trains service", default: "on", max: 3, public: true },
+  service_flight: { label: "Flights service", default: "on", max: 3, public: true },
+  service_bus: { label: "Buses service", default: "on", max: 3, public: true },
+  service_hotel: { label: "Hotels service", default: "on", max: 3, public: true },
+  service_package: { label: "Packages service", default: "on", max: 3, public: true },
+  train_live: { label: "Train live running status", default: "on", max: 3, public: true },
+  train_api: { label: "Live train data (RailCore)", default: "on", max: 3, public: false },
+  max_saved_passengers: { label: "Max saved passengers per account", default: "20", max: 3, public: true },
+  max_passengers_per_booking: { label: "Max passengers per train booking", default: "6", max: 1, public: true },
+  train_daily_credit_cap: { label: "RailCore daily credit cap", default: process.env.RK_DAILY_CREDIT_CAP || "80", max: 6, public: false },
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFS;
 export const isSettingKey = (k: string): k is SettingKey => Object.prototype.hasOwnProperty.call(SETTING_DEFS, k);
 
 let cache: { at: number; map: Record<string, string> } | null = null;
-const TTL = 15_000;
+const TTL = 5_000; // admin changes go live within ~5 s on every instance
 
 async function load(): Promise<Record<string, string>> {
   if (cache && Date.now() - cache.at < TTL) return cache.map;
@@ -59,6 +69,14 @@ export async function getPublicSettings() {
     support_phone: string;
     maintenance_mode: string;
     maintenance_message: string;
+    service_train: string;
+    service_flight: string;
+    service_bus: string;
+    service_hotel: string;
+    service_package: string;
+    train_live: string;
+    max_saved_passengers: string;
+    max_passengers_per_booking: string;
   };
 }
 

@@ -3,21 +3,16 @@ import { motion } from "motion/react";
 import { Globe2, Plane, Star } from "lucide-react";
 import { WorldMap } from "@/components/ui/world-map";
 
-const DEL = { lat: 28.61, lng: 77.21, label: "Delhi" };
-const BOM = { lat: 19.08, lng: 72.88, label: "Mumbai" };
-const BLR = { lat: 12.97, lng: 77.59, label: "Bengaluru" };
-const MAA = { lat: 13.08, lng: 80.27, label: "Chennai" };
-const CCU = { lat: 22.57, lng: 88.36, label: "Kolkata" };
-
-const ROUTES = [
-  { start: DEL, end: { lat: 25.2, lng: 55.27, label: "Dubai" } },
-  { start: BOM, end: { lat: 51.51, lng: -0.13, label: "London" } },
-  { start: DEL, end: { lat: 40.71, lng: -74.01, label: "New York" } },
-  { start: BLR, end: { lat: 1.35, lng: 103.82, label: "Singapore" } },
-  { start: CCU, end: { lat: 13.76, lng: 100.5, label: "Bangkok" } },
-  { start: MAA, end: { lat: -8.65, lng: 115.22, label: "Bali" } },
-  { start: BOM, end: { lat: 48.86, lng: 2.35, label: "Paris" } },
-  { start: DEL, end: { lat: -33.87, lng: 151.21, label: "Sydney" } },
+const HUB = { lat: 28.61, lng: 77.21, label: "New Delhi" };
+const DESTS = [
+  { lat: 40.71, lng: -74.01, label: "New York" },
+  { lat: 51.51, lng: -0.13, label: "London" },
+  { lat: 55.76, lng: 37.62, label: "Moscow" },
+  { lat: 25.2, lng: 55.27, label: "Dubai" },
+  { lat: -1.29, lng: 36.82, label: "Nairobi" },
+  { lat: 1.35, lng: 103.82, label: "Singapore" },
+  { lat: 35.68, lng: 139.69, label: "Tokyo" },
+  { lat: -33.87, lng: 151.21, label: "Sydney" },
 ];
 
 export function WorldMapBlock({ mapSrc }: { mapSrc: string }) {
@@ -32,7 +27,7 @@ export function WorldMapBlock({ mapSrc }: { mapSrc: string }) {
           <p className="mt-3 text-base text-muted">International flights from every major Indian airport — with visa guides, forex tips and 24×7 support wherever you land.</p>
         </motion.div>
         <div className="mt-10">
-          <WorldMap mapSrc={mapSrc} dots={ROUTES} />
+          <WorldMap mapSrc={mapSrc} hub={HUB} destinations={DESTS} />
         </div>
         <div className="mx-auto mt-8 grid max-w-3xl grid-cols-3 gap-3">
           {[["120+", "countries", Globe2], ["500+", "routes", Plane], ["90+", "airlines", Star]].map(([n, l, I]) => {

@@ -13,6 +13,7 @@ export function AnimatedTabs<T extends string>({
   pillClassName,
   tabClassName,
   activeTextClassName = "text-white",
+  inactiveTextClassName = "text-muted hover:text-ink",
 }: {
   tabs: { value: T; label: string; icon?: ReactNode }[];
   value: T;
@@ -22,6 +23,7 @@ export function AnimatedTabs<T extends string>({
   pillClassName?: string;
   tabClassName?: string;
   activeTextClassName?: string;
+  inactiveTextClassName?: string;
 }) {
   return (
     <div role="tablist" className={cn("relative flex items-center gap-1 overflow-x-auto no-scrollbar", className)}>
@@ -34,7 +36,7 @@ export function AnimatedTabs<T extends string>({
             type="button"
             aria-selected={active}
             onClick={() => onChange(t.value)}
-            className={cn("relative flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors", active ? activeTextClassName : "text-muted hover:text-ink", tabClassName)}
+            className={cn("relative flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors", tabClassName, active ? activeTextClassName : inactiveTextClassName)}
             style={{ transformStyle: "preserve-3d" }}
           >
             {active && (

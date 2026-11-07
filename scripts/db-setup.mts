@@ -19,6 +19,27 @@ if ((cols as unknown[]).length) {
 }
 await c.query(schemaSql());
 await c.query("INSERT INTO schema_meta (meta_key, meta_value) VALUES ('version','2') ON DUPLICATE KEY UPDATE meta_value='2'");
+
+// v2.1: booking payment / ticket columns for databases created before them
+const bookingCols: [string, string][] = [
+  ["pay_provider", "VARCHAR(16) NULL AFTER currency"],
+  ["pay_order_id", "VARCHAR(64) NULL AFTER pay_provider"],
+  ["pay_payment_id", "VARCHAR(64) NULL AFTER pay_order_id"],
+  ["paid_at", "DATETIME NULL AFTER pay_payment_id"],
+  ["ticket_status", "ENUM('not_issued','issued','failed') NOT NULL DEFAULT 'not_issued' AFTER paid_at"],
+  ["pnr_enc", "TEXT NULL AFTER ticket_status"],
+  ["issued_at", "DATETIME NULL AFTER pnr_enc"],
+  ["hold_expires_at", "DATETIME NULL AFTER issued_at"],
+];
+for (const [col, def] of bookingCols) {
+  const [rows] = await c.query("SHOW COLUMNS FROM bookings LIKE ?", [col]);
+  if ((rows as unknown[]).length === 0) {
+    await c.query(`ALTER TABLE bookings ADD COLUMN ${col} ${def}`);
+    console.log(`✓ bookings.${col} added`);
+  }
+}
+const [idx] = await c.query("SHOW INDEX FROM bookings WHERE Key_name = 'uq_booking_pay_order'");
+if ((idx as unknown[]).length === 0) await c.query("ALTER TABLE bookings ADD UNIQUE KEY uq_booking_pay_order (pay_order_id)");
 console.log(`✓ schema v2 applied to ${dbName}`);
 
 const email = (process.env.SEED_ADMIN_EMAIL || "").toLowerCase();

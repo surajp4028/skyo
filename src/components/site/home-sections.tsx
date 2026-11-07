@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { motion } from "motion/react";
 import {
   ArrowRight, BadgePercent, BusFront, Building2, CalendarClock, Clock3, CreditCard, Gift, Headphones, Palmtree, Plane,
@@ -16,6 +16,8 @@ import { InfiniteMovingCards } from "@/components/ui/infinite-moving-cards";
 import { MovingBorderButton } from "@/components/ui/moving-border";
 import { SearchWidget } from "./search-widget";
 import { useSite } from "@/lib/client/providers";
+import { Meteors } from "@/components/ui/meteors";
+import { isServiceOn, type ServiceKey } from "@/lib/services";
 import { IMAGES, img } from "@/lib/utils";
 
 const fadeUp = { initial: { opacity: 0, y: 24 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, margin: "-80px" }, transition: { duration: 0.6 } };
@@ -25,29 +27,29 @@ export function Hero() {
   return (
     <section className="relative -mt-20 overflow-hidden pb-44 pt-32 md:pb-52 md:pt-40">
       {/* bluish sky */}
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,#1e7bf0_0%,#3d9bff_22%,#7cc4ff_52%,#c8e8ff_78%,#f6f7fb_100%)]" />
-      <div className="absolute -right-24 -top-32 h-[520px] w-[520px] rounded-full bg-[radial-gradient(circle,rgba(255,244,214,0.95)_0%,rgba(255,220,150,0.45)_30%,transparent_65%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.25),transparent_60%)]" />
+      {/* clear, saturated daytime sky */}
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,#0057ff_0%,#0a74ff_28%,#2f94ff_55%,#6cbcff_78%,#cfe9ff_92%,#f6f7fb_100%)]" />
+      <div className="absolute -right-16 -top-20 h-[360px] w-[360px] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.95)_0%,rgba(255,246,214,0.55)_22%,transparent_60%)]" />
       <Clouds />
       <FlightPath />
       <Spotlight className="-top-40 left-0 md:-top-20 md:left-60" fill="white" />
 
       <div className="relative z-10 mx-auto max-w-7xl px-5">
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-white/50 bg-white/30 px-4 py-1.5 text-xs font-semibold text-ink shadow-[0_8px_30px_-12px_rgba(10,15,31,0.35)] backdrop-blur-md">
-          <Sparkles className="h-3.5 w-3.5 text-brand" /> India&apos;s smartest way to travel · {site.site_name}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-white/30 bg-white/15 px-4 py-1.5 text-xs font-semibold text-white shadow-[0_8px_30px_-12px_rgba(0,30,90,0.5)] backdrop-blur-md">
+          <Sparkles className="h-3.5 w-3.5 text-amber-300" /> India&apos;s smartest way to travel · {site.site_name}
         </motion.div>
-        <h1 className="mx-auto max-w-4xl text-center text-4xl font-extrabold leading-[1.06] tracking-tight text-ink md:text-7xl">
+        <h1 className="mx-auto max-w-4xl text-center text-4xl font-extrabold leading-[1.06] tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,40,120,0.35)] md:text-7xl">
           Book{" "}
-          <FlipWords words={["flights", "trains", "buses", "hotels", "holidays"]} className="font-display font-normal italic text-gradient-deep" />
+          <FlipWords words={["flights", "trains", "buses", "hotels", "holidays"]} className="font-display font-normal italic text-gradient-sun" />
           <br className="hidden md:block" /> <span className="relative">without the chaos.</span>
         </h1>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mx-auto mt-6 max-w-2xl text-center text-base font-medium text-ink/70 md:text-lg">
+        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mx-auto mt-6 max-w-2xl text-center text-base font-medium text-white/90 [text-shadow:0_1px_12px_rgba(0,40,120,0.45)] md:text-lg">
           {site.site_tagline} Confirmed-seat predictions, instant refunds and zero hidden fees.
         </motion.p>
-        <div className="mx-auto mt-8 flex max-w-xl flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-ink/70">
+        <div className="mx-auto mt-8 flex max-w-xl flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-white/80 [text-shadow:0_1px_10px_rgba(0,40,120,0.45)]">
           {[["10Cr+", "tickets booked"], ["4.8★", "app rating"], ["₹0", "convenience fee on UPI"]].map(([a, b]) => (
             <div key={b} className="flex items-baseline gap-2">
-              <span className="text-xl font-extrabold text-ink">{a}</span>
+              <span className="text-xl font-extrabold text-white">{a}</span>
               {b}
             </div>
           ))}
@@ -80,20 +82,20 @@ export function Hero() {
 
 function Clouds() {
   const clouds = [
-    { top: "14%", w: 260, dur: 70, delay: -10, op: 0.9 },
-    { top: "30%", w: 380, dur: 95, delay: -40, op: 0.75 },
-    { top: "52%", w: 300, dur: 80, delay: -25, op: 0.85 },
-    { top: "8%", w: 200, dur: 60, delay: -50, op: 0.6 },
-    { top: "64%", w: 420, dur: 110, delay: -70, op: 0.7 },
+    { top: "16%", w: 220, dur: 75, delay: -10, op: 0.95 },
+    { top: "34%", w: 300, dur: 100, delay: -45, op: 0.9 },
+    { top: "58%", w: 260, dur: 85, delay: -25, op: 0.95 },
+    { top: "70%", w: 380, dur: 120, delay: -80, op: 0.9 },
   ];
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden [mask-image:radial-gradient(ellipse_46%_40%_at_50%_46%,transparent_45%,black_85%)]">
       {clouds.map((c, i) => (
         <div key={i} className="absolute left-0 animate-[drift_var(--d)_linear_infinite]" style={{ top: c.top, ["--d" as string]: `${c.dur}s`, animationDelay: `${c.delay}s`, opacity: c.op }}>
           <div className="relative" style={{ width: c.w, height: c.w * 0.32 }}>
-            <span className="absolute bottom-0 left-0 h-[60%] w-full rounded-full bg-white blur-[6px]" />
-            <span className="absolute bottom-[20%] left-[18%] h-[85%] w-[40%] rounded-full bg-white blur-[6px]" />
-            <span className="absolute bottom-[25%] left-[45%] h-[100%] w-[38%] rounded-full bg-white blur-[6px]" />
+            <span className="absolute bottom-0 left-0 h-[58%] w-full rounded-full bg-white blur-[2px]" />
+            <span className="absolute bottom-[22%] left-[16%] h-[85%] w-[40%] rounded-full bg-white blur-[2px]" />
+            <span className="absolute bottom-[28%] left-[44%] h-[105%] w-[38%] rounded-full bg-white blur-[2px]" />
+            <span className="absolute bottom-0 left-[6%] h-[30%] w-[88%] rounded-full bg-sky-100/70 blur-[3px]" />
           </div>
         </div>
       ))}
@@ -142,28 +144,56 @@ const SERVICES = [
 ];
 
 export function ServicesStrip() {
+  const site = useSite();
+  const list = SERVICES.filter((x) => isServiceOn(site, x.key as ServiceKey));
+  if (!list.length) return null;
   return (
     <section className="mx-auto max-w-7xl px-5 pt-20">
-      <SectionHead eyebrow="Everything in one app" title="Five ways to get going" sub="One login, one wallet, every mode of travel." />
-      <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-5">
-        {SERVICES.map((s, i) => (
-          <motion.div key={s.key} {...fadeUp} transition={{ duration: 0.5, delay: i * 0.07 }}>
-            <Link href={`/?tab=${s.key}#search`} className="group relative block aspect-[4/5] overflow-hidden rounded-3xl bg-ink shadow-soft">
-              <Image src={img(s.image, 600)} alt={s.title} fill sizes="(max-width:768px) 50vw, 20vw" className="object-cover opacity-80 transition duration-700 group-hover:scale-110 group-hover:opacity-100" />
-              <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/30 to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 p-5">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-md transition group-hover:bg-brand">
-                  <s.icon className="h-5 w-5" />
-                </div>
-                <div className="text-lg font-extrabold text-white">{s.title}</div>
-                <div className="text-xs text-white/70">{s.sub}</div>
-              </div>
-              <ArrowRight className="absolute right-4 top-4 h-5 w-5 -rotate-45 text-white opacity-0 transition group-hover:rotate-0 group-hover:opacity-100" />
-            </Link>
-          </motion.div>
+      <SectionHead eyebrow="Everything in one app" title={list.length === 5 ? "Five ways to get going" : "Ways to get going"} sub="One login, one wallet, every mode of travel." />
+      <div className={`mt-10 grid grid-cols-2 gap-4 ${list.length >= 5 ? "md:grid-cols-5" : list.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
+        {list.map((x, i) => (
+          <ServiceCard key={x.key} s={x} i={i} />
         ))}
       </div>
     </section>
+  );
+}
+
+function ServiceCard({ s, i }: { s: (typeof SERVICES)[number]; i: number }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <motion.div {...fadeUp} transition={{ duration: 0.5, delay: i * 0.07 }} style={{ perspective: 900 }}>
+      <motion.div
+        onHoverStart={() => setHover(true)}
+        onHoverEnd={() => setHover(false)}
+        whileHover={{ rotateX: 4, rotateY: -6, y: -6 }}
+        transition={{ type: "spring", stiffness: 220, damping: 18 }}
+        className="relative"
+        style={{ transformStyle: "preserve-3d" }}
+      >
+        <Link href={`/?tab=${s.key}#search`} className="group relative block aspect-[4/5] overflow-hidden rounded-3xl shadow-[0_20px_50px_-24px_rgba(10,15,31,0.55)] ring-1 ring-white/40">
+          <Image src={img(s.image, 600)} alt={s.title} fill sizes="(max-width:768px) 50vw, 20vw" className="object-cover transition duration-700 group-hover:scale-110" />
+          {/* only a soft fade at the bottom — the photo stays bright */}
+          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+          {hover && (
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+              <Meteors number={10} />
+            </div>
+          )}
+          <span className="pointer-events-none absolute -left-1/2 top-0 h-full w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-0 transition-all duration-700 group-hover:left-[120%] group-hover:opacity-100" />
+          <div className="absolute inset-x-2.5 bottom-2.5 rounded-2xl border border-white/30 bg-white/15 p-3 text-white backdrop-blur-md" style={{ transform: "translateZ(30px)" }}>
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-brand shadow-lg transition group-hover:bg-brand group-hover:text-white"><s.icon className="h-[18px] w-[18px]" /></span>
+              <div className="min-w-0">
+                <div className="text-base font-extrabold leading-tight">{s.title}</div>
+                <div className="truncate text-[11px] font-medium text-white/85">{s.sub}</div>
+              </div>
+            </div>
+          </div>
+          <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-ink opacity-0 shadow transition group-hover:opacity-100"><ArrowRight className="h-4 w-4 -rotate-45" /></span>
+        </Link>
+      </motion.div>
+    </motion.div>
   );
 }
 

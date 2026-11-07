@@ -1,10 +1,15 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { StationInput } from "@/components/train/station-input";
+import { parseStationInput } from "@/lib/train/stations";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import { ArrowLeftRight, BusFront, Building2, CalendarDays, CloudSun, MapPin, Moon, Palmtree, Plane, Search, Sun, Sunrise, TrainFront, Users, Ticket, Radio, Armchair } from "lucide-react";
 import { DatePicker, toISO } from "@/components/ui/date-picker";
+import { useSite } from "@/lib/client/providers";
+import { isServiceOn, isTrainLiveOn } from "@/lib/services";
 import { AnimatedTabs } from "@/components/ui/animated-tabs";
 import { cn } from "@/lib/utils";
 
@@ -17,10 +22,6 @@ const TABS: { value: Tab; label: string; icon: ReactNode }[] = [
   { value: "package", label: "Packages", icon: <Palmtree className="h-4 w-4" /> },
 ];
 
-const STATIONS = [
-  "New Delhi (NDLS)", "Mumbai Central (MMCT)", "Chhatrapati Shivaji Terminus (CSMT)", "Howrah Jn (HWH)", "Chennai Central (MAS)", "KSR Bengaluru (SBC)",
-  "Secunderabad Jn (SC)", "Pune Jn (PUNE)", "Ahmedabad Jn (ADI)", "Jaipur Jn (JP)", "Lucknow (LKO)", "Patna Jn (PNBE)", "Varanasi Jn (BSB)", "Bhopal Jn (BPL)",
-];
 const CITIES = ["Delhi", "Mumbai", "Bengaluru", "Kolkata", "Chennai", "Hyderabad", "Pune", "Goa", "Jaipur", "Ahmedabad", "Lucknow", "Kochi", "Srinagar", "Manali", "Udaipur", "Varanasi"];
 
 const addDays = (n: number) => {
@@ -30,19 +31,22 @@ const addDays = (n: number) => {
 };
 
 export function SearchWidget() {
+  const site = useSite();
+  const tabs = TABS.filter((x) => isServiceOn(site, x.value));
   const t = useSearchParams().get("tab");
-  const initial: Tab = TABS.some((x) => x.value === t) ? (t as Tab) : "train";
+  if (!tabs.length) return <div className="rounded-[28px] bg-white p-8 text-center font-semibold text-muted shadow-lift">Bookings are paused right now. Please check back soon.</div>;
+  const initial: Tab = tabs.some((x) => x.value === t) ? (t as Tab) : tabs[0].value;
   // remount when the navbar deep-links to another tab (?tab=flight)
-  return <SearchWidgetInner key={initial} initial={initial} />;
+  return <SearchWidgetInner key={initial} initial={initial} tabs={tabs} />;
 }
 
-function SearchWidgetInner({ initial }: { initial: Tab }) {
+function SearchWidgetInner({ initial, tabs }: { initial: Tab; tabs: typeof TABS }) {
   const [tab, setTab] = useState<Tab>(initial);
 
   return (
     <div id="search" className="relative scroll-mt-28 rounded-[28px] border border-white/70 bg-white/90 p-3 shadow-[0_40px_120px_-30px_rgba(10,15,31,0.45)] backdrop-blur-2xl md:p-4">
       <div className="flex items-center justify-between gap-3 px-1 pb-3">
-        <AnimatedTabs tabs={TABS} value={tab} onChange={setTab} layoutId="search-tab" />
+        <AnimatedTabs tabs={tabs} value={tab} onChange={setTab} layoutId="search-tab" />
         <span className="hidden items-center gap-1.5 rounded-full bg-mint/10 px-3 py-1.5 text-xs font-bold text-mint md:flex">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-mint" /> Zero convenience fee on UPI
         </span>
@@ -120,24 +124,36 @@ function soon(service: string, ok: boolean, why?: string) {
 /* --------------------------------- forms --------------------------------- */
 
 function TrainForm() {
+  const router = useRouter();
+  const liveOn = isTrainLiveOn(useSite());
   const [from, setFrom] = useState("New Delhi (NDLS)");
   const [to, setTo] = useState("Mumbai Central (MMCT)");
   const [date, setDate] = useState(() => addDays(1));
   const [quota, setQuota] = useState<"General" | "Tatkal" | "Ladies" | "Senior Citizen">("General");
   const [slots, setSlots] = useState<string[]>([]);
+  const QUOTA_CODE = { General: "GN", Tatkal: "TQ", Ladies: "LD", "Senior Citizen": "SS" } as const;
   return (
-    <form onSubmit={(e) => (e.preventDefault(), soon("Train", !!from && !!to && from !== to, from === to ? "From and To can't be the same" : undefined))} className="space-y-3">
-      <datalist id="stations">{STATIONS.map((s) => <option key={s} value={s} />)}</datalist>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const f = parseStationInput(from);
+        const t = parseStationInput(to);
+        if (!f || !t) return toast.error("Pick both stations from the suggestions");
+        if (f === t) return toast.error("From and To can't be the same");
+        router.push(`/trains?${new URLSearchParams({ from: f, to: t, date, quota: QUOTA_CODE[quota], fl: from, tl: to, ...(slots.length ? { slots: slots.join(",") } : {}) })}`);
+      }}
+      className="space-y-3"
+    >
       <div className="flex flex-col gap-2 md:flex-row md:items-stretch">
-        <Place label="From" value={from} onChange={setFrom} list="stations" placeholder="Enter station" />
+        <StationInput label="From" value={from} onChange={(l) => setFrom(l)} />
         <Swap onClick={() => (setFrom(to), setTo(from))} />
-        <Place label="To" value={to} onChange={setTo} list="stations" placeholder="Enter station" />
+        <StationInput label="To" value={to} onChange={(l) => setTo(l)} />
         <DatePicker label="Departure" value={date} onChange={setDate} className="md:max-w-[210px]" />
         <SearchBtn label="Search Trains" />
       </div>
       <div className="flex flex-col justify-between gap-3 px-1 md:flex-row md:items-center">
         <div className="flex flex-wrap items-center gap-2">
-          <Chips items={["General", "Tatkal", "Ladies", "Senior Citizen"] as const as unknown as ("General" | "Tatkal" | "Ladies" | "Senior Citizen")[]} value={quota} onChange={setQuota} />
+          <Chips items={["General", "Tatkal", "Ladies", "Senior Citizen"] as ("General" | "Tatkal" | "Ladies" | "Senior Citizen")[]} value={quota} onChange={setQuota} />
           <span className="mx-1 hidden h-4 w-px bg-line md:block" />
           {[["Today", 0], ["Tomorrow", 1], ["Day after", 2]].map(([l, n]) => (
             <button key={l} type="button" onClick={() => setDate(addDays(n as number))} className={cn("rounded-full px-3 py-1.5 text-xs font-bold", date === addDays(n as number) ? "bg-ink text-white" : "bg-surface text-ink/60 hover:text-ink")}>
@@ -146,8 +162,8 @@ function TrainForm() {
           ))}
         </div>
         <div className="flex gap-2 text-xs font-bold">
-          <button type="button" onClick={() => soon("PNR status", true)} className="flex items-center gap-1.5 rounded-full bg-iris/10 px-3 py-1.5 text-iris"><Ticket className="h-3.5 w-3.5" /> PNR status</button>
-          <button type="button" onClick={() => soon("Live running status", true)} className="flex items-center gap-1.5 rounded-full bg-sky/10 px-3 py-1.5 text-sky-600"><Radio className="h-3.5 w-3.5" /> Running status</button>
+          <button type="button" onClick={() => toast.info("PNR status is coming soon", { description: "Our live rail data partner doesn't offer PNR lookups yet." })} className="flex items-center gap-1.5 rounded-full bg-iris/10 px-3 py-1.5 text-iris"><Ticket className="h-3.5 w-3.5" /> PNR status</button>
+          {liveOn && <Link href="/trains/live" className="flex items-center gap-1.5 rounded-full bg-sky/10 px-3 py-1.5 text-sky-600"><Radio className="h-3.5 w-3.5" /> Running status</Link>}
         </div>
       </div>
       <div className="px-1"><TimeSlots value={slots} onChange={setSlots} /></div>

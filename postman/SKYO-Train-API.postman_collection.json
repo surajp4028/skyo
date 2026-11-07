@@ -1,0 +1,1955 @@
+{
+  "info": {
+    "_postman_id": "fc5f698b-6e84-4532-8491-f4cabbdb01b7",
+    "name": "SKYO \u00b7 Train API (RailCore)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Two folders:\n\n1. **SKYO backend** \u2014 `/api/train/*` on your Next.js app (validated, rate-limited, credit-guarded). Use this from the website / future mobile app.\n2. **RailCore direct** \u2014 every RailCore v1 endpoint, for debugging only. Set `railcore_key` in a Postman *environment* (never commit it).\n\n\u26a0\ufe0f Free plan = 2,500 credits/month, 20 req/min, 300 req/day. The credit cost is in every request name. Failed (4xx/5xx) calls are free.\n\nLogin-required SKYO endpoints: run `0 \u00b7 Auth` first (Postman stores the cookie). POST requests need header `X-Requested-With: skyo`."
+  },
+  "variable": [
+    {
+      "key": "skyo_base",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "railcore_base",
+      "value": "https://ir.railcore.tech/v1"
+    },
+    {
+      "key": "railcore_key",
+      "value": "",
+      "description": "Paste rk_live_\u2026 in a Postman environment, not here."
+    },
+    {
+      "key": "login_identifier",
+      "value": "9876543210"
+    },
+    {
+      "key": "from",
+      "value": "NDLS"
+    },
+    {
+      "key": "to",
+      "value": "MMCT"
+    },
+    {
+      "key": "station",
+      "value": "NDLS"
+    },
+    {
+      "key": "train",
+      "value": "12952"
+    },
+    {
+      "key": "class",
+      "value": "3A"
+    },
+    {
+      "key": "quota",
+      "value": "GN"
+    },
+    {
+      "key": "date",
+      "value": "2026-11-20",
+      "description": "Journey date (YYYY-MM-DD, IST)"
+    },
+    {
+      "key": "live_date",
+      "value": "2026-11-07",
+      "description": "Day the train left its origin (for live / charts)"
+    }
+  ],
+  "item": [
+    {
+      "name": "SKYO backend (/api/train)",
+      "item": [
+        {
+          "name": "0 \u00b7 Auth (gets the session cookie)",
+          "item": [
+            {
+              "name": "Send login OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Requested-With",
+                    "value": "skyo",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{skyo_base}}/api/auth/otp/send",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "otp",
+                    "send"
+                  ],
+                  "query": []
+                },
+                "description": "Email or 10-digit mobile. Postman keeps the session cookie automatically after Verify.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"{{login_identifier}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Verify OTP (logs in)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Requested-With",
+                    "value": "skyo",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{skyo_base}}/api/auth/otp/verify",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "otp",
+                    "verify"
+                  ],
+                  "query": []
+                },
+                "description": "Paste challengeId from the previous response and the OTP you received.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"challengeId\": \"<from send response>\",\n  \"code\": \"123456\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Who am I",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/auth/me",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "me"
+                  ],
+                  "query": []
+                },
+                "description": ""
+              }
+            }
+          ]
+        },
+        {
+          "name": "1 \u00b7 Stations",
+          "item": [
+            {
+              "name": "Station autocomplete (local first, 0\u20131 credit)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/stations/search?q=pune",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "stations",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "q",
+                      "value": "pune"
+                    }
+                  ]
+                },
+                "description": "Major stations answer locally (0 credits). RailCore is called only when nothing matches locally (1 credit)."
+              }
+            },
+            {
+              "name": "Station details (1 credit)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/stations/{{station}}",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "stations",
+                    "{{station}}"
+                  ],
+                  "query": []
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Live station board (4 credits \u00b7 login)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/stations/{{station}}/live?window_hours=4",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "stations",
+                    "{{station}}",
+                    "live"
+                  ],
+                  "query": [
+                    {
+                      "key": "window_hours",
+                      "value": "4"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            }
+          ]
+        },
+        {
+          "name": "2 \u00b7 Trains",
+          "item": [
+            {
+              "name": "Search trains by name/number (1 credit)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/trains/search?q=rajdhani",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "trains",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "q",
+                      "value": "rajdhani"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Train details (1 credit)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/trains/{{train}}",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "trains",
+                    "{{train}}"
+                  ],
+                  "query": []
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Schedule (2 credits)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/trains/{{train}}/schedule?view=schedule",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "trains",
+                    "{{train}}",
+                    "schedule"
+                  ],
+                  "query": [
+                    {
+                      "key": "view",
+                      "value": "schedule"
+                    }
+                  ]
+                },
+                "description": "view = schedule | stops | route"
+              }
+            },
+            {
+              "name": "Live running status (5 credits \u00b7 login)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/trains/{{train}}/live?date={{live_date}}",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "trains",
+                    "{{train}}",
+                    "live"
+                  ],
+                  "query": [
+                    {
+                      "key": "date",
+                      "value": "{{live_date}}"
+                    }
+                  ]
+                },
+                "description": "date = day the train LEFT its first station (IST)."
+              }
+            },
+            {
+              "name": "Coach position (2 credits)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/trains/{{train}}/coach-position",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "trains",
+                    "{{train}}",
+                    "coach-position"
+                  ],
+                  "query": []
+                },
+                "description": ""
+              }
+            }
+          ]
+        },
+        {
+          "name": "3 \u00b7 Journeys",
+          "item": [
+            {
+              "name": "Trains between stations (5 credits)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/between?from={{from}}&to={{to}}&date={{date}}&quota={{quota}}",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "between"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{date}}"
+                    },
+                    {
+                      "key": "quota",
+                      "value": "{{quota}}"
+                    }
+                  ]
+                },
+                "description": "Includes class-wise availability_summary + fares \u2014 no extra calls needed for the results list."
+              }
+            }
+          ]
+        },
+        {
+          "name": "4 \u00b7 Availability",
+          "item": [
+            {
+              "name": "Seat availability (5 credits \u00b7 login)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/availability?train={{train}}&from={{from}}&to={{to}}&date={{date}}&class={{class}}&quota={{quota}}",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "availability"
+                  ],
+                  "query": [
+                    {
+                      "key": "train",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{date}}"
+                    },
+                    {
+                      "key": "class",
+                      "value": "{{class}}"
+                    },
+                    {
+                      "key": "quota",
+                      "value": "{{quota}}"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "7-day availability calendar (4 credits \u00b7 login)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/availability/calendar?train={{train}}&from={{from}}&to={{to}}&class={{class}}&quota={{quota}}&date={{date}}&days=7",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "availability",
+                    "calendar"
+                  ],
+                  "query": [
+                    {
+                      "key": "train",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "class",
+                      "value": "{{class}}"
+                    },
+                    {
+                      "key": "quota",
+                      "value": "{{quota}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{date}}"
+                    },
+                    {
+                      "key": "days",
+                      "value": "7"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Classes offered (3 credits)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/availability/classes?train={{train}}&from={{from}}&to={{to}}&date={{date}}",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "availability",
+                    "classes"
+                  ],
+                  "query": [
+                    {
+                      "key": "train",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{date}}"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            }
+          ]
+        },
+        {
+          "name": "5 \u00b7 Fares",
+          "item": [
+            {
+              "name": "Fare estimate (3 credits)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/fares?train={{train}}&from={{from}}&to={{to}}&class={{class}}&quota={{quota}}",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "fares"
+                  ],
+                  "query": [
+                    {
+                      "key": "train",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "class",
+                      "value": "{{class}}"
+                    },
+                    {
+                      "key": "quota",
+                      "value": "{{quota}}"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Fares across trains on a route (3 credits)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/fares/search?from={{from}}&to={{to}}&date={{date}}&quota={{quota}}",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "fares",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{date}}"
+                    },
+                    {
+                      "key": "quota",
+                      "value": "{{quota}}"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Unreserved / season fare (3 credits)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/fares/unreserved?from={{from}}&to={{to}}&class=II&train_type=O&ticket_type=J&adult=1&child=0",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "fares",
+                    "unreserved"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "class",
+                      "value": "II"
+                    },
+                    {
+                      "key": "train_type",
+                      "value": "O"
+                    },
+                    {
+                      "key": "ticket_type",
+                      "value": "J"
+                    },
+                    {
+                      "key": "adult",
+                      "value": "1"
+                    },
+                    {
+                      "key": "child",
+                      "value": "0"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            }
+          ]
+        },
+        {
+          "name": "6 \u00b7 Charts (RailCore Scale plan only)",
+          "description": "On the Free plan these answer 403 PLAN_REQUIRED without calling RailCore (0 credits).",
+          "item": [
+            {
+              "name": "Chart status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/charts/status?train={{train}}&date={{live_date}}&station={{from}}",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "charts",
+                    "status"
+                  ],
+                  "query": [
+                    {
+                      "key": "train",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{live_date}}"
+                    },
+                    {
+                      "key": "station",
+                      "value": "{{from}}"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Vacant berths",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/charts/vacant-berths?train={{train}}&from={{from}}&to={{to}}&date={{live_date}}",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "charts",
+                    "vacant-berths"
+                  ],
+                  "query": [
+                    {
+                      "key": "train",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{live_date}}"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Vacant berths + hopping",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/train/charts/hopping?train={{train}}&from={{from}}&to={{to}}&date={{live_date}}",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "train",
+                    "charts",
+                    "hopping"
+                  ],
+                  "query": [
+                    {
+                      "key": "train",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{live_date}}"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            }
+          ]
+        },
+        {
+          "name": "7 \u00b7 Admin",
+          "item": [
+            {
+              "name": "Agent login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Requested-With",
+                    "value": "skyo",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{skyo_base}}/api/admin/auth/login",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "auth",
+                    "login"
+                  ],
+                  "query": []
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"admin@gmail.com\",\n  \"password\": \"<password>\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "RailCore credit usage",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{skyo_base}}/api/admin/train-usage",
+                  "host": [
+                    "{{skyo_base}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "train-usage"
+                  ],
+                  "query": []
+                },
+                "description": "Needs an agent session with Trains permission."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RailCore direct (v1) \u2014 debugging",
+      "item": [
+        {
+          "name": "Stations",
+          "item": [
+            {
+              "name": "Search stations (1 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/stations/search?q=pune&limit=10",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "stations",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "q",
+                      "value": "pune"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "10"
+                    }
+                  ]
+                },
+                "description": "Credits: 1 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Get station (1 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/stations/{{station}}",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "stations",
+                    "{{station}}"
+                  ],
+                  "query": []
+                },
+                "description": "Credits: 1 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Live station board (4 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/stations/{{station}}/live?window_hours=4",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "stations",
+                    "{{station}}",
+                    "live"
+                  ],
+                  "query": [
+                    {
+                      "key": "window_hours",
+                      "value": "4"
+                    }
+                  ]
+                },
+                "description": "Credits: 4 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Trains",
+          "item": [
+            {
+              "name": "Search trains (1 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/trains/search?q=rajdhani&limit=10",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "trains",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "q",
+                      "value": "rajdhani"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "10"
+                    }
+                  ]
+                },
+                "description": "Credits: 1 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Get train (1 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/trains/{{train}}",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "trains",
+                    "{{train}}"
+                  ],
+                  "query": []
+                },
+                "description": "Credits: 1 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Schedule (2 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/trains/{{train}}/schedule?include_intermediate=false",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "trains",
+                    "{{train}}",
+                    "schedule"
+                  ],
+                  "query": [
+                    {
+                      "key": "include_intermediate",
+                      "value": "false"
+                    }
+                  ]
+                },
+                "description": "Credits: 2 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Booking stops (2 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/trains/{{train}}/stops",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "trains",
+                    "{{train}}",
+                    "stops"
+                  ],
+                  "query": []
+                },
+                "description": "Credits: 2 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Full route (2 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/trains/{{train}}/route",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "trains",
+                    "{{train}}",
+                    "route"
+                  ],
+                  "query": []
+                },
+                "description": "Credits: 2 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Coach position (2 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/trains/{{train}}/coach-position",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "trains",
+                    "{{train}}",
+                    "coach-position"
+                  ],
+                  "query": []
+                },
+                "description": "Credits: 2 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Live train status (5 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/trains/{{train}}/live?date={{live_date}}&max_age=10",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "trains",
+                    "{{train}}",
+                    "live"
+                  ],
+                  "query": [
+                    {
+                      "key": "date",
+                      "value": "{{live_date}}"
+                    },
+                    {
+                      "key": "max_age",
+                      "value": "10"
+                    }
+                  ]
+                },
+                "description": "Credits: 5 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Journeys",
+          "item": [
+            {
+              "name": "Trains between stations (5 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/routes/trains?from={{from}}&to={{to}}&date={{date}}&quota={{quota}}",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "routes",
+                    "trains"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{date}}"
+                    },
+                    {
+                      "key": "quota",
+                      "value": "{{quota}}"
+                    }
+                  ]
+                },
+                "description": "Credits: 5 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Journey search (5 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/journeys/search?from={{from}}&to={{to}}&date={{date}}",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "journeys",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{date}}"
+                    }
+                  ]
+                },
+                "description": "Credits: 5 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Compare journeys (5 cr)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/journeys/compare",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "journeys",
+                    "compare"
+                  ],
+                  "query": []
+                },
+                "description": "Credits: 5 \u00b7 Plans: All plans. Every 2xx response is billed.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"journeys\": [\n    {\n      \"from\": \"{{from}}\",\n      \"to\": \"{{to}}\",\n      \"date\": \"{{date}}\",\n      \"quota\": \"GN\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Availability",
+          "item": [
+            {
+              "name": "Seat availability (5 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/availability/seats?train_number={{train}}&from={{from}}&to={{to}}&date={{date}}&class={{class}}&quota={{quota}}",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "availability",
+                    "seats"
+                  ],
+                  "query": [
+                    {
+                      "key": "train_number",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{date}}"
+                    },
+                    {
+                      "key": "class",
+                      "value": "{{class}}"
+                    },
+                    {
+                      "key": "quota",
+                      "value": "{{quota}}"
+                    }
+                  ]
+                },
+                "description": "Credits: 5 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Seat availability batch (max(5, 2\u00d7class combos) cr)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/availability/seats/batch",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "availability",
+                    "seats",
+                    "batch"
+                  ],
+                  "query": []
+                },
+                "description": "Credits: max(5, 2\u00d7class combos) \u00b7 Plans: All plans. Every 2xx response is billed.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"items\": [\n    {\n      \"train_number\": \"{{train}}\",\n      \"from\": \"{{from}}\",\n      \"to\": \"{{to}}\",\n      \"date\": \"{{date}}\",\n      \"classes\": [\n        \"3A\"\n      ],\n      \"quota\": \"GN\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Availability calendar (4 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/availability/calendar?train_number={{train}}&from={{from}}&to={{to}}&class={{class}}&quota={{quota}}&date={{date}}&days=7",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "availability",
+                    "calendar"
+                  ],
+                  "query": [
+                    {
+                      "key": "train_number",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "class",
+                      "value": "{{class}}"
+                    },
+                    {
+                      "key": "quota",
+                      "value": "{{quota}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{date}}"
+                    },
+                    {
+                      "key": "days",
+                      "value": "7"
+                    }
+                  ]
+                },
+                "description": "Credits: 4 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Available classes (3 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/availability/classes?train_number={{train}}&from={{from}}&to={{to}}&date={{date}}",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "availability",
+                    "classes"
+                  ],
+                  "query": [
+                    {
+                      "key": "train_number",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{date}}"
+                    }
+                  ]
+                },
+                "description": "Credits: 3 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fares",
+          "item": [
+            {
+              "name": "Fare estimate (3 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/fares/estimate?train_number={{train}}&from={{from}}&to={{to}}&class={{class}}&quota={{quota}}",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "fares",
+                    "estimate"
+                  ],
+                  "query": [
+                    {
+                      "key": "train_number",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "class",
+                      "value": "{{class}}"
+                    },
+                    {
+                      "key": "quota",
+                      "value": "{{quota}}"
+                    }
+                  ]
+                },
+                "description": "Credits: 3 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Fares on route (3 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/fares/search?from={{from}}&to={{to}}&date={{date}}&quota={{quota}}",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "fares",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{date}}"
+                    },
+                    {
+                      "key": "quota",
+                      "value": "{{quota}}"
+                    }
+                  ]
+                },
+                "description": "Credits: 3 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Unreserved fare (3 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/fares/unreserved?from={{from}}&to={{to}}&class=II&train_type=O&ticket_type=J&adult=1&child=0",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "fares",
+                    "unreserved"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "class",
+                      "value": "II"
+                    },
+                    {
+                      "key": "train_type",
+                      "value": "O"
+                    },
+                    {
+                      "key": "ticket_type",
+                      "value": "J"
+                    },
+                    {
+                      "key": "adult",
+                      "value": "1"
+                    },
+                    {
+                      "key": "child",
+                      "value": "0"
+                    }
+                  ]
+                },
+                "description": "Credits: 3 \u00b7 Plans: All plans. Every 2xx response is billed."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Charts & jobs (Scale/Enterprise)",
+          "item": [
+            {
+              "name": "Chart status (4 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/charts/status?train_number={{train}}&date={{live_date}}&station={{from}}",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "charts",
+                    "status"
+                  ],
+                  "query": [
+                    {
+                      "key": "train_number",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{live_date}}"
+                    },
+                    {
+                      "key": "station",
+                      "value": "{{from}}"
+                    }
+                  ]
+                },
+                "description": "Credits: 4 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Vacant berths (8 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/charts/vacant-berths?train_number={{train}}&from={{from}}&to={{to}}&date={{live_date}}",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "charts",
+                    "vacant-berths"
+                  ],
+                  "query": [
+                    {
+                      "key": "train_number",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{live_date}}"
+                    }
+                  ]
+                },
+                "description": "Credits: 8 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Vacant berths hopping (10 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/charts/vacant-berths/hopping?train_number={{train}}&from={{from}}&to={{to}}&date={{live_date}}&max_hops=6",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "charts",
+                    "vacant-berths",
+                    "hopping"
+                  ],
+                  "query": [
+                    {
+                      "key": "train_number",
+                      "value": "{{train}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{live_date}}"
+                    },
+                    {
+                      "key": "max_hops",
+                      "value": "6"
+                    }
+                  ]
+                },
+                "description": "Credits: 10 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Route vacancy scan (25 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/charts/vacant-berths/route-scan?from={{from}}&to={{to}}&date={{live_date}}&max_trains=10",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "charts",
+                    "vacant-berths",
+                    "route-scan"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "{{from}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{to}}"
+                    },
+                    {
+                      "key": "date",
+                      "value": "{{live_date}}"
+                    },
+                    {
+                      "key": "max_trains",
+                      "value": "10"
+                    }
+                  ]
+                },
+                "description": "Credits: 25 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "Submit route-scan job (25 cr)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/jobs/route-scan",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "jobs",
+                    "route-scan"
+                  ],
+                  "query": []
+                },
+                "description": "Credits: 25 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"from\": \"{{from}}\",\n  \"to\": \"{{to}}\",\n  \"date\": \"{{live_date}}\",\n  \"max_trains\": 10\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Submit hopping job (10 cr)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/jobs/hopping",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "jobs",
+                    "hopping"
+                  ],
+                  "query": []
+                },
+                "description": "Credits: 10 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"train_number\": \"{{train}}\",\n  \"from\": \"{{from}}\",\n  \"to\": \"{{to}}\",\n  \"date\": \"{{live_date}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Get job (0 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/jobs/<job_id>",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "jobs",
+                    "<job_id>"
+                  ],
+                  "query": []
+                },
+                "description": "Credits: 0 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed."
+              }
+            },
+            {
+              "name": "List jobs (0 cr)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-RailCore-Key",
+                    "value": "{{railcore_key}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{railcore_base}}/jobs?limit=20",
+                  "host": [
+                    "{{railcore_base}}"
+                  ],
+                  "path": [
+                    "jobs"
+                  ],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Credits: 0 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

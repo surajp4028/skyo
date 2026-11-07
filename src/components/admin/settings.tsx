@@ -70,6 +70,31 @@ export function SettingsView() {
             {v.maintenance_mode === "on" && <div className="mt-4"><Field label="Banner message" name="maintenance_message" value={v.maintenance_message || ""} onChange={set("maintenance_message")} maxLength={200} /></div>}
             <div className="mt-4 max-w-xs"><Field label="OTP resend cooldown (seconds)" name="otp_resend_seconds" inputMode="numeric" value={v.otp_resend_seconds || ""} onChange={set("otp_resend_seconds")} hint="20 – 300" /></div>
           </Card>
+          <Card className="p-6">
+            <h3 className="font-bold">Services on the website</h3>
+            <p className="mt-1 text-xs text-muted">Switching a service off removes it from the home page, navbar, dock and footer, and blocks its pages and APIs.</p>
+            <div className="mt-2 grid gap-x-8 divide-y divide-line md:grid-cols-2 md:divide-y-0">
+              {([["service_train", "Trains", "Search, availability, schedule"], ["service_flight", "Flights", "Flight search"], ["service_bus", "Buses", "Bus search"], ["service_hotel", "Hotels", "Hotel search"], ["service_package", "Packages", "Holiday packages"], ["train_live", "Train live running status", "Live status page, tab and API"]] as const).map(([k, l, d]) => (
+                <Toggle key={k} label={l} desc={d} on={(v[k] ?? "on") === "on"} onClick={() => toggle(k)} />
+              ))}
+            </div>
+          </Card>
+          <Card className="p-6">
+            <h3 className="font-bold">Travellers & bookings</h3>
+            <p className="mt-1 text-xs text-muted">Limits applied on the account page and in the train booking flow.</p>
+            <div className="mt-4 grid max-w-lg gap-4 sm:grid-cols-2">
+              <Field label="Max saved travellers" name="max_saved_passengers" inputMode="numeric" value={v.max_saved_passengers || ""} onChange={set("max_saved_passengers")} hint="1 – 50 per account" />
+              <Field label="Max per train booking" name="max_passengers_per_booking" inputMode="numeric" value={v.max_passengers_per_booking || ""} onChange={set("max_passengers_per_booking")} hint="1 – 6 (Tatkal is capped at 4)" />
+            </div>
+          </Card>
+          <Card className="p-6">
+            <h3 className="font-bold">Live train data · RailCore</h3>
+            <p className="mt-1 text-xs text-muted">Free plan = 2,500 credits / month. Search 5 · availability 5 · live status 5 · schedule 2 credits. RailCore data is never cached (their terms).</p>
+            <div className="mt-2 divide-y divide-line">
+              <Toggle label="Enable live train data" desc="Kill switch — when off, SKYO makes no RailCore calls at all." on={v.train_api === "on"} onClick={() => toggle("train_api")} />
+            </div>
+            <div className="mt-4 max-w-xs"><Field label="Daily credit cap" name="train_daily_credit_cap" inputMode="numeric" value={v.train_daily_credit_cap || ""} onChange={set("train_daily_credit_cap")} hint="≈ 80/day keeps you inside 2,500/month" /></div>
+          </Card>
         </div>
         <Card className="h-fit p-6">
           <h3 className="flex items-center gap-2 font-bold"><ShieldCheck className="h-5 w-5 text-mint" /> Security posture</h3>

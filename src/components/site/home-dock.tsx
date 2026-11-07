@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/
 import { BusFront, Building2, Headphones, Palmtree, Plane, TrainFront, UserRound } from "lucide-react";
 import { FloatingDock } from "@/components/ui/floating-dock";
 import { useSite } from "@/lib/client/providers";
+import { isServiceOn, type ServiceKey } from "@/lib/services";
 
 /** Aceternity Floating Dock — appears once the hero is scrolled past. */
 export function HomeDock() {
@@ -11,15 +12,17 @@ export function HomeDock() {
   const { scrollY } = useScroll();
   const [show, setShow] = useState(false);
   useMotionValueEvent(scrollY, "change", (v) => setShow(v > 700));
-  const items = [
-    { title: "Trains", icon: <TrainFront />, href: "/?tab=train#search" },
-    { title: "Flights", icon: <Plane />, href: "/?tab=flight#search" },
-    { title: "Buses", icon: <BusFront />, href: "/?tab=bus#search" },
-    { title: "Hotels", icon: <Building2 />, href: "/?tab=hotel#search" },
-    { title: "Packages", icon: <Palmtree />, href: "/?tab=package#search" },
+  type Item = { title: string; icon: React.ReactNode; href: string; svc?: ServiceKey };
+  const all: Item[] = [
+    { title: "Trains", icon: <TrainFront />, href: "/?tab=train#search", svc: "train" },
+    { title: "Flights", icon: <Plane />, href: "/?tab=flight#search", svc: "flight" },
+    { title: "Buses", icon: <BusFront />, href: "/?tab=bus#search", svc: "bus" },
+    { title: "Hotels", icon: <Building2 />, href: "/?tab=hotel#search", svc: "hotel" },
+    { title: "Packages", icon: <Palmtree />, href: "/?tab=package#search", svc: "package" },
     { title: "My trips", icon: <UserRound />, href: "/account" },
     { title: "Support", icon: <Headphones />, href: `mailto:${site.support_email}` },
   ];
+  const items = all.filter((i) => !i.svc || isServiceOn(site, i.svc));
   return (
     <AnimatePresence>
       {show && (

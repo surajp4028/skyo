@@ -269,10 +269,10 @@ export async function listBookings(service: ServiceKey, sp: URLSearchParams) {
   const total = (await queryOne<{ n: number }>(`SELECT COUNT(*) n FROM bookings b ${w}`, params))?.n ?? 0;
   const rows = await query<{
     id: number; booking_ref: string; status: string; payment_status: string; title_enc: string; origin_enc: string | null; destination_enc: string | null; provider_ref_enc: string | null;
-    travel_date: Date | null; travellers: number; amount_paise: number; provider: string | null; created_at: Date; user_id: number; user_uid: string; user_name_enc: string | null;
+    travel_date: Date | null; travellers: number; amount_paise: number; provider: string | null; created_at: Date; ticket_status: string; pay_payment_id: string | null; user_id: number; user_uid: string; user_name_enc: string | null;
   }>(
     `SELECT b.id, b.booking_ref, b.status, b.payment_status, b.title_enc, b.origin_enc, b.destination_enc, b.provider_ref_enc, b.travel_date, b.travellers,
-            b.amount_paise, b.provider, b.created_at, u.id AS user_id, b.user_uid, u.name_enc AS user_name_enc
+            b.amount_paise, b.provider, b.created_at, b.ticket_status, b.pay_payment_id, u.id AS user_id, b.user_uid, u.name_enc AS user_name_enc
        FROM bookings b JOIN users u ON u.uid = b.user_uid ${w} ORDER BY b.id DESC LIMIT ? OFFSET ?`,
     [...params, size, offset],
   );

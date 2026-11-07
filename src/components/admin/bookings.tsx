@@ -5,6 +5,7 @@ import { BusFront, Building2, CheckCircle2, Clock, IndianRupee, Palmtree, Plane,
 import { useFetch } from "./use-fetch";
 import { Badge, Card, PageHeader, Pager, SearchBox, Select, StatCard, Table, Td, Toolbar, usePage } from "./ui";
 import { useDebounced } from "./users";
+import { RailUsage } from "./rail-usage";
 import { formatINR, timeAgo } from "@/lib/utils";
 import type { ServiceKey } from "@/lib/permissions";
 
@@ -16,7 +17,7 @@ const META: Record<ServiceKey, { title: string; icon: typeof Plane; sub: string;
   package: { title: "Package bookings", icon: Palmtree, sub: "Holiday packages and itineraries.", trip: "Package" },
 };
 
-type B = { id: number; booking_ref: string; status: string; payment_status: string; title: string; origin: string | null; destination: string | null; travel_date: string | null; travellers: number; amount_paise: number; provider: string | null; created_at: string; user_id: number; user_name: string | null; user_uid: string; provider_ref: string | null };
+type B = { id: number; booking_ref: string; status: string; payment_status: string; title: string; origin: string | null; destination: string | null; travel_date: string | null; travellers: number; amount_paise: number; provider: string | null; created_at: string; user_id: number; user_name: string | null; user_uid: string; provider_ref: string | null; ticket_status?: string; pay_payment_id?: string | null };
 
 export function BookingsView({ service }: { service: ServiceKey }) {
   const m = META[service];
@@ -30,6 +31,7 @@ export function BookingsView({ service }: { service: ServiceKey }) {
   return (
     <>
       <PageHeader icon={<m.icon />} title={m.title} sub={m.sub} />
+      {service === "train" && <div className="mb-4"><RailUsage compact /></div>}
       <div className="mb-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Confirmed" value={data?.summary.confirmed ?? "—"} icon={<CheckCircle2 />} tone="mint" />
         <StatCard label="Pending" value={data?.summary.pending ?? "—"} icon={<Clock />} tone="sky" />
@@ -42,7 +44,7 @@ export function BookingsView({ service }: { service: ServiceKey }) {
           <Select value={status} onChange={setStatus} options={[["", "All statuses"], ["confirmed", "Confirmed"], ["pending", "Pending"], ["cancelled", "Cancelled"], ["failed", "Failed"], ["refunded", "Refunded"]]} />
           {service === "train" && <span className="ml-auto rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-700">Live IRCTC integration: coming next</span>}
         </Toolbar>
-        <Table head={["Ref", m.trip, "SKYO ID", "Travel date", "Pax", "Amount", "Payment", "Status", "Booked"]} loading={loading} empty={!data?.bookings.length}>
+        <Table head={["Ref", m.trip, "SKYO ID", "Travel date", "Pax", "Amount", "Payment", "Status", "Booked", ""]} loading={loading} empty={!data?.bookings.length}>
           {data?.bookings.map((b) => (
             <tr key={b.id} className="hover:bg-neutral-50/70">
               <td className="px-4 py-3 font-mono text-xs font-bold">{b.booking_ref}</td>
@@ -54,6 +56,10 @@ export function BookingsView({ service }: { service: ServiceKey }) {
               <td className="px-5 py-3"><Badge>{b.payment_status}</Badge></td>
               <td className="px-5 py-3"><Badge>{b.status}</Badge></td>
               <td className="px-4 py-3 text-xs text-muted">{timeAgo(b.created_at)}</td>
+              <td className="px-4 py-3 text-right text-xs">
+                {b.ticket_status === "issued" && <a href={`/api/bookings/${b.booking_ref}/ticket`} className="font-bold text-brand hover:underline">Ticket</a>}
+                <a href={`/admin/transactions?q=${b.booking_ref}`} className="ml-3 font-bold text-ink/60 hover:underline">Logs</a>
+              </td>
             </tr>
           ))}
         </Table>

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/server/session";
 import { Navbar } from "@/components/site/navbar";
 import { Footer } from "@/components/site/footer";
+import { Suspense } from "react";
 import { AccountView } from "@/components/site/account-view";
 
 export const metadata: Metadata = { title: "My account", robots: { index: false } };
@@ -12,8 +13,10 @@ export default async function AccountPage() {
   if (!u) redirect("/login?next=/account");
   return (
     <div className="relative">
-      <Navbar overHero={false} />
-      <AccountView />
+      <Navbar />
+      <Suspense>
+        <AccountView />
+      </Suspense>
       <Footer />
     </div>
   );

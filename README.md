@@ -74,8 +74,78 @@ scripts/migrate-v2.mts          # v1 → v2 re-encryption migration
 | DPDP 2023 | Consent captured with version + timestamp, privacy notice, grievance officer, device sign-out, masked PII by default in admin. |
 | Mobile-ready | Send `X-Skyo-Client: android|ios` → APIs return a bearer token; use `Authorization: Bearer …`. |
 
+## Trains — RailCore integration
+
+Live data from [RailCore](https://railcore.tech/docs) (`RK_LIVE`, `RK_BASE_URL` in `.env.local`).
+
+```
+src/lib/server/train/
+  config.ts      plan, daily cap, official credit price list per operation
+  client.ts      the only code that calls RailCore: daily cap, balance floor, plan gate,
+                 kill switch, request coalescing, documented retry policy, credit ledger
+  service.ts     one function per RailCore v1 endpoint (stations, trains, journeys,
+                 availability, fares, charts)
+  guard.ts       /api/train/* wrapper: validation, login for live endpoints, rate limits
+  validators.ts  station / train / class / quota / date contracts
+  types.ts       typed RailCore schemas
+src/lib/train/   client-safe helpers + major-station list
+src/lib/server/train/stations-india.json  ~9,000 stations (datameet/railways, CC0) for 0-credit autocomplete
+src/app/api/train/…        SKYO train API      src/app/trains/…   results, train detail, live status
+postman/SKYO-Train-API.postman_collection.json + postman/train-api-curl.md
+```
+
+| Plan (Free) | 2,500 credits/month · 20 req/min · 300 req/day |
+|---|---|
+| Costs | trains-between 5 · seat availability 5 · live status 5 · calendar 4 · station board 4 · fares/classes 3 · schedule/coach 2 · search 1 |
+| Guards | `RK_DAILY_CREDIT_CAP` (default 80/day, editable in Admin → Settings), kill switch, login for availability/live, per-user rate limits, chart endpoints blocked locally unless `RK_PLAN=scale` |
+| Not available | PNR status (not in RailCore v1) · chart/vacant-berth endpoints (Scale plan) |
+| Service switches | Admin → Settings → Services: Trains / Flights / Buses / Hotels / Packages and Train live status. Off = hidden from home, nav, dock, footer; pages show "unavailable"; APIs return 404. |
+
+RailCore's terms forbid caching/mirroring their data, so nothing is cached — only a credit ledger (`rail_api_calls`) is stored. Usage is visible in Admin → Dashboard / Trains.
+
+## Booking & payments (trains)
+
+```
+Book → POST /api/bookings/train/initiate   (browser sends WHAT to book — never the amount)
+        server: live seat availability (RailCore, 5 credits) → price per passenger
+                (incl. food = total_fare, excl. food = base fare) × passengers → paise
+        → INSERT booking (SKT########, 15-min hold) → Razorpay POST /v1/orders → order_id
+     → Razorpay Checkout (checkout.js) → user pays
+     → POST /api/bookings/train/verify  HMAC(order_id|payment_id) with OUR stored order_id,
+        then GET /v1/payments/{id} from Razorpay (amount + status must match)
+     → POST /api/payments/razorpay/webhook   (source of truth in production;
+        X-Razorpay-Signature over the raw body, de-duplicated by x-razorpay-event-id)
+     → both paths are idempotent: first one to mark the booking paid issues the ticket
+     → Tripgic issueTicket (PNR, ticket no., berth / RAC / WL) → My trips + PDF e-ticket
+```
+
+| Piece | Where |
+|---|---|
+| Razorpay order / fetch / capture / signatures | `src/lib/server/payments/razorpay.ts` |
+| Request/response log (KMS-encrypted, ms timestamps) | `payment_logs` · `src/lib/server/payments/log.ts` · Admin → Transactions (`payments.view`) |
+| Booking flow, pricing, idempotent confirm | `src/lib/server/booking/train-booking.ts` |
+| Tripgic | `src/lib/server/booking/tripgic.ts` — `TRIPGIC_MODE=mock` until their API docs/keys arrive |
+| Saved travellers (max from Admin → Settings, default 20) | `/account?tab=travellers` · `src/lib/server/booking/passengers.ts` |
+| Sample PDF e-ticket | `GET /api/bookings/[ref]/ticket` · `src/lib/server/booking/ticket-pdf.ts` |
+
+**Env (`.env.local`)**: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `TRIPGIC_MODE`, `TRIPGIC_BASE_URL`, `TRIPGIC_API_KEY`.
+
+**Razorpay Dashboard → Webhooks**: URL `https://<your-domain>/api/payments/razorpay/webhook`, secret = `RAZORPAY_WEBHOOK_SECRET`,
+events `payment.captured`, `payment.failed`, `order.paid`. Razorpay can't call `localhost` — for local testing expose the app
+with a tunnel (e.g. `zrok share public http://localhost:3000`) and use that https URL; without it the Checkout verify path
+still confirms bookings.
+
+**Test mode**: domestic test card `5267 3181 8797 5449`, any future expiry/CVV, any OTP. (`4111 1111 1111 1111` is treated as an
+international card and fails if international payments aren't enabled.) Cashfree is not implemented.
+
+## Pages
+
+`/` home · `/trains` results (route/live/coaches drawer) · `/trains/[number]` train page · `/trains/live` train tools
+(live status, station board, vacant berths, unreserved fare) · `/account` · `/about` · `/contact` (encrypted inbox → Admin → Messages)
+
 ## Still to do
 
-- Train search / booking integration (IRCTC partner) — UI & `bookings` table are ready.
+- Tripgic live API (`TRIPGIC_MODE=live`) — waiting for their docs/keys; ticketing is mocked.
+- Refund flow when payment succeeds but ticket issue fails (booking is marked `failed`, refund is manual today).
 - Fast2SMS DLT template / sender (`FAST2SMS_SENDER_ID`, `FAST2SMS_TEMPLATE_ID`) and ZeptoMail templates are copied from the iMoney project — register SKYO-branded ones before launch.
 - Have Privacy Policy / Terms reviewed by counsel.

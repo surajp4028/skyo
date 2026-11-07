@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,12 +45,44 @@ export function DatePicker({ label, value, onChange, endLabel, endValue, onEndCh
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const box = useRef<HTMLDivElement>(null);
+  const pop = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; above: boolean } | null>(null);
   const [hover, setHover] = useState<string | null>(null);
+
+  // Popover lives in a portal with fixed coordinates clamped to the viewport:
+  // never clipped by parents, never off-screen, always above other sections.
+  const place = useCallback(() => {
+    const el = box.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const width = Math.min(vw >= 640 ? 640 : 340, vw - 24);
+    const left = Math.min(Math.max(12, r.left), vw - width - 12);
+    const h = pop.current?.offsetHeight || 440;
+    const above = vh - r.bottom < h + 16 && r.top > vh - r.bottom;
+    setPos({ top: above ? Math.max(12, r.top - h - 8) : r.bottom + 8, left, width, above });
+  }, []);
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    const raf = requestAnimationFrame(place);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, place]);
   const range = !!onEndChange;
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!box.current?.contains(t) && !pop.current?.contains(t)) setOpen(false);
+    };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -78,7 +111,7 @@ export function DatePicker({ label, value, onChange, endLabel, endValue, onEndCh
 
   const fmt = (iso: string | null | undefined) =>
     iso ? fromISO(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : null;
-  const day = (iso: string | null | undefined) => (iso ? fromISO(iso).toLocaleDateString("en-IN", { weekday: "long" }) : "");
+  const day = (iso: string | null | undefined) => (iso ? fromISO(iso).toLocaleDateString("en-IN", { weekday: "short" }) : "");
 
   return (
     <div ref={box} className={cn("relative flex min-w-0 flex-1 gap-2", className)}>
@@ -99,7 +132,7 @@ export function DatePicker({ label, value, onChange, endLabel, endValue, onEndCh
           label={endLabel}
           icon={icon}
           main={fmt(endValue) || <span className="text-ink/30">Add date</span>}
-          sub={endValue ? day(endValue) : "Save more on round trips"}
+          sub={endValue ? day(endValue) : ""}
           onClear={endValue ? () => onEndChange?.(null) : undefined}
           onClick={() => {
             setPicking("end");
@@ -107,14 +140,17 @@ export function DatePicker({ label, value, onChange, endLabel, endValue, onEndCh
           }}
         />
       )}
+      {typeof document !== "undefined" && createPortal(
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+            ref={pop}
+            initial={{ opacity: 0, y: pos?.above ? -8 : 8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.16 }}
-            className="absolute left-0 top-full z-40 mt-2 w-[min(92vw,640px)] rounded-3xl border border-line bg-white p-5 shadow-[0_30px_80px_-20px_rgba(10,15,31,0.35)]"
+            style={{ position: "fixed", top: pos?.top ?? -9999, left: pos?.left ?? 0, width: pos?.width ?? 640 }}
+            className="z-[120] max-h-[calc(100vh-24px)] overflow-y-auto rounded-3xl border border-line bg-white p-4 shadow-[0_30px_80px_-20px_rgba(10,15,31,0.45)] sm:p-5"
           >
             <div className="mb-3 flex items-center justify-between">
               <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} disabled={toISO(cursor) <= minISO.slice(0, 8) + "01"} className="rounded-full p-2 hover:bg-surface disabled:opacity-30" aria-label="Previous month">
@@ -125,11 +161,11 @@ export function DatePicker({ label, value, onChange, endLabel, endValue, onEndCh
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
-            <div className="grid gap-6 sm:grid-cols-2">
+            <div className={cn("grid gap-6", (pos?.width ?? 640) >= 600 && "grid-cols-2")}>
               {[0, 1].map((off) => (
                 <Month
                   key={off}
-                  className={off === 1 ? "hidden sm:block" : ""}
+                  className={off === 1 && (pos?.width ?? 640) < 600 ? "hidden" : ""}
                   month={new Date(cursor.getFullYear(), cursor.getMonth() + off, 1)}
                   minISO={minISO}
                   today={today}
@@ -156,7 +192,9 @@ export function DatePicker({ label, value, onChange, endLabel, endValue, onEndCh
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body,
+      )}
     </div>
   );
 }
@@ -173,8 +211,10 @@ function Trigger({ label, icon, main, sub, onClick, active, onClear }: { label: 
     <div className={cn("relative flex min-w-0 flex-1 rounded-2xl border bg-white transition", active ? "border-brand ring-4 ring-brand/10" : "border-line hover:border-ink/20")}>
       <button type="button" onClick={onClick} className="flex min-w-0 flex-1 flex-col items-start px-4 py-3 text-left">
         <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted">{icon || <CalendarDays className="h-3.5 w-3.5" />}{label}</span>
-        <span className="mt-1 truncate text-[17px] font-bold text-ink">{main}</span>
-        <span className="truncate text-xs font-medium text-muted">{sub}</span>
+        <span className="mt-1 flex items-baseline gap-1.5 truncate text-[17px] font-bold text-ink">
+          {main}
+          {sub && <span className="text-xs font-semibold text-muted">{sub}</span>}
+        </span>
       </button>
       {onClear && (
         <button type="button" onClick={onClear} className="absolute right-2 top-2 rounded-full px-1.5 text-xs text-muted hover:bg-surface hover:text-ink" aria-label="Clear">×</button>

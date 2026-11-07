@@ -7,6 +7,7 @@ export const PERMISSIONS = {
   "sessions.view": { group: "Security", label: "View session logs" },
   "sessions.revoke": { group: "Security", label: "Force logout sessions" },
   "audit.view": { group: "Security", label: "View audit trail" },
+  "payments.view": { group: "Bookings", label: "Payment & ticketing transactions (request / response logs)" },
   "bookings.train": { group: "Bookings", label: "Train bookings" },
   "bookings.flight": { group: "Bookings", label: "Flight bookings" },
   "bookings.bus": { group: "Bookings", label: "Bus bookings" },

@@ -3,13 +3,30 @@ import Link from "next/link";
 import { Lock, ShieldCheck, BadgeCheck } from "lucide-react";
 import { useSite } from "@/lib/client/providers";
 import { Logo } from "./logo";
+import { isServiceOn, isTrainLiveOn } from "@/lib/services";
+
+const LINKS: Record<string, string> = {
+  "Train tickets": "/?tab=train#search",
+  Flights: "/?tab=flight#search",
+  "Bus tickets": "/?tab=bus#search",
+  Hotels: "/?tab=hotel#search",
+  "Holiday packages": "/?tab=package#search",
+  "Live running status": "/trains/live?tool=live",
+  "Station board": "/trains/live?tool=board",
+  "Vacant berths": "/trains/live?tool=berths",
+  "Unreserved fare": "/trains/live?tool=uts",
+  "About us": "/about",
+  "Contact us": "/contact",
+  "Privacy Policy": "/privacy",
+  "Agent login": "/login?as=agent",
+};
 
 export function Footer() {
   const s = useSite();
   const cols = [
-    { h: "Book", items: ["Train tickets", "Flights", "Bus tickets", "Hotels", "Holiday packages"] },
-    { h: "Train tools", items: ["PNR status", "Live running status", "Seat availability", "Tatkal timings", "Station codes"] },
-    { h: "Company", items: ["About us", "Careers", "Partner with us", "Agent login"] },
+    { h: "Book", items: ([["Train tickets", "train"], ["Flights", "flight"], ["Bus tickets", "bus"], ["Hotels", "hotel"], ["Holiday packages", "package"]] as const).filter(([, k]) => isServiceOn(s, k)).map(([l]) => l) as string[] },
+    ...(isServiceOn(s, "train") ? [{ h: "Train tools", items: [...(isTrainLiveOn(s) ? ["Live running status", "Station board"] : []), "Vacant berths", "Unreserved fare"] }] : []),
+    { h: "Company", items: ["About us", "Contact us", "Privacy Policy", "Agent login"] },
   ];
   return (
     <footer className="relative overflow-hidden bg-ink text-white">
@@ -30,7 +47,9 @@ export function Footer() {
               <h5 className="text-xs font-bold uppercase tracking-widest text-white/40">{c.h}</h5>
               <ul className="mt-4 space-y-2.5 text-sm text-white/70">
                 {c.items.map((i) => (
-                  <li key={i}>{i === "Agent login" ? <Link className="hover:text-white" href="/login?as=agent">{i}</Link> : <span className="cursor-default hover:text-white">{i}</span>}</li>
+                  <li key={i}>
+                    {LINKS[i] ? <Link className="transition hover:text-white" href={LINKS[i]}>{i}</Link> : <span className="cursor-default hover:text-white">{i}</span>}
+                  </li>
                 ))}
               </ul>
             </div>

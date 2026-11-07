@@ -192,9 +192,18 @@ CREATE TABLE IF NOT EXISTS bookings (
   travellers         SMALLINT UNSIGNED NOT NULL DEFAULT 1,
   amount_paise       BIGINT UNSIGNED NOT NULL DEFAULT 0,
   currency           CHAR(3)       NOT NULL DEFAULT 'INR',
+  pay_provider       VARCHAR(16)   NULL,
+  pay_order_id       VARCHAR(64)   NULL,
+  pay_payment_id     VARCHAR(64)   NULL,
+  paid_at            DATETIME      NULL,
+  ticket_status      ENUM('not_issued','issued','failed') NOT NULL DEFAULT 'not_issued',
+  pnr_enc            TEXT          NULL,
+  issued_at          DATETIME      NULL,
+  hold_expires_at    DATETIME      NULL,
   created_at         TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at         TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_booking_ref (booking_ref),
+  UNIQUE KEY uq_booking_pay_order (pay_order_id),
   KEY idx_bookings_service (service, created_at),
   KEY idx_bookings_user (user_uid),
   KEY idx_bookings_provider_ref (provider_ref_bidx),
@@ -218,4 +227,84 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   KEY idx_audit_created (created_at),
   KEY idx_audit_actor (actor_type, actor_id),
   KEY idx_audit_action (action)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- RailCore API ledger: every upstream call, its credit cost and the
+-- balance RailCore reports. Used for the daily credit cap + admin usage.
+-- (No responses are stored — RailCore forbids caching its data.)
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS rail_api_calls (
+  id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  operation         VARCHAR(48)   NOT NULL,
+  http_status       SMALLINT      NOT NULL,
+  error_code        VARCHAR(48)   NULL,
+  credits_cost      INT           NOT NULL DEFAULT 0,
+  credits_remaining INT           NULL,
+  day_remaining     INT           NULL,
+  latency_ms        INT           NOT NULL DEFAULT 0,
+  request_id        VARCHAR(64)   NULL,
+  user_id           INT UNSIGNED  NULL,
+  created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_rail_calls_created (created_at),
+  KEY idx_rail_calls_op (operation, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Contact form messages (all personal content KMS-encrypted)
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  ref           CHAR(10)      NOT NULL,
+  topic         ENUM('booking','refund','account','partnership','grievance','other') NOT NULL DEFAULT 'other',
+  name_enc      TEXT          NOT NULL,
+  email_enc     TEXT          NOT NULL,
+  phone_enc     TEXT          NULL,
+  message_enc   TEXT          NOT NULL,
+  user_id       INT UNSIGNED  NULL,
+  ip_enc        TEXT          NULL,
+  status        ENUM('new','in_progress','closed') NOT NULL DEFAULT 'new',
+  handled_by    INT UNSIGNED  NULL,
+  created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_contact_ref (ref),
+  KEY idx_contact_status (status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Saved travellers (per customer). Whole record KMS-encrypted.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS saved_passengers (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT UNSIGNED NOT NULL,
+  data_enc    TEXT         NOT NULL,            -- {name, age, gender, berth, nationality}
+  created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_passengers_user (user_id),
+  CONSTRAINT fk_passengers_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Provider transaction log: every request we send to / receive from
+-- Razorpay & Tripgic (orders, verification, captures, webhooks, ticketing).
+-- Bodies are KMS-encrypted; secrets/authorization headers are never stored.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS payment_logs (
+  id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  booking_ref  VARCHAR(20)   NULL,
+  provider     ENUM('razorpay','tripgic','skyo') NOT NULL,
+  direction    ENUM('outbound','inbound') NOT NULL,
+  action       VARCHAR(48)   NOT NULL,
+  http_status  SMALLINT      NULL,
+  outcome      ENUM('ok','error') NOT NULL DEFAULT 'ok',
+  external_id  VARCHAR(64)   NULL,
+  event_id     VARCHAR(64)   NULL,
+  amount_paise BIGINT UNSIGNED NULL,
+  latency_ms   INT           NULL,
+  request_enc  MEDIUMTEXT    NULL,
+  response_enc MEDIUMTEXT    NULL,
+  created_at   TIMESTAMP(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_payment_logs_event (event_id),
+  KEY idx_payment_logs_booking (booking_ref),
+  KEY idx_payment_logs_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

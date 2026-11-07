@@ -6,6 +6,7 @@ import { BusFront, Building2, ChevronDown, LogOut, Palmtree, Plane, TrainFront, 
 import { useAuth, useSite } from "@/lib/client/providers";
 import { Logo } from "./logo";
 import { cn } from "@/lib/utils";
+import { isServiceOn, type ServiceKey } from "@/lib/services";
 
 const LINKS = [
   { href: "/#search", label: "Trains", icon: TrainFront, tab: "train" },
@@ -23,7 +24,8 @@ export function Navbar({ overHero = true }: { overHero?: boolean }) {
   const { user, logout } = useAuth();
   const site = useSite();
   useMotionValueEvent(scrollY, "change", (v) => overHero && setScrolled(v > 40));
-  const dark = false; // hero is a light sky now — keep ink text everywhere
+  const dark = overHero && !scrolled;
+  const links = LINKS.filter((l) => isServiceOn(site, l.tab as ServiceKey)); // white text over the blue sky, ink once the glass bar appears
 
   return (
     <div className="contents">
@@ -33,18 +35,18 @@ export function Navbar({ overHero = true }: { overHero?: boolean }) {
       <motion.header
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className={cn("sticky top-0 z-50 transition-all duration-300", scrolled ? "px-3 pt-3" : "px-0 pt-0")}
+        className={cn("sticky top-0 z-50 transition-[padding] duration-300", scrolled ? "px-3 pt-3" : "px-0 pt-0")}
       >
         <nav
           className={cn(
-            "mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 transition-all duration-300",
-            scrolled ? "h-16 rounded-2xl border border-white/60 bg-white/75 shadow-soft backdrop-blur-xl" : "h-20 bg-transparent",
-            !overHero && "border-line",
+            // border is always present (transparent) so it never flashes in currentColor while transitioning
+            "mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-2xl border px-5 transition-[height,background-color,border-color,box-shadow] duration-300",
+            scrolled ? "h-16 border-white/60 bg-white/75 shadow-soft backdrop-blur-xl" : "h-20 border-transparent bg-transparent shadow-none",
           )}
         >
           <Logo dark={dark} />
           <div className="hidden items-center gap-1 lg:flex">
-            {LINKS.map((l) => (
+            {links.map((l) => (
               <Link
                 key={l.label}
                 href={`/?tab=${l.tab}#search`}
@@ -74,7 +76,7 @@ export function Navbar({ overHero = true }: { overHero?: boolean }) {
         <AnimatePresence>
           {open && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mx-3 mt-2 rounded-2xl border border-line bg-white p-2 shadow-lift lg:hidden">
-              {LINKS.map((l) => (
+              {links.map((l) => (
                 <Link key={l.label} onClick={() => setOpen(false)} href={`/?tab=${l.tab}#search`} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-ink hover:bg-surface">
                   <l.icon className="h-4 w-4 text-brand" /> {l.label}
                 </Link>

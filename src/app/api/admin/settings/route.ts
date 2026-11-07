@@ -35,6 +35,16 @@ const schema = z.object({
   user_signup: onOff.optional(),
   ip_geolocation: onOff.optional(),
   otp_resend_seconds: z.string().regex(/^\d{2,3}$/).refine((v) => +v >= 20 && +v <= 300, "20–300 seconds").optional(),
+  train_api: onOff.optional(),
+  service_train: onOff.optional(),
+  service_flight: onOff.optional(),
+  service_bus: onOff.optional(),
+  service_hotel: onOff.optional(),
+  service_package: onOff.optional(),
+  train_live: onOff.optional(),
+  max_saved_passengers: z.string().regex(/^\d{1,2}$/).refine((v) => +v >= 1 && +v <= 50, "1–50").optional(),
+  max_passengers_per_booking: z.string().regex(/^[1-6]$/, "1–6 (IRCTC allows up to 6)").optional(),
+  train_daily_credit_cap: z.string().regex(/^\d{1,6}$/, "Whole number").optional(),
 });
 
 export const PUT = route(async (req: NextRequest) => {

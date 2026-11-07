@@ -15,10 +15,10 @@ export function PageHeader({ title, sub, actions, icon }: { title: string; sub?:
   return (
     <div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
       <div className="flex items-start gap-3.5">
-        {icon && <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-gradient-to-b from-white to-neutral-50 text-neutral-700 shadow-[0_1px_2px_rgba(0,0,0,0.05)] [&_svg]:h-5 [&_svg]:w-5">{icon}</div>}
+        {icon && <div className="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand to-brand-2 text-white shadow-[0_12px_30px_-10px_rgba(255,90,31,0.7)] [&_svg]:h-5 [&_svg]:w-5">{icon}</div>}
         <div>
-          <h1 className="text-[22px] font-semibold tracking-tight text-neutral-900">{title}</h1>
-          {sub && <p className="mt-1 max-w-2xl text-sm text-neutral-500">{sub}</p>}
+          <h1 className="text-2xl font-extrabold tracking-tight text-ink">{title}</h1>
+          {sub && <p className="mt-1 max-w-2xl text-sm text-muted">{sub}</p>}
         </div>
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -27,16 +27,23 @@ export function PageHeader({ title, sub, actions, icon }: { title: string; sub?:
 }
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("rounded-xl border border-neutral-200 bg-white", className)}>{children}</div>;
+  return <div className={cn("rounded-2xl border border-line bg-white shadow-soft", className)}>{children}</div>;
 }
 
-/** Aceternity-style stat card: cursor-following glow + grid pattern. */
-export function StatCard({ label, value, hint, icon, tone = "brand" }: { label: string; value: ReactNode; hint?: ReactNode; icon: ReactNode; tone?: "brand" | "iris" | "mint" | "sky" }) {
+/** Aceternity-style stat card: cursor-following glow, grid pattern, gradient icon, optional sparkline. */
+export function StatCard({ label, value, hint, icon, tone = "brand", spark }: { label: string; value: ReactNode; hint?: ReactNode; icon: ReactNode; tone?: "brand" | "iris" | "mint" | "sky"; spark?: number[] }) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const colors = { brand: "255,90,31", iris: "91,91,247", mint: "16,185,129", sky: "56,189,248" };
-  const bg = useMotionTemplate`radial-gradient(220px circle at ${x}px ${y}px, rgba(${colors[tone]},0.10), transparent 75%)`;
-  const iconTone = { brand: "text-brand", iris: "text-iris", mint: "text-mint", sky: "text-sky-500" };
+  const bg = useMotionTemplate`radial-gradient(240px circle at ${x}px ${y}px, rgba(${colors[tone]},0.14), transparent 75%)`;
+  const iconTone = {
+    brand: "from-brand to-brand-2 shadow-[0_10px_24px_-10px_rgba(255,90,31,0.8)]",
+    iris: "from-iris to-violet-500 shadow-[0_10px_24px_-10px_rgba(91,91,247,0.8)]",
+    mint: "from-emerald-500 to-teal-400 shadow-[0_10px_24px_-10px_rgba(16,185,129,0.8)]",
+    sky: "from-sky-500 to-cyan-400 shadow-[0_10px_24px_-10px_rgba(56,189,248,0.8)]",
+  };
+  const barTone = { brand: "bg-brand", iris: "bg-iris", mint: "bg-emerald-500", sky: "bg-sky-500" };
+  const max = Math.max(1, ...(spark || [0]));
   return (
     <div
       onMouseMove={(e) => {
@@ -44,16 +51,27 @@ export function StatCard({ label, value, hint, icon, tone = "brand" }: { label: 
         x.set(e.clientX - r.left);
         y.set(e.clientY - r.top);
       }}
-      className="group relative overflow-hidden rounded-xl border border-neutral-200 bg-white p-5"
+      className="group relative overflow-hidden rounded-2xl border border-line bg-white p-5 shadow-soft transition hover:-translate-y-0.5 hover:shadow-[0_20px_40px_-20px_rgba(10,15,31,0.25)]"
     >
       <motion.div className="pointer-events-none absolute inset-0 opacity-0 transition duration-300 group-hover:opacity-100" style={{ background: bg }} />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#f4f4f5_1px,transparent_1px),linear-gradient(to_bottom,#f4f4f5_1px,transparent_1px)] bg-[size:20px_20px] opacity-0 transition duration-300 [mask-image:radial-gradient(ellipse_at_top_right,black,transparent_70%)] group-hover:opacity-100" />
       <div className="relative flex items-start justify-between">
-        <div className="text-[13px] font-medium text-neutral-500">{label}</div>
-        <div className={cn("[&_svg]:h-4 [&_svg]:w-4", iconTone[tone])}>{icon}</div>
+        <div className="text-xs font-bold uppercase tracking-wider text-muted">{label}</div>
+        <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-white [&_svg]:h-[18px] [&_svg]:w-[18px]", iconTone[tone])}>{icon}</div>
       </div>
-      <div className="relative mt-3 text-[28px] font-semibold tracking-tight text-neutral-900 tabular-nums">{value}</div>
-      {hint && <div className="relative mt-0.5 text-xs text-neutral-500">{hint}</div>}
+      <div className="relative mt-2 flex items-end justify-between gap-3">
+        <div>
+          <div className="text-3xl font-extrabold tracking-tight text-ink tabular-nums">{value}</div>
+          {hint && <div className="mt-0.5 text-xs font-medium text-muted">{hint}</div>}
+        </div>
+        {spark && spark.length > 1 && (
+          <div className="flex h-10 items-end gap-[3px]">
+            {spark.map((v, i) => (
+              <motion.span key={i} initial={{ height: 0 }} animate={{ height: `${Math.max(8, (v / max) * 100)}%` }} transition={{ delay: i * 0.03 }} className={cn("w-1.5 rounded-full opacity-70", barTone[tone])} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -85,7 +103,7 @@ export function Badge({ children, tone }: { children: ReactNode; tone?: string }
 
 export function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
-    <label className="flex h-9 min-w-[280px] flex-1 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 transition focus-within:border-neutral-400 focus-within:ring-4 focus-within:ring-neutral-100 md:flex-none">
+    <label className="flex h-10 min-w-[280px] flex-1 items-center gap-2 rounded-xl border border-line bg-white px-3 transition focus-within:border-brand focus-within:ring-4 focus-within:ring-brand/10 md:flex-none">
       <Search className="h-4 w-4 text-neutral-400" />
       <input value={value} onChange={(e) => onChange(e.target.value.slice(0, 100))} placeholder={placeholder} className="w-full bg-transparent text-[13px] outline-none placeholder:text-neutral-400" />
     </label>
@@ -94,7 +112,7 @@ export function SearchBox({ value, onChange, placeholder }: { value: string; onC
 
 export function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: [string, string][] }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="h-9 rounded-lg border border-neutral-200 bg-white px-2.5 text-[13px] text-neutral-700 outline-none focus:border-neutral-400">
+    <select value={value} onChange={(e) => onChange(e.target.value)} className="h-10 rounded-xl border border-line bg-white px-3 text-[13px] font-semibold text-ink/80 outline-none focus:border-brand">
       {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
     </select>
   );
@@ -103,12 +121,12 @@ export function Select({ value, onChange, options }: { value: string; onChange: 
 export function Btn({ children, onClick, variant = "outline", disabled, className, type = "button" }: { children: ReactNode; onClick?: () => void; variant?: "outline" | "dark" | "danger" | "brand"; disabled?: boolean; className?: string; type?: "button" | "submit" }) {
   const v = {
     outline: "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50",
-    dark: "bg-neutral-900 text-white hover:bg-neutral-800 shadow-[0_1px_2px_rgba(0,0,0,0.1)]",
+    dark: "bg-ink text-white hover:bg-ink-2 shadow-[0_8px_20px_-10px_rgba(10,15,31,0.6)]",
     danger: "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
-    brand: "bg-brand text-white hover:brightness-110 shadow-[0_1px_2px_rgba(0,0,0,0.1)]",
+    brand: "bg-gradient-to-r from-brand to-brand-2 text-white hover:brightness-110 shadow-[0_10px_24px_-10px_rgba(255,90,31,0.8)]",
   };
   return (
-    <button type={type} disabled={disabled} onClick={onClick} className={cn("inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-[13px] font-medium transition active:scale-[0.98] disabled:opacity-50", v[variant], className)}>
+    <button type={type} disabled={disabled} onClick={onClick} className={cn("inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-3.5 text-[13px] font-bold transition active:scale-[0.98] disabled:opacity-50", v[variant], className)}>
       {children}
     </button>
   );
@@ -119,7 +137,7 @@ export function Table({ head, children, loading, empty, colSpan }: { head: strin
     <div className="overflow-x-auto">
       <table className="w-full min-w-[880px] text-left text-[13px]">
         <thead>
-          <tr className="border-b border-neutral-200 bg-neutral-50/60 text-xs font-medium text-neutral-500">
+          <tr className="border-b border-line bg-surface/70 text-[11px] font-bold uppercase tracking-wider text-muted">
             {head.map((h, i) => <th key={h + i} className="whitespace-nowrap px-4 py-2.5 font-medium">{h}</th>)}
           </tr>
         </thead>
@@ -146,7 +164,7 @@ export function Table({ head, children, loading, empty, colSpan }: { head: strin
 export const Td = ({ children, className }: { children: ReactNode; className?: string }) => <td className={cn("px-4 py-3 align-middle", className)}>{children}</td>;
 
 export function Toolbar({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 p-3">{children}</div>;
+  return <div className="flex flex-wrap items-center gap-2 border-b border-line p-4">{children}</div>;
 }
 
 export function Pager({ page, size, total, onPage }: { page: number; size: number; total: number; onPage: (p: number) => void }) {
@@ -165,7 +183,7 @@ export function Pager({ page, size, total, onPage }: { page: number; size: numbe
 
 export function Avatar({ name, className }: { name: string | null; className?: string }) {
   const initials = (name || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
-  return <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-gradient-to-b from-white to-neutral-100 text-[11px] font-semibold text-neutral-700", className)}>{initials}</div>;
+  return <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand/15 to-iris/20 text-[11px] font-extrabold text-ink ring-1 ring-white", className)}>{initials}</div>;
 }
 
 export function Forbidden() {
