@@ -7,13 +7,20 @@
  * (distance, cabin, days to departure, time of day, airline type) and the server is always the
  * one that computes the payable amount.
  */
-import { airportByCode, distanceKm, isDomestic } from "./airports";
+import { airportByCode, distanceKm } from "./airports";
 import { airlineInfo, AIRCRAFT, type AircraftCode, type CabinKey, type CabinLayout, seatKind, seatsOf, parseSeat } from "./airlines";
 import { finishCharges, numSetting, pctOf, rupeesToPaise, type ChargeLine, type CouponApplied, type CouponRule, type PayMode } from "@/lib/charges-core";
 
 /* --------------------------------- types --------------------------------- */
 
-export type FlightPoint = { iata: string; airport: string; city: string; terminal: string | null; gate: string | null; time: string /* HH:MM local */; tz: string };
+export type FlightPoint = { iata: string; airport: string; city: string; terminal: string | null; gate: string | null; time: string /* HH:MM local */; tz: string; country?: string; lat?: number; lon?: number };
+
+/** Domestic (both ends in India) — uses the country stored on the leg, else SKYO's airport list. */
+export function isDomesticPair(a: Pick<FlightPoint, "iata" | "country">, b: Pick<FlightPoint, "iata" | "country">) {
+  const ca = a.country ?? airportByCode(a.iata)?.country;
+  const cb = b.country ?? airportByCode(b.iata)?.country;
+  return ca === "IN" && cb === "IN";
+}
 export type FlightLeg = {
   /** Operating flight IATA code, e.g. "6E622". */
   key: string;
@@ -112,7 +119,7 @@ function demand(daysAhead: number, lastMinutePct: number) {
 
 /** Base fare + taxes for ONE adult on ONE leg. */
 export function legFare(s: FlightFareSettings, leg: Pick<FlightLeg, "key" | "airline" | "distanceKm" | "from" | "to">, date: string, cabin: CabinKey, today = todayIST()) {
-  const intl = !isDomestic(airportByCode(leg.from.iata), airportByCode(leg.to.iata));
+  const intl = !isDomesticPair(leg.from, leg.to);
   const info = airlineInfo(leg.airline.iata);
   let fare = numSetting(s.flight_base_fare, 100000) + leg.distanceKm * numSetting(s.flight_per_km, 1000);
   if (!info.lcc) fare *= 1 + numSetting(s.flight_fullservice_pct, 300) / 100;

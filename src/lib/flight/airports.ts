@@ -119,8 +119,9 @@ export const isDomestic = (a?: Airport | null, b?: Airport | null) => !!a && !!b
 
 /** "Delhi (DEL)" / "DEL" / "delhi" → DEL. */
 export function parseAirportInput(v: string): string | null {
+  // "City (XYZ)" picked from suggestions — any IATA code (the server checks it against the world list)
   const m = v.match(/\(([A-Z]{3})\)\s*$/i);
-  if (m && isKnownAirport(m[1])) return m[1].toUpperCase();
+  if (m) return m[1].toUpperCase();
   const t = v.trim().toUpperCase();
   if (/^[A-Z]{3}$/.test(t) && isKnownAirport(t)) return t;
   const hit = searchAirports(v, 1)[0];

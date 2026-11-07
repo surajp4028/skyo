@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
 import { AlertTriangle, ArrowRight, Database, Gauge, Loader2, Mountain, Navigation, Radar, Search } from "lucide-react";
 import { api, ClientApiError, errMsg } from "@/lib/client/api";
-import { RouteMap } from "./route-map";
+import { DottedRouteMap } from "./dotted-route-map";
+import { Clouds, FlightPath } from "@/components/site/home-sections";
 import { AirlineLogo } from "./airline-logo";
 import { cn, timeAgo } from "@/lib/utils";
 
@@ -52,21 +53,38 @@ export function FlightStatus() {
 
   return (
     <div>
-      <section className="relative -mt-20 overflow-hidden pb-16 pt-28">
-        <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_10%_0%,#1e40af_0%,#0b1020_60%,#050816_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(56,189,248,0.25),transparent_45%)]" />
-        <div className="relative mx-auto max-w-5xl px-4 text-white sm:px-5">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold backdrop-blur"><Radar className="h-3.5 w-3.5" /> Live flight status</span>
-          <h1 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">Where&apos;s my flight?</h1>
-          <p className="mt-2 max-w-lg text-sm text-white/70">Departure, arrival, terminals, gates, delays and the plane&apos;s live position — for flights operating today.</p>
-          <form onSubmit={(e) => (e.preventDefault(), code.trim() && router.push(`/flights/status?flight=${encodeURIComponent(code.replace(/\s+/g, "").toUpperCase())}`))} className="mt-6 flex max-w-xl gap-2 rounded-2xl bg-white/10 p-2 ring-1 ring-white/15 backdrop-blur">
-            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 8))} placeholder="Flight number, e.g. 6E 395" className="min-w-0 flex-1 bg-transparent px-3 text-lg font-bold tracking-wider text-white outline-none placeholder:text-white/40" />
-            <button className="flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-extrabold text-ink"><Search className="h-4 w-4" /> Track</button>
-          </form>
+      <section className="relative -mt-20 overflow-hidden pb-24 pt-32 md:pb-28">
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,#2f8fff_0%,#7cc4ff_42%,#d8ecff_74%,#f6f7fb_100%)]" />
+        <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.85),transparent_65%)]" />
+        <Clouds />
+        <FlightPath />
+        <div className="relative mx-auto max-w-5xl px-4 text-center sm:px-5">
+          <motion.span initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-1.5 rounded-full border border-white/60 bg-white/40 px-3 py-1 text-xs font-bold text-ink backdrop-blur">
+            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" /></span>
+            Live flight status
+          </motion.span>
+          <motion.h1 initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mx-auto mt-5 max-w-3xl text-4xl font-black tracking-tight text-ink md:text-6xl">
+            Where&apos;s my{" "}
+            <span className="relative inline-block">
+              <span className="relative z-10 bg-gradient-to-r from-[#0057ff] to-[#7c3aed] bg-clip-text text-transparent">flight?</span>
+              <svg className="absolute -bottom-2 left-0 w-full" viewBox="0 0 200 12" preserveAspectRatio="none" aria-hidden><motion.path d="M2 9 C 50 2, 150 2, 198 8" fill="none" stroke="#0057ff" strokeWidth="3" strokeLinecap="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1, delay: 0.4 }} /></svg>
+            </span>
+          </motion.h1>
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }} className="mx-auto mt-4 max-w-xl text-sm text-ink/70 md:text-base">Departure & arrival times, terminal, gate, delay and the plane&apos;s live position — for flights operating today.</motion.p>
+          <motion.form initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} onSubmit={(e) => (e.preventDefault(), code.trim() && router.push(`/flights/status?flight=${encodeURIComponent(code.replace(/\s+/g, "").toUpperCase())}`))} className="mx-auto mt-7 flex max-w-xl items-center gap-2 rounded-[22px] border border-white/80 bg-white/85 p-2 shadow-[0_30px_80px_-30px_rgba(10,15,31,0.45)] backdrop-blur-xl">
+            <span className="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-[#0057ff]"><Radar className="h-5 w-5" /></span>
+            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 8))} placeholder="Flight number, e.g. 6E 6676" className="min-w-0 flex-1 bg-transparent px-1 text-lg font-extrabold tracking-wider text-ink outline-none placeholder:font-semibold placeholder:tracking-normal placeholder:text-ink/30" />
+            <button className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] px-5 py-3 text-sm font-extrabold text-white shadow-[0_12px_28px_-12px_rgba(0,87,255,0.85)] transition hover:-translate-y-0.5"><Search className="h-4 w-4" /> Track</button>
+          </motion.form>
+          <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs font-bold">
+            {["6E 6676", "AI 2933", "QP 1114", "SG 612"].map((f) => (
+              <button key={f} type="button" onClick={() => router.push(`/flights/status?flight=${f.replace(" ", "")}`)} className="rounded-full border border-white/70 bg-white/60 px-3 py-1.5 text-ink/70 backdrop-blur transition hover:bg-white hover:text-[#0057ff]">{f}</button>
+            ))}
+          </div>
         </div>
       </section>
 
-      <div className="relative mx-auto -mt-8 max-w-5xl px-4 pb-20 sm:px-5">
+      <div className="relative z-10 mx-auto -mt-12 max-w-5xl px-4 pb-20 sm:px-5">
         {!initial ? (
           <div className="rounded-3xl border border-line bg-white p-8 text-center shadow-soft"><p className="text-sm text-muted">Enter a flight number to see its live status. You can also track booked flights from <Link href="/account?tab=trips" className="font-bold text-[#0057ff]">My trips</Link>.</p></div>
         ) : loading ? (
@@ -111,8 +129,8 @@ export function FlightStatus() {
                 )}
                 <p className="mt-5 flex items-center gap-1.5 text-[11px] font-semibold text-muted"><Database className="h-3.5 w-3.5" /> aviationstack real-time · {d.cached ? `cached ${timeAgo(d.fetchedAt)}` : "just updated"} · times are local airport time</p>
               </div>
-              <div className="bg-[radial-gradient(120%_80%_at_0%_0%,#1e3a8a_0%,#0b1020_60%)] p-4">
-                <RouteMap codes={[d.dep.iata, d.arr.iata]} live={d.live ? { lat: d.live.lat, lon: d.live.lon, direction: d.live.direction } : null} progress={d.live ? null : progress} />
+              <div className="flex items-center bg-[radial-gradient(120%_90%_at_100%_0%,#e0f2fe_0%,#f8fafc_60%)] p-4">
+                <DottedRouteMap codes={[d.dep.iata, d.arr.iata]} live={d.live && !d.live.isGround ? { lat: d.live.lat, lon: d.live.lon, direction: d.live.direction } : null} progress={d.live && !d.live.isGround ? null : progress} />
               </div>
             </div>
           </motion.div>

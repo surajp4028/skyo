@@ -4,7 +4,7 @@ import { decrypt, encrypt } from "../crypto";
 import { ApiError } from "../http";
 import { getSetting } from "../settings";
 import { aviation, type AsFlight } from "./aviationstack";
-import { airportByCode } from "@/lib/flight/airports";
+import { worldAirport as airportByCode } from "./world-airports";
 import { airlineInfo } from "@/lib/flight/airlines";
 import { todayIST } from "@/lib/flight/model";
 

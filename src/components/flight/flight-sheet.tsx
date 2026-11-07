@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
@@ -10,9 +10,10 @@ import { openCheckout } from "@/lib/client/razorpay";
 import { useAuth, useSite } from "@/lib/client/providers";
 import { PassengerForm, genderLabel, type SavedPassenger } from "@/components/booking/passenger-form";
 import { BillingFields, billingValid, GstPanel, useGstProfile, type Billing } from "@/components/booking/gst-panel";
-import { RouteMap } from "./route-map";
+import { DottedRouteMap } from "./dotted-route-map";
 import { Itinerary } from "./flight-card";
 import { AirlineLogo } from "./airline-logo";
+import { TerminalChip } from "./terminal-chip";
 import { SeatLegend, SeatMap, type SeatLeg } from "./seat-map";
 import { CABIN_LABEL, type CabinKey } from "@/lib/flight/airlines";
 import { flightCharges, flightInsuranceOffered, fmtDur, type FlightOption } from "@/lib/flight/model";
@@ -61,6 +62,24 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
   const bill: Billing = billing ?? gp?.billing ?? { state: "", pincode: null, address: null };
   const stateOk = billingValid(bill);
   const locked = step === "paying" || step === "verifying";
+  const scroller = useRef<HTMLDivElement>(null);
+  // the breakup closes by itself on the next step (it remembers which step opened it)
+  const [breakupOn, setBreakupOn] = useState<Step | null>(null);
+  const showBreakup = breakupOn === step;
+  const setShowBreakup = (v: boolean | ((x: boolean) => boolean)) => setBreakupOn(() => ((typeof v === "function" ? v(showBreakup) : v) ? step : null));
+
+  // the page behind must not scroll while the sheet is open (scrolling the seat map used to drag it to the footer)
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+  // every step starts at the top
+  useEffect(() => {
+    scroller.current?.scrollTo({ top: 0 });
+  }, [step]);
 
   useEffect(() => {
     let alive = true;
@@ -215,7 +234,7 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
       <motion.div initial={{ y: 40, scale: 0.98 }} animate={{ y: 0, scale: 1 }} exit={{ y: 40, opacity: 0 }} transition={{ type: "spring", stiffness: 300, damping: 30 }}
         className="relative grid max-h-[96vh] w-full max-w-6xl overflow-hidden rounded-t-[28px] bg-white shadow-lift sm:rounded-[28px] lg:grid-cols-[400px_minmax(0,1fr)]">
         {/* ---- dark side: route map + itinerary ---- */}
-        <aside className="relative hidden overflow-y-auto bg-[radial-gradient(120%_80%_at_0%_0%,#1e3a8a_0%,#0b1020_55%,#050816_100%)] p-6 text-white lg:block">
+        <aside className="relative hidden overflow-y-auto overscroll-contain bg-[radial-gradient(120%_80%_at_0%_0%,#1e3a8a_0%,#0b1020_55%,#050816_100%)] p-6 text-white lg:block">
           <div className="pointer-events-none absolute -right-24 top-10 h-72 w-72 rounded-full bg-sky-500/20 blur-3xl" />
           <div className="relative">
             <div className="flex items-center gap-3">
@@ -225,11 +244,11 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
                 <div className="text-xs text-white/60">{o.legs.map((l) => `${l.airline.iata} ${l.number}`).join(" · ")}</div>
               </div>
             </div>
-            <div className="mt-5 rounded-3xl bg-white/[0.04] p-2 ring-1 ring-white/10"><RouteMap codes={[first.from.iata, ...o.legs.slice(1).map((l) => l.from.iata), last.to.iata]} /></div>
+            <div className="mt-5 rounded-3xl bg-white/[0.04] p-2 ring-1 ring-white/10"><DottedRouteMap theme="dark" codes={[first.from.iata, ...o.legs.slice(1).map((l) => l.from.iata), last.to.iata]} /></div>
             <div className="mt-5 flex items-end justify-between">
-              <div><div className="text-3xl font-black">{o.dep}</div><div className="text-xs font-bold text-white/60">{first.from.iata} · {first.from.city}</div></div>
+              <div><div className="text-3xl font-black">{o.dep}</div><div className="text-xs font-bold text-white/60">{first.from.iata} · {first.from.city}</div><TerminalChip t={first.from.terminal} dark /></div>
               <div className="pb-1 text-center text-[11px] font-bold text-white/60">{fmtDur(o.durationMin)}<div className={o.stops ? "text-amber-300" : "text-emerald-300"}>{o.stops ? "1 stop" : "Non-stop"}</div></div>
-              <div className="text-right"><div className="text-3xl font-black">{o.arr}{o.dayOffset ? <sup className="text-xs text-orange-300">+{o.dayOffset}</sup> : null}</div><div className="text-xs font-bold text-white/60">{last.to.city} · {last.to.iata}</div></div>
+              <div className="text-right"><div className="text-3xl font-black">{o.arr}{o.dayOffset ? <sup className="text-xs text-orange-300">+{o.dayOffset}</sup> : null}</div><div className="text-xs font-bold text-white/60">{last.to.city} · {last.to.iata}</div><TerminalChip t={last.to.terminal} dark right /></div>
             </div>
             <div className="mt-2 text-xs text-white/60">{prettyDate(q.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
             <div className="mt-6"><Itinerary o={o} dark /></div>
@@ -264,7 +283,7 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
             )}
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <AnimatePresence mode="wait">
               {step === "travellers" && (
                 <motion.div key="t" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5 p-5">
@@ -503,13 +522,30 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
             </AnimatePresence>
           </div>
 
-          <footer className="shrink-0 border-t border-line p-4">
+          <footer className="relative shrink-0 border-t border-line p-4">
+            <AnimatePresence>
+              {showBreakup && sel.length > 0 && (step === "travellers" || step === "seats" || step === "pay") && (
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="absolute inset-x-3 bottom-full mb-2 rounded-2xl border border-line bg-white p-4 shadow-[0_-20px_50px_-20px_rgba(10,15,31,0.35)]">
+                  <div className="mb-2 flex items-center justify-between"><span className="text-sm font-extrabold">Price breakup · {sel.length} traveller{sel.length > 1 ? "s" : ""}</span><button onClick={() => setShowBreakup(false)} aria-label="Close breakup"><X className="h-4 w-4 text-muted" /></button></div>
+                  <ul className="max-h-64 space-y-1.5 overflow-y-auto text-sm">
+                    {charges.lines.map((l) => (
+                      <li key={l.key} className="flex justify-between gap-3">
+                        <span className="text-muted">{l.label}{l.note && ["fare", "seats", "agent_fee", "insurance", "airport_fee"].includes(l.key) ? <span className="block text-[10px]">{l.note}</span> : null}</span>
+                        <span className={cn("font-semibold tabular-nums", l.paise < 0 && "text-mint")}>{l.paise < 0 ? `− ${fmtMoney(-l.paise / 100)}` : fmtMoney(l.paise / 100)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-2 flex justify-between border-t border-line pt-2 font-extrabold"><span>Total</span><span>{fmtMoney(estimate)}</span></div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             {(step === "travellers" || step === "seats") && !needLogin && (
               <div className="flex items-center gap-3">
-                <div className="min-w-0 flex-1">
+                <button type="button" disabled={!sel.length} onClick={() => setShowBreakup((v) => !v)} className="min-w-0 flex-1 text-left">
                   <div className="text-[11px] font-semibold text-muted">{sel.length || "No"} traveller{sel.length === 1 ? "" : "s"}{seatFees ? ` · seats ${fmtINR(seatFees / 100)}` : ""}</div>
-                  <div className="text-xl font-black">{sel.length ? fmtMoney(estimate) : fmtINR(fare.perAdultPaise / 100)}<span className="text-xs font-semibold text-muted">{sel.length ? " total" : " / adult"}</span></div>
-                </div>
+                  <div className="flex items-center gap-1 text-xl font-black">{sel.length ? fmtMoney(estimate) : fmtINR(fare.perAdultPaise / 100)}<span className="text-xs font-semibold text-muted">{sel.length ? " total" : " / adult"}</span>{sel.length > 0 && <ChevronDown className={cn("h-4 w-4 text-[#0057ff] transition", !showBreakup && "rotate-180")} />}</div>
+                  {sel.length > 0 && <div className="text-[10px] font-bold text-[#0057ff]">{showBreakup ? "Hide" : "View"} price breakup</div>}
+                </button>
                 {step === "seats" && <button onClick={() => (setSeats({}), setStep("pay"))} className="rounded-2xl px-4 py-3 text-sm font-bold text-muted hover:bg-surface">Skip</button>}
                 <button onClick={next} disabled={!sel.length} className="rounded-2xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] px-6 py-3 text-sm font-extrabold text-white shadow-[0_14px_30px_-12px_rgba(0,87,255,0.85)] transition hover:-translate-y-0.5 disabled:opacity-50">
                   {step === "travellers" ? "Choose seats →" : "Continue →"}

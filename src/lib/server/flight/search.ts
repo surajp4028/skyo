@@ -4,9 +4,10 @@ import { decrypt, encrypt } from "../crypto";
 import { ApiError } from "../http";
 import { getAllSettings, getSetting } from "../settings";
 import { aviation, type AsFlight } from "./aviationstack";
-import { airportByCode, distanceKm, HUBS, isDomestic } from "@/lib/flight/airports";
+import { distanceKm, HUBS } from "@/lib/flight/airports";
+import { worldAirport as airportByCode } from "./world-airports";
 import { aircraftFor, airlineInfo, cabinsOf, AIRCRAFT, type CabinKey } from "@/lib/flight/airlines";
-import { baggageFor, optionFare, seatsLeftFor, todayIST, toMin, tzOffsetMin, type FlightChargeSettings, type FlightLeg, type FlightOption } from "@/lib/flight/model";
+import { baggageFor, isDomesticPair, optionFare, seatsLeftFor, todayIST, toMin, tzOffsetMin, type FlightChargeSettings, type FlightLeg, type FlightOption } from "@/lib/flight/model";
 
 /* =====================================================================
  * Flight search on aviationstack's FREE plan.
@@ -45,8 +46,8 @@ export function normalizeRoute(rows: AsFlight[], dep: string, arr: string): Flig
       key: op.iata,
       airline: { iata: op.airlineIata, name: airlineInfo(op.airlineIata, op.airlineName).name, icao: op.airlineIcao },
       number: op.number,
-      from: { iata: dep, airport: depAp?.name || r.departure.airport || dep, city: depAp?.city || dep, terminal: r.departure.terminal, gate: r.departure.gate, time: d.time, tz: depTz },
-      to: { iata: arr, airport: arrAp?.name || r.arrival.airport || arr, city: arrAp?.city || arr, terminal: r.arrival.terminal, gate: r.arrival.gate, time: a.time, tz: arrTz },
+      from: { iata: dep, airport: depAp?.name || r.departure.airport || dep, city: depAp?.city || dep, terminal: r.departure.terminal, gate: r.departure.gate, time: d.time, tz: depTz, country: depAp?.country, lat: depAp?.lat, lon: depAp?.lon },
+      to: { iata: arr, airport: arrAp?.name || r.arrival.airport || arr, city: arrAp?.city || arr, terminal: r.arrival.terminal, gate: r.arrival.gate, time: a.time, tz: arrTz, country: arrAp?.country, lat: arrAp?.lat, lon: arrAp?.lon },
       dayOffset: Math.round((Date.parse(`${a.date}T00:00:00Z`) - Date.parse(`${d.date}T00:00:00Z`)) / 86400_000),
       durationMin,
       distanceKm: km,
@@ -160,7 +161,7 @@ function toOption(legs: FlightLeg[], layovers: number[], date: string, s: Flight
   const durationMin = legs.reduce((a, l) => a + l.durationMin, 0) + layovers.reduce((a, l) => a + l, 0);
   const tzShift = tzOffsetMin(last.to.tz, date) - tzOffsetMin(first.from.tz, date);
   const dayOffset = Math.max(0, Math.floor((toMin(first.from.time) + durationMin + tzShift) / 1440));
-  const intl = !isDomestic(airportByCode(first.from.iata), airportByCode(last.to.iata));
+  const intl = !isDomesticPair(first.from, last.to);
   const cabins = legs.map((l) => cabinsOf(AIRCRAFT[l.aircraft.code]));
   const all: CabinKey[] = (["economy", "business"] as CabinKey[]).filter((c) => cabins.every((cs) => cs.includes(c)));
   const fares: FlightOption["fares"] = {};

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Armchair, BadgeCheck, Briefcase, ChevronDown, Clock, Luggage, Plane, Radio, ShieldCheck } from "lucide-react";
 import { AirlineLogo } from "./airline-logo";
+import { TerminalChip } from "./terminal-chip";
 import { airlineInfo, CABIN_LABEL, type CabinKey } from "@/lib/flight/airlines";
 import { fmtDur, type FlightLeg, type FlightOption } from "@/lib/flight/model";
 import { fmtINR } from "@/lib/train/format";
@@ -43,7 +44,7 @@ export function FlightCard({ o, cabin, adults, onSelect, index = 0 }: { o: Fligh
             <div className="text-left">
               <div className="text-2xl font-black tabular-nums tracking-tight sm:text-[28px]">{o.dep}</div>
               <div className="text-xs font-bold text-ink/70">{first.from.iata} <span className="font-semibold text-muted">· {first.from.city}</span></div>
-              <div className="text-[10px] font-semibold text-muted">Terminal {first.from.terminal || "–"}</div>
+              <TerminalChip t={first.from.terminal} />
             </div>
             <div className="relative flex min-w-0 flex-1 flex-col items-center">
               <span className="mb-1 flex items-center gap-1 text-[11px] font-bold text-muted"><Clock className="h-3 w-3" />{fmtDur(o.durationMin)}</span>
@@ -60,7 +61,7 @@ export function FlightCard({ o, cabin, adults, onSelect, index = 0 }: { o: Fligh
             <div className="text-right">
               <div className="text-2xl font-black tabular-nums tracking-tight sm:text-[28px]">{o.arr}{o.dayOffset ? <sup className="ml-0.5 text-[11px] font-bold text-orange-500">+{o.dayOffset}</sup> : null}</div>
               <div className="text-xs font-bold text-ink/70"><span className="font-semibold text-muted">{last.to.city} · </span>{last.to.iata}</div>
-              <div className="text-[10px] font-semibold text-muted">Terminal {last.to.terminal || "–"}</div>
+              <TerminalChip t={last.to.terminal} />
             </div>
           </div>
         </div>
@@ -147,11 +148,11 @@ function LegRow({ l, dark }: { l: FlightLeg; dark?: boolean }) {
         </div>
         <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
           <span className="font-black tabular-nums">{l.from.time}</span>
-          <span><b>{l.from.city} ({l.from.iata})</b> <span className={mute}>· {l.from.airport} · T{l.from.terminal || "–"}</span></span>
+          <span><b>{l.from.city} ({l.from.iata})</b> <span className={mute}>· {l.from.airport}</span> <TerminalChip t={l.from.terminal} dark={dark} className="mt-0 align-middle" /></span>
           <span className={cn("font-semibold", mute)}>{fmtDur(l.durationMin)}</span>
           <span className={mute}>{l.distanceKm.toLocaleString("en-IN")} km{l.codeshares.length ? ` · also sold as ${l.codeshares.slice(0, 3).join(", ")}` : ""}</span>
           <span className="font-black tabular-nums">{l.to.time}{l.dayOffset ? <sup className="text-[9px] text-orange-500">+{l.dayOffset}</sup> : null}</span>
-          <span><b>{l.to.city} ({l.to.iata})</b> <span className={mute}>· {l.to.airport} · T{l.to.terminal || "–"}</span></span>
+          <span><b>{l.to.city} ({l.to.iata})</b> <span className={mute}>· {l.to.airport}</span> <TerminalChip t={l.to.terminal} dark={dark} className="mt-0 align-middle" /></span>
         </div>
         {l.codeshares.length > 0 && <div className={cn("mt-1.5 flex items-center gap-1 text-[10px] font-semibold", mute)}><BadgeCheck className="h-3 w-3" /> Operated by {l.airline.name}</div>}
       </div>

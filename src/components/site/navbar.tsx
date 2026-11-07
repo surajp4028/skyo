@@ -23,7 +23,9 @@ export function Navbar({ overHero = true }: { overHero?: boolean }) {
   const [open, setOpen] = useState(false);
   const { user, logout } = useAuth();
   const site = useSite();
-  useMotionValueEvent(scrollY, "change", (v) => overHero && setScrolled(v > 40));
+  // Hysteresis: the bar changes height when it turns into a pill, which moves the scroll position a little.
+  // One threshold would make it flicker on short pages, so it turns on past 48 px and off only below 12 px.
+  useMotionValueEvent(scrollY, "change", (v) => overHero && setScrolled((s) => (s ? v > 12 : v > 48)));
   const dark = overHero && !scrolled;
   const links = LINKS.filter((l) => isServiceOn(site, l.tab as ServiceKey)); // white text over the blue sky, ink once the glass bar appears
 

@@ -31,7 +31,7 @@ export function proxy(req: NextRequest) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://checkout.razorpay.com${isProd ? "" : " 'unsafe-eval'"}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://images.unsplash.com https://cdn.razorpay.com https://*.razorpay.com",
+    "img-src 'self' data: blob: https://images.unsplash.com https://cdn.razorpay.com https://*.razorpay.com https://pics.avs.io",
     "font-src 'self' data:",
     `connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://lumberjack.razorpay.com${isProd ? "" : " ws: wss:"}`,
     "frame-src https://api.razorpay.com https://checkout.razorpay.com",

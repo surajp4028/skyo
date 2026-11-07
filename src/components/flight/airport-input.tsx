@@ -2,16 +2,32 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { PlaneLanding, PlaneTakeoff } from "lucide-react";
-import { airportLabel, searchAirports, type Airport } from "@/lib/flight/airports";
+import { airportLabel, searchAirports } from "@/lib/flight/airports";
+import { api } from "@/lib/client/api";
 import { cn } from "@/lib/utils";
 
-/** Airport autocomplete from SKYO's own directory — typing never spends an aviationstack request. */
+type Opt = { iata: string; city: string; name: string; country: string; countryName?: string };
+
+/**
+ * Airport autocomplete: SKYO's own list answers instantly, then ~7,900 airports worldwide from
+ * /api/flight/airports (search by code, city, airport or country). Never spends an aviationstack request.
+ */
 export function AirportInput({ label, value, onChange, kind = "from", placeholder = "City or airport", className }: { label: string; value: string; onChange: (label: string, code: string | null) => void; kind?: "from" | "to"; placeholder?: string; className?: string }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const box = useRef<HTMLDivElement>(null);
   const listId = useId();
-  const options = useMemo<Airport[]>(() => searchAirports(value, 8), [value]);
+  const q = value.replace(/\s*\([A-Z]{3}\)\s*$/i, "").trim();
+  const local = useMemo<Opt[]>(() => searchAirports(value, 8), [value]);
+  const [remote, setRemote] = useState<{ q: string; list: Opt[] } | null>(null);
+  const options = remote && remote.q === q ? remote.list : local;
+  useEffect(() => {
+    if (!open || q.length < 2) return;
+    const t = setTimeout(() => {
+      api<{ airports: Opt[] }>(`/api/flight/airports?q=${encodeURIComponent(q)}`).then((r) => setRemote({ q, list: r.airports })).catch(() => {});
+    }, 140);
+    return () => clearTimeout(t);
+  }, [q, open]);
   const Icon = kind === "from" ? PlaneTakeoff : PlaneLanding;
 
   useEffect(() => {
@@ -20,7 +36,7 @@ export function AirportInput({ label, value, onChange, kind = "from", placeholde
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  const pick = (a: Airport) => {
+  const pick = (a: Opt) => {
     onChange(airportLabel(a), a.iata);
     setOpen(false);
   };
@@ -72,7 +88,7 @@ export function AirportInput({ label, value, onChange, kind = "from", placeholde
                 <button type="button" onMouseEnter={() => setActive(i)} onClick={() => pick(a)} className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition", i === active ? "bg-sky-50" : "hover:bg-surface")}>
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-100 to-indigo-100 text-[#0057ff]"><Icon className="h-4 w-4" /></span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold text-ink">{a.city}{a.country !== "IN" ? <span className="ml-1 text-[10px] font-semibold text-muted">· {a.country}</span> : null}</span>
+                    <span className="block truncate text-sm font-bold text-ink">{a.city}{a.country !== "IN" ? <span className="ml-1 text-[11px] font-semibold text-muted">· {a.countryName || a.country}</span> : null}</span>
                     <span className="block truncate text-xs text-muted">{a.name}</span>
                   </span>
                   <span className="rounded-md bg-ink px-2 py-0.5 font-mono text-[11px] font-bold text-white">{a.iata}</span>
