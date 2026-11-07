@@ -43,7 +43,19 @@ const addCols = async (table: string, cols: [string, string][]) => {
   }
 };
 await addCols("bookings", bookingCols);
+// default coupons (editable in Admin → Settings → Coupons; can be paused, not deleted)
+await c.query(
+  `INSERT IGNORE INTO coupons (code, title, discount_type, value, apply_on, service, per_user_limit, total_limit, is_default) VALUES
+   ('SKYO10', '10% off your booking', 'percent', 10, 'total', 'train', 5, NULL, 1),
+   ('SKYOZERO', 'Zero SKYO service fee', 'zero_service', 0, 'service_fee', 'train', NULL, NULL, 1)`,
+);
+await addCols("admins", [
+  ["avatar_key_enc", "TEXT NULL"],
+  ["avatar_updated_at", "DATETIME NULL"],
+]);
+await c.query("ALTER TABLE payment_logs MODIFY provider ENUM('razorpay','tripgic','skyo','digio') NOT NULL");
 await addCols("users", [
+  ["billing_enc", "TEXT NULL"],
   ["avatar_key_enc", "TEXT NULL"],
   ["avatar_updated_at", "DATETIME NULL"],
 ]);

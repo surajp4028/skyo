@@ -82,6 +82,8 @@ html {
 }
 
 body {
+  /* decorative glows / clouds must never create a horizontal scrollbar (clip keeps position: sticky working) */
+  overflow-x: clip;
   background: var(--color-surface);
   color: var(--color-ink);
   font-family: var(--font-sans);

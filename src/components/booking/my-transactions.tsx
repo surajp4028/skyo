@@ -20,11 +20,14 @@ const TONE: Record<string, { label: string; cls: string; icon: typeof CheckCircl
 };
 const METHOD: Record<string, string> = { upi: "UPI", card: "Card", netbanking: "Net banking", wallet: "Wallet", emi: "EMI" };
 
+type Refund = { bookingRef: string; refundId: string | null; amount: number; status: string; at: string; updatedAt: string };
+
 export function MyTransactions() {
   const [rows, setRows] = useState<Attempt[] | null>(null);
+  const [refunds, setRefunds] = useState<Refund[]>([]);
   useEffect(() => {
     let alive = true;
-    api<{ attempts: Attempt[] }>("/api/account/transactions").then((r) => alive && setRows(r.attempts)).catch(() => alive && setRows([]));
+    api<{ attempts: Attempt[]; refunds: Refund[] }>("/api/account/transactions").then((r) => alive && (setRows(r.attempts), setRefunds(r.refunds || []))).catch(() => alive && setRows([]));
     return () => {
       alive = false;
     };
@@ -68,6 +71,26 @@ export function MyTransactions() {
           );
         })}
       </ul>
+      {refunds.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-sm font-extrabold">Refunds</h3>
+          <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
+            {refunds.map((r) => (
+              <li key={r.refundId ?? r.at} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <CheckCircle2 className={cn("h-5 w-5 shrink-0", r.status === "processed" ? "text-emerald-600" : "text-amber-500")} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-bold">Refund for {r.bookingRef}</div>
+                  <div className="text-[11px] text-muted">{new Date(r.at).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })} · {r.refundId ?? "—"}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-extrabold text-emerald-700">+ {fmtINR(r.amount)}</div>
+                  <span className={cn("mt-0.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold ring-1", r.status === "processed" ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-amber-50 text-amber-700 ring-amber-200")}>{r.status === "processed" ? "Credited" : "In progress (5–7 days)"}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p className="flex items-center gap-1.5 text-[11px] text-muted"><ShieldCheck className="h-3.5 w-3.5 text-mint" /> Statuses are confirmed with Razorpay. If money was debited for a failed booking, it is refunded to the same account.</p>
     </div>
   );

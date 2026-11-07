@@ -4,14 +4,18 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { AlertTriangle, BadgeCheck, CheckCircle2, CreditCard, Download, Loader2, Lock, Plus, ShieldCheck, ShieldPlus, Smartphone, Trash2, TrainFront, Utensils, UtensilsCrossed, X } from "lucide-react";
+import { AlertTriangle, ArrowUpCircle, BadgePercent, BadgeCheck, ChevronDown, FileText, MapPin, CheckCircle2, CreditCard, Download, Loader2, Lock, Plus, ShieldCheck, ShieldPlus, Smartphone, Trash2, TrainFront, Utensils, UtensilsCrossed, X } from "lucide-react";
 import { CLASS_NAMES, fmtINR, fmtMoney, prettyDate, quotaLabel, statusTone } from "@/lib/train/format";
 import { api, errMsg } from "@/lib/client/api";
 import { openCheckout } from "@/lib/client/razorpay";
-import { useSite } from "@/lib/client/providers";
+import { useAuth, useSite } from "@/lib/client/providers";
 import { PassengerForm, berthLabel, genderLabel, type SavedPassenger } from "@/components/booking/passenger-form";
 import { cn } from "@/lib/utils";
-import { insuranceOffered, trainCharges, type PayMode } from "@/lib/train/charges";
+import { BillingFields, billingValid, GstPanel, useGstProfile, type Billing } from "@/components/booking/gst-panel";
+import { couponLabel, insuranceOffered, trainCharges, type CouponRule, type PayMode } from "@/lib/train/charges";
+
+type Offer = { code: string; title: string | null; type: CouponRule["type"]; value: number; applyOn: CouponRule["applyOn"]; maxDiscount: number | null; minOrder: number | null; usesLeftForYou: number | null; personal?: boolean };
+const toRule = (o: Offer): CouponRule => ({ code: o.code, type: o.type, value: o.value, applyOn: o.applyOn, maxDiscount: o.maxDiscount, minOrder: o.minOrder });
 
 export type BookingIntent = {
   train: string; name?: string; from: string; to: string; date: string; cls: string; quota: string;
@@ -41,10 +45,25 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
   const offerInsurance = insuranceOffered(site);
   const [insurance, setInsurance] = useState(true);
   const [confirmDel, setConfirmDel] = useState<number | null>(null);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [coupon, setCoupon] = useState<Offer | null>(null);
+  const [codeInput, setCodeInput] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [gp, setGp] = useGstProfile();
+  const [billing, setBilling] = useState<Billing | null>(null);
+  const [useGst, setUseGst] = useState(true);
+  const [autoUpgrade, setAutoUpgrade] = useState(true);
+  const { user } = useAuth();
+  const [ticketEmail, setTicketEmail] = useState("");
+  const emailOk = !ticketEmail || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(ticketEmail);
+  const [open, setOpen] = useState<"state" | "gst" | null>(null);
+  const bill: Billing = billing ?? gp?.billing ?? { state: "", pincode: null, address: null };
+  const stateOk = billingValid(bill);
 
   useEffect(() => {
     let alive = true;
     api<{ passengers: SavedPassenger[] }>("/api/account/passengers").then((r) => alive && setList(r.passengers)).catch(() => alive && setList([]));
+    api<{ coupons: Offer[] }>("/api/coupons?service=train").then((r) => alive && setOffers(r.coupons)).catch(() => {});
     return () => {
       alive = false;
     };
@@ -58,10 +77,32 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
   const base = b.baseFare ?? b.fare ?? 0;
   const withFood = b.totalFare ?? base + (b.catering ?? 0);
   const perPax = hasFood && food ? withFood : base;
-  const charges = trainCharges(site, { perPassengerFare: perPax, count: sel.length, cls: b.cls, payMode, insurance: offerInsurance && insurance });
+  const couponRule = coupon ? toRule(coupon) : null;
+  const charges = trainCharges(site, { perPassengerFare: perPax, count: sel.length, cls: b.cls, payMode, insurance: offerInsurance && insurance, coupon: couponRule });
   const estimate = charges.totalPaise / 100;
-  const upiCharges = trainCharges(site, { perPassengerFare: perPax, count: Math.max(1, sel.length), cls: b.cls, payMode: "upi", insurance: offerInsurance && insurance }).totalPaise;
-  const cardCharges = trainCharges(site, { perPassengerFare: perPax, count: Math.max(1, sel.length), cls: b.cls, payMode: "card", insurance: offerInsurance && insurance }).totalPaise;
+  const upiCharges = trainCharges(site, { perPassengerFare: perPax, count: Math.max(1, sel.length), cls: b.cls, payMode: "upi", insurance: offerInsurance && insurance, coupon: couponRule }).totalPaise;
+  const cardCharges = trainCharges(site, { perPassengerFare: perPax, count: Math.max(1, sel.length), cls: b.cls, payMode: "card", insurance: offerInsurance && insurance, coupon: couponRule }).totalPaise;
+
+  const applyCode = async (raw: string) => {
+    const code = raw.trim().toUpperCase();
+    if (!code) return;
+    const known = offers.find((o) => o.code === code);
+    if (known) {
+      setCoupon(known);
+      setCodeInput("");
+      return;
+    }
+    setChecking(true);
+    try {
+      const r = await api<{ coupon: Offer }>("/api/coupons/check", { body: { code, service: "train" } });
+      setCoupon(r.coupon);
+      setCodeInput("");
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const removePassenger = async (id: number) => {
     try {
@@ -119,13 +160,16 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
     setBusy(true);
     try {
       const r = await api<{ bookingRef: string; pricing: { total: number }; charges: { totalPaise: number }; checkout: Record<string, unknown> }>("/api/bookings/train/initiate", {
-        body: { train: b.train, trainName: b.name || b.train, from: b.from, to: b.to, date: b.date, cls: b.cls, quota: b.quota, passengerIds: sel, food: hasFood && food, payMode, insurance: offerInsurance && insurance },
+        body: { train: b.train, trainName: b.name || b.train, from: b.from, to: b.to, date: b.date, cls: b.cls, quota: b.quota, passengerIds: sel, food: hasFood && food, payMode, insurance: offerInsurance && insurance, couponCode: charges.coupon?.code ?? null,
+                billing: { state: bill.state, pincode: bill.pincode || null, address: bill.address || null }, useGst: !!gp?.gst && useGst, autoUpgrade, notifyEmail: user?.email ? null : ticketEmail || null },
       });
       setRef(r.bookingRef);
       if (Math.abs(r.charges.totalPaise / 100 - estimate) >= 1) toast.info(`Total updated to ${fmtMoney(r.charges.totalPaise / 100)} from live availability`);
       await startPayment(r.checkout, r.bookingRef);
     } catch (e) {
-      toast.error(errMsg(e));
+      const msg = errMsg(e);
+      if (/coupon/i.test(msg)) setCoupon(null);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -244,6 +288,89 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
                   </section>
                 )}
 
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line p-3">
+                  <input type="checkbox" checked={autoUpgrade} onChange={(e) => setAutoUpgrade(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#0057ff]" />
+                  <span className="flex-1">
+                    <span className="flex items-center gap-1.5 text-sm font-bold"><ArrowUpCircle className="h-4 w-4 text-[#0057ff]" /> Consider for auto upgradation</span>
+                    <span className="block text-[11px] text-muted">If a higher class has free berths, IRCTC may upgrade you at no extra cost.</span>
+                  </span>
+                </label>
+
+                {!user?.email && (
+                  <div className="rounded-2xl border border-line p-3">
+                    <label className="mb-1 block text-sm font-bold">Email for your e-ticket <span className="font-semibold text-muted">(optional)</span></label>
+                    <input type="email" value={ticketEmail} onChange={(e) => setTicketEmail(e.target.value.trim())} placeholder="you@example.com" className={cn("h-11 w-full rounded-xl border px-3 text-sm font-semibold outline-none focus:border-[#0057ff]", emailOk ? "border-line" : "border-red-300")} />
+                    <p className="mt-1 text-[11px] text-muted">Your account has no email yet — we&apos;ll send the ticket and invoice here. Add one permanently under My account → Contact.</p>
+                  </div>
+                )}
+
+                <div className="overflow-hidden rounded-2xl border border-line">
+                  <button onClick={() => setOpen(open === "state" ? null : "state")} className="flex w-full items-center gap-3 px-3 py-3 text-left">
+                    <MapPin className={cn("h-4 w-4", stateOk ? "text-[#0057ff]" : "text-amber-500")} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold">Billing state</span>
+                      <span className={cn("block truncate text-[11px]", stateOk ? "text-muted" : "font-semibold text-amber-600")}>{stateOk ? [bill.state, bill.pincode].filter(Boolean).join(" · ") : "Required — tap to select your state"}</span>
+                    </span>
+                    <ChevronDown className={cn("h-4 w-4 text-muted transition", open === "state" && "rotate-180")} />
+                  </button>
+                  {open === "state" && <div className="border-t border-line p-3"><BillingFields value={bill} onChange={setBilling} /><p className="mt-2 text-[11px] text-muted">Saved to your profile for next time.</p></div>}
+                </div>
+
+                <div className="overflow-hidden rounded-2xl border border-line">
+                  <button onClick={() => setOpen(open === "gst" ? null : "gst")} className="flex w-full items-center gap-3 px-3 py-3 text-left">
+                    <FileText className="h-4 w-4 text-[#0057ff]" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold">Add GST for tax benefits <span className="font-semibold text-muted">(optional)</span></span>
+                      <span className="block truncate text-[11px] text-muted">{gp?.gst ? `${gp.gst.company} · ${gp.gst.gstin}` : "Claim input tax credit on your invoice"}</span>
+                    </span>
+                    <ChevronDown className={cn("h-4 w-4 text-muted transition", open === "gst" && "rotate-180")} />
+                  </button>
+                  {open === "gst" && gp && (
+                    <div className="space-y-3 border-t border-line p-3">
+                      <GstPanel compact gst={gp.gst} mode={gp.mode} onChange={(g) => (setGp({ ...gp, gst: g }), setUseGst(true))} />
+                      {gp.gst && (
+                        <label className="flex items-center gap-2 text-sm font-semibold">
+                          <input type="checkbox" checked={useGst} onChange={(e) => setUseGst(e.target.checked)} className="h-4 w-4 accent-[#0057ff]" /> Use these GST details for this booking
+                        </label>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <section>
+                  <h3 className="mb-2 flex items-center gap-1.5 font-extrabold"><BadgePercent className="h-4 w-4 text-brand" /> Offers & coupons</h3>
+                  {coupon ? (
+                    <div className={cn("flex items-center justify-between gap-3 rounded-2xl border-2 border-dashed p-3", charges.coupon ? "border-mint bg-mint/5" : "border-amber-300 bg-amber-50")}>
+                      <div className="min-w-0">
+                        <div className="font-mono text-sm font-extrabold">{coupon.code}</div>
+                        <div className="text-[11px] text-muted">{charges.coupon ? `${couponLabel(coupon)} · you save ${fmtMoney(charges.coupon.discountPaise / 100)}` : sel.length ? charges.couponError : "Select travellers to apply"}</div>
+                      </div>
+                      <button onClick={() => setCoupon(null)} className="shrink-0 text-xs font-bold text-red-600">Remove</button>
+                    </div>
+                  ) : (
+                    <>
+                      <form onSubmit={(e) => (e.preventDefault(), applyCode(codeInput))} className="flex gap-2">
+                        <input value={codeInput} onChange={(e) => setCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))} maxLength={32} placeholder="Enter coupon code" className="min-w-0 flex-1 rounded-xl border border-line px-3 py-2.5 font-mono text-sm uppercase outline-none focus:border-[#0057ff]" />
+                        <button type="submit" disabled={!codeInput || checking} className="rounded-xl bg-ink px-4 text-sm font-bold text-white disabled:opacity-40">{checking ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}</button>
+                      </form>
+                      {offers.length > 0 && (
+                        <div className="mt-2 space-y-1.5">
+                          {offers.slice(0, 4).map((o) => (
+                            <button key={o.code} onClick={() => setCoupon(o)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-line px-3 py-2 text-left transition hover:border-[#0057ff]">
+                              <span className="min-w-0">
+                                <span className="font-mono text-xs font-extrabold">{o.code}</span>
+                                {o.personal && <span className="ml-1.5 rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700">FOR YOU</span>}
+                                <span className="block truncate text-[11px] text-muted">{o.title || couponLabel(o)}{o.usesLeftForYou != null ? ` · ${o.usesLeftForYou} use${o.usesLeftForYou === 1 ? "" : "s"} left` : ""}</span>
+                              </span>
+                              <span className="shrink-0 text-xs font-bold text-[#0057ff]">Apply</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </section>
+
                 <section className="rounded-2xl bg-surface p-4">
                   <h3 className="mb-2 text-sm font-extrabold">Price details</h3>
                   {sel.length === 0 ? (
@@ -253,7 +380,7 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
                       {charges.lines.map((l) => (
                         <li key={l.key} className="flex justify-between gap-3">
                           <span className="text-muted">{l.label}{l.note && l.key === "fare" ? <span className="block text-[10px]">{l.note}</span> : null}</span>
-                          <span className="font-semibold tabular-nums">{fmtMoney(l.paise / 100)}</span>
+                          <span className={cn("font-semibold tabular-nums", l.paise < 0 && "text-mint")}>{l.paise < 0 ? `− ${fmtMoney(-l.paise / 100)}` : fmtMoney(l.paise / 100)}</span>
                         </li>
                       ))}
                     </ul>
@@ -303,10 +430,10 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
 
         <div className="shrink-0 border-t border-line p-4">
           {stage === "form" && (
-            <button onClick={pay} disabled={busy || sel.length === 0} className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] py-3.5 text-base font-extrabold text-white shadow-[0_14px_30px_-12px_rgba(0,87,255,0.85)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50">
+            <button onClick={() => (stateOk ? pay() : setOpen("state"))} disabled={busy || sel.length === 0 || !emailOk} className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] py-3.5 text-base font-extrabold text-white shadow-[0_14px_30px_-12px_rgba(0,87,255,0.85)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50">
               <span className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 -skew-x-12 bg-white/35 opacity-0 transition-all duration-700 group-hover:left-[120%] group-hover:opacity-100" />
               {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-4 w-4" />}
-              {sel.length ? `Pay ${fmtMoney(estimate)} securely` : "Select travellers to continue"}
+              {!sel.length ? "Select travellers to continue" : !stateOk ? "Select your billing state" : `Pay ${fmtMoney(estimate)} securely`}
             </button>
           )}
           {stage === "done" && booking && (

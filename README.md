@@ -135,6 +135,50 @@ ticket fare × passengers + IRCTC convenience fee per ticket (AC / non-AC × UPI
 per passenger + GST + optional travel insurance per passenger + payment-gateway % of all of that + GST on the gateway fee.
 The customer picks UPI or Card/NetBanking before paying; Razorpay Checkout then shows only those methods.
 
+### Coupons (Admin → Settings → Coupons, and on each customer's page)
+
+WooCommerce-style: **percent** or **fixed ₹** off the **base fare**, the **SKYO service charge** or the **total**, or
+**zero service fee**. Options: max discount (percent), minimum booking, uses per customer, total uses, start/expiry,
+pause, and "only for SKYO ID" (personal codes such as `SKYOSURAJ10`). Defaults: `SKYO10` (10% off total, 5 per customer)
+and `SKYOZERO` (service fee ₹0) — they can be paused/edited but not deleted. "Max coupons" (default 20) caps how many exist.
+
+The discount is applied in `src/lib/train/charges.ts` before gateway charges. At booking the server validates the code
+first (before any RailCore credit is spent), then reserves it under a row lock (`coupon_redemptions`); it counts as used
+once the payment is captured, and a reservation is freed automatically when the 15-minute hold expires unpaid.
+Admins see used / pending / left / total discount and "who used it"; customers see offers (incl. personal ones) in the booking sheet.
+
+### Refunds, retries & notifications
+
+- **Automatic refund** — if a paid booking can't be ticketed (or the amount doesn't match), the full amount is refunded
+  via Razorpay (`POST /v1/payments/{id}/refund`) and the customer gets an email (and SMS when no DLT template is set).
+- **Agent actions** (permission `payments.refund`) in the booking panel: **Refund** (full or partial, with reason),
+  **Retry ticketing** (paid + ticket failed + nothing refunded yet), **Resend SMS / email**.
+  "Re-check with Razorpay" also syncs pending refund status. Webhook events `refund.processed` / `refund.failed` update it live.
+- Refunds are stored in `refunds`; customers see them in My trips and My account → Transactions. Total refunded can never
+  exceed the amount paid; a full refund releases a reserved coupon.
+- Unpaid bookings 30 minutes past their 15-minute hold become "cancelled" automatically.
+- Booking SMS needs a Fast2SMS **DLT template** (`FAST2SMS_BOOKING_TEMPLATE_ID`, variables `ref|pnr|amount`) — the
+  Quick SMS route is disabled on the current account. Email goes to the account email, or the e-ticket email given at booking.
+
+### GST, billing state & invoices
+
+- **GST details (optional)** — customers add them in My account → Profile or on the booking sheet. Admin → Settings →
+  Travellers → "GST details input": **fetch** (GSTIN → Digio lookup, `DIGIO_BASE_URL` + `DIGIO_AUTH`, same API as the
+  iMoney project), **manual**, or **both**. GSTINs are checksum-validated; data is KMS-encrypted (`user_gst`); every
+  Digio call is logged in Transactions as provider `digio`. Admins see it on the customer's page.
+- **Billing state** (+ optional pincode / address) — collapsed section on the booking sheet, also in Profile;
+  "Detect my state" uses the free ipwho.is lookup. Stored per booking and sent to Tripgic with the auto-upgradation choice.
+- **Invoice** — `GET /api/bookings/[ref]/invoice`: logo, billed-to (GST company or customer), every charge, SKYO total,
+  GST, payment / order IDs and times. Without GST it works as a receipt alongside the e-ticket.
+- **IRCTC ticket** — when Tripgic returns the real ticket PDF (`ticketPdfBase64`), it is stored at
+  `<SKYO ID>/train/<ref>_<date>_irctc.pdf` and an "IRCTC ticket" button appears next to the e-ticket.
+
+### Agent profile
+
+`/admin/profile` — every agent can change their display name, password (other sessions are signed out) and photo
+(`<prefix>admins/ADM<id>/profile_<4 digits>.<ext>`). The photo shows in the console header and sidebar.
+Customer photos show in Admin → Users and on each customer's page.
+
 ### Files on S3 (private, served only through SKYO APIs)
 
 ```

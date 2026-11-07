@@ -13,7 +13,7 @@ import { timeAgo } from "@/lib/utils";
 type U = {
   id: number; uid: string; name: string | null; email: string | null; phone: string | null; email_verified_at: string | null; phone_verified_at: string | null;
   status: string; signup_method: string; last_login_at: string | null; last_login_ip: string | null; last_location: string | null; last_device: string | null;
-  created_at: string; active_sessions: number; bookings: number;
+  created_at: string; active_sessions: number; bookings: number; avatar?: string | null;
 };
 
 export function useDebounced<T>(v: T, ms = 350) {
@@ -63,7 +63,7 @@ export function UsersList() {
             <tr key={u.id} className="group transition hover:bg-neutral-50/70">
               <Td>
                 <Link href={`/admin/users/${u.id}`} className="flex items-center gap-2.5">
-                  <Avatar name={u.name} />
+                  <Avatar name={u.name} src={u.avatar} />
                   <div className="min-w-0">
                     <div className="truncate font-medium text-neutral-900 group-hover:underline">{u.name || "Unnamed"}</div>
                     <div className="font-mono text-[11px] text-neutral-500">{u.uid}</div>

@@ -17,20 +17,22 @@ import { useSearchParams } from "next/navigation";
 import { PassengersManager } from "@/components/booking/passengers-manager";
 import { MyTrips } from "@/components/booking/my-trips";
 import { MyTransactions } from "@/components/booking/my-transactions";
+import { BillingFields, billingValid, GstPanel, useGstProfile, type Billing } from "@/components/booking/gst-panel";
 import { cn, timeAgo } from "@/lib/utils";
 
 type Sess = { id: number; device: string; location: string | null; ip: string; client: string; created_at: string; last_seen_at: string; current: boolean };
 type Section = "overview" | "profile" | "contact" | "travellers" | "trips" | "transactions" | "devices" | "privacy";
 
-const NAV: { key: Section; label: string; icon: typeof UserRound }[] = [
+/** `short` = label on phones (the rest of `label` is shown from lg up). */
+const NAV: { key: Section; label: string; short?: string; icon: typeof UserRound }[] = [
   { key: "overview", label: "Overview", icon: LayoutGrid },
   { key: "profile", label: "Profile", icon: UserRound },
-  { key: "contact", label: "Contact & login", icon: AtSign },
+  { key: "contact", label: "Contact & login", short: "Contact", icon: AtSign },
   { key: "travellers", label: "Travellers", icon: Users },
   { key: "trips", label: "My trips", icon: Plane },
-  { key: "transactions", label: "Transactions", icon: Receipt },
-  { key: "devices", label: "Devices & security", icon: ShieldCheck },
-  { key: "privacy", label: "Privacy & data", icon: Download },
+  { key: "transactions", label: "Transactions", short: "Payments", icon: Receipt },
+  { key: "devices", label: "Devices & security", short: "Devices", icon: ShieldCheck },
+  { key: "privacy", label: "Privacy & data", short: "Privacy", icon: Download },
 ];
 
 const SVCS: { key: ServiceKey; label: string; icon: typeof Plane; tone: string }[] = [
@@ -65,46 +67,50 @@ export function AccountView() {
   const services = SVCS.filter((s) => isServiceOn(site, s.key));
 
   return (
-    <div>
+    <div className="overflow-x-clip">
       {/* sky header */}
-      <section className="relative -mt-20 overflow-hidden pb-24 pt-28">
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,#0057ff_0%,#1a82ff_55%,#6cbcff_100%)]" />
-        <div className="absolute -right-16 -top-20 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.85),transparent_65%)]" />
-        <div className="relative mx-auto flex max-w-6xl flex-col justify-between gap-6 px-5 text-white md:flex-row md:items-end">
-          <div className="flex items-center gap-4">
-            <div className="relative">
+      <section className="relative -mt-20 overflow-hidden pb-20 pt-24 sm:pb-24 sm:pt-28">
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden [contain:paint]">
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,#0057ff_0%,#1a82ff_55%,#6cbcff_100%)]" />
+          <div className="absolute right-0 top-0 h-72 w-72 -translate-y-1/4 translate-x-1/4 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.85),transparent_65%)]" />
+        </div>
+        <div className="relative mx-auto flex max-w-6xl flex-col justify-between gap-4 px-4 text-white sm:px-5 md:flex-row md:items-end md:gap-6">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="relative shrink-0 scale-[0.8] sm:scale-100">
               <Ring pct={pct} />
               <AvatarButton user={user} onChange={setUser} />
             </div>
-            <div>
-              <h1 className="text-2xl font-extrabold md:text-3xl">{user.name || "Traveller"}</h1>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                <button onClick={() => navigator.clipboard?.writeText(user.uid).then(() => toast.success("SKYO ID copied"))} className="flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 font-mono font-bold backdrop-blur hover:bg-white/30" title="All your bookings are linked to this ID">
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-extrabold sm:text-2xl md:text-3xl">{user.name || "Traveller"}</h1>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                <button onClick={() => navigator.clipboard?.writeText(user.uid).then(() => toast.success("SKYO ID copied"))} className="flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 font-mono font-bold backdrop-blur hover:bg-white/30" title="All your bookings are linked to this ID">
                   {user.uid} <Copy className="h-3 w-3" />
                 </button>
-                <span className="text-white/80">Member since {new Date(user.memberSince).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</span>
+                <span className="text-white/80">Since {new Date(user.memberSince).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-white/15 px-4 py-2 text-xs backdrop-blur">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button onClick={() => setSection(pct === 100 ? "profile" : checks.find((c) => !c.ok)?.label.includes("name") ? "profile" : "contact")} className="min-w-0 flex-1 rounded-2xl bg-white/15 px-4 py-2 text-left text-xs backdrop-blur md:flex-none">
               <div className="font-bold">Profile {pct}% complete</div>
-              <div className="text-white/75">{pct === 100 ? "You're all set ✨" : checks.find((c) => !c.ok)?.label}</div>
-            </div>
-            <Button variant="outline" className="border-white/30 bg-white/10 text-white hover:border-white/60" onClick={async () => (await logout(), window.location.replace("/"))}>
-              <LogOut className="h-4 w-4" /> Log out
+              <div className="truncate text-white/75">{pct === 100 ? "You're all set ✨" : checks.find((c) => !c.ok)?.label}</div>
+            </button>
+            <Button variant="outline" className="shrink-0 border-white/30 bg-white/10 px-3 text-white hover:border-white/60 sm:px-4" onClick={async () => (await logout(), window.location.replace("/"))}>
+              <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Log out</span>
             </Button>
           </div>
         </div>
       </section>
 
-      <div ref={contentRef} className="relative z-10 mx-auto -mt-14 grid min-h-[80vh] max-w-6xl gap-5 px-5 pb-16 lg:grid-cols-[250px_minmax(0,1fr)]">
-        <nav className="no-scrollbar flex gap-1 overflow-x-auto rounded-3xl border border-line bg-white p-2 shadow-soft lg:sticky lg:top-24 lg:flex-col lg:self-start">
+      <div ref={contentRef} className="relative z-10 mx-auto -mt-12 grid min-h-[80vh] max-w-6xl gap-4 px-3 pb-16 sm:-mt-14 sm:gap-5 sm:px-5 lg:grid-cols-[250px_minmax(0,1fr)]">
+        {/* phones: every section visible at once as a 4×2 grid · desktop: sticky side list */}
+        <nav className="grid grid-cols-4 gap-1 rounded-3xl border border-line bg-white p-1.5 shadow-soft lg:sticky lg:top-24 lg:flex lg:flex-col lg:self-start lg:p-2">
           {NAV.map((n) => (
-            <button key={n.key} onClick={() => setSection(n.key)} className={cn("relative flex shrink-0 items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-sm font-bold transition", section === n.key ? "text-white" : "text-ink/60 hover:text-ink")}>
+            <button key={n.key} onClick={() => setSection(n.key)} className={cn("relative flex flex-col items-center gap-1 rounded-2xl px-1 py-2.5 text-[10.5px] font-bold leading-tight transition lg:flex-row lg:gap-2.5 lg:px-3.5 lg:text-sm", section === n.key ? "text-white" : "text-ink/60 hover:text-ink")}>
               {section === n.key && <motion.span layoutId="acct-nav" className="absolute inset-0 rounded-2xl bg-ink" transition={{ type: "spring", bounce: 0.2, duration: 0.45 }} />}
-              <n.icon className="relative h-4 w-4" />
-              <span className="relative">{n.label}</span>
+              <n.icon className="relative h-[18px] w-[18px] lg:h-4 lg:w-4" />
+              <span className="relative text-center lg:hidden">{n.short ?? n.label}</span>
+              <span className="relative hidden lg:inline">{n.label}</span>
             </button>
           ))}
         </nav>
@@ -131,7 +137,12 @@ export function AccountView() {
                 <TripsGrid services={services} />
               </>
             )}
-            {section === "profile" && <ProfileForm user={user} onSaved={setUser} />}
+            {section === "profile" && (
+              <>
+                <ProfileForm user={user} onSaved={setUser} />
+                <TaxDetails />
+              </>
+            )}
             {section === "contact" && (
               <Panel title="Contact & login" sub="You log in with a one-time code sent to these. Changing one needs an OTP on the new email / number.">
                 <div className="grid gap-3 md:grid-cols-2">
@@ -187,8 +198,8 @@ function Ring({ pct }: { pct: number }) {
 
 function Panel({ title, sub, children, action }: { title: string; sub?: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="rounded-3xl border border-line bg-white p-6 shadow-soft">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+    <section className="rounded-3xl border border-line bg-white p-4 shadow-soft sm:p-6">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3 sm:mb-5">
         <div>
           <h2 className="text-lg font-extrabold">{title}</h2>
           {sub && <p className="mt-0.5 text-sm text-muted">{sub}</p>}
@@ -352,6 +363,41 @@ function ProfileForm({ user, onSaved }: { user: Me; onSaved: (u: Me) => void }) 
         <Button type="submit" loading={saving} disabled={name.trim().length < 2 || name === user.name}>Save changes</Button>
       </form>
     </Panel>
+  );
+}
+
+function TaxDetails() {
+  const [gp, setGp] = useGstProfile();
+  const [bill, setBill] = useState<Billing | null>(null);
+  const [saving, setSaving] = useState(false);
+  const b = bill ?? gp?.billing ?? { state: "", pincode: null, address: null };
+  const saveBilling = async () => {
+    setSaving(true);
+    try {
+      const r = await api<{ billing: Billing }>("/api/account/billing", { method: "PUT", body: b });
+      if (gp) setGp({ ...gp, billing: r.billing });
+      setBill(null);
+      toast.success("Billing state saved");
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <>
+      <Panel title="Billing state" sub="Used on invoices and sent with your train bookings. Pincode and address are optional.">
+        {!gp ? <div className="h-24 animate-pulse rounded-2xl bg-surface" /> : (
+          <div className="max-w-xl space-y-4">
+            <BillingFields value={b} onChange={setBill} />
+            <Button onClick={saveBilling} loading={saving} disabled={!bill || !billingValid(b)}>Save billing state</Button>
+          </div>
+        )}
+      </Panel>
+      <Panel title="GST details" sub="Optional — add your company GSTIN to get a GST invoice and claim input tax credit.">
+        {!gp ? <div className="h-24 animate-pulse rounded-2xl bg-surface" /> : <div className="max-w-xl"><GstPanel gst={gp.gst} mode={gp.mode} onChange={(g) => setGp({ ...gp, gst: g })} /></div>}
+      </Panel>
+    </>
   );
 }
 

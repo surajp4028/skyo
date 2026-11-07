@@ -80,7 +80,7 @@ export function Hero() {
   );
 }
 
-function Clouds() {
+export function Clouds() {
   const clouds = [
     { top: "16%", w: 220, dur: 75, delay: -10, op: 0.95 },
     { top: "34%", w: 300, dur: 100, delay: -45, op: 0.9 },
@@ -104,7 +104,7 @@ function Clouds() {
 }
 
 /** Plane flying along a dashed arc across the sky. */
-function FlightPath() {
+export function FlightPath() {
   const d = "M -80 420 C 300 120, 820 80, 1600 260";
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 hidden md:block">

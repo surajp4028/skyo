@@ -14,9 +14,15 @@ export type IssueRequest = {
   passengers: { name: string; age: number; gender: "M" | "F" | "T"; berth?: string | null; nationality: string }[];
   availability: { status: string; text: string };
   paymentId: string; amountPaise: number;
+  /** IRCTC "consider for auto upgradation" */
+  autoUpgrade: boolean;
+  billingState: string | null;
+  gstin: string | null;
 };
 export type IssueResult = {
   pnr: string; ticketNo: string; chartStatus: string;
+  /** The real ticket PDF from Tripgic/IRCTC (base64), when their API returns one. Stored in S3, never in the DB. */
+  ticketPdfBase64?: string;
   allocations: { name: string; age: number; gender: string; status: string; coach?: string; berth?: number; berthType?: string }[];
 };
 

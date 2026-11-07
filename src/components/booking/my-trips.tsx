@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
-import { BusFront, Building2, ChevronDown, CreditCard, Download, Loader2, Palmtree, Plane, ShieldPlus, TrainFront, Utensils } from "lucide-react";
+import { BusFront, Building2, ChevronDown, CreditCard, Download, FileText, Loader2, Ticket, Palmtree, Plane, ShieldPlus, TrainFront, Utensils } from "lucide-react";
 import { api, errMsg } from "@/lib/client/api";
 import { openCheckout } from "@/lib/client/razorpay";
 import { CLASS_NAMES, fmtMoney as fmtINR, prettyDate } from "@/lib/train/format";
@@ -30,7 +30,10 @@ type Trip = {
   ref: string; service: string; status: string; paymentStatus: string; ticketStatus: string; amount: number; createdAt: string; holdExpiresAt: string | null; pnr: string | null;
   train: { number: string; name: string }; from: string; to: string; date: string; cls: string; quota: string; food: boolean;
   passengers: { name: string; age: number; gender: string }[];
-  ticket: { pnr: string; allocations: { name: string; status: string; coach?: string; berth?: number; berthType?: string }[] } | null;
+  ticket: { pnr: string; hasProviderPdf?: boolean; allocations: { name: string; status: string; coach?: string; berth?: number; berthType?: string }[] } | null;
+  gst?: { gstin: string; company: string } | null;
+  refund?: { amount: number; pending: boolean } | null;
+  failure?: string | null;
   charges: { lines: { key: string; label: string; paise: number; note?: string }[]; totalPaise: number; payMode: string } | null;
   insurance: { opted: boolean; total: number } | null;
 };
@@ -39,7 +42,7 @@ const STATUS: Record<string, [string, string]> = {
   confirmed: ["Confirmed", "bg-emerald-50 text-emerald-700 ring-emerald-200"],
   pending: ["Payment pending", "bg-amber-50 text-amber-700 ring-amber-200"],
   failed: ["Failed", "bg-red-50 text-red-700 ring-red-200"],
-  cancelled: ["Cancelled", "bg-slate-100 text-slate-600 ring-slate-200"],
+  cancelled: ["Expired / cancelled", "bg-slate-100 text-slate-600 ring-slate-200"],
   refunded: ["Refunded", "bg-violet-50 text-violet-700 ring-violet-200"],
 };
 
@@ -162,7 +165,13 @@ export function MyTrips() {
                 <div className="text-lg font-extrabold">{fmtINR(t.amount)}</div>
                 <div className="text-[11px] text-muted">Ref {t.ref}</div>
                 {t.ticketStatus === "issued" && (
-                  <a href={`/api/bookings/${t.ref}/ticket`} className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] px-3.5 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5"><Download className="h-3.5 w-3.5" /> E-ticket PDF</a>
+                  <div className="flex flex-wrap gap-1.5 md:justify-end">
+                    <a href={`/api/bookings/${t.ref}/ticket`} className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] px-3.5 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5"><Download className="h-3.5 w-3.5" /> E-ticket</a>
+                    {t.ticket?.hasProviderPdf && (
+                      <a href={`/api/bookings/${t.ref}/ticket?kind=irctc`} className="flex items-center gap-1.5 rounded-xl bg-ink px-3.5 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5"><Ticket className="h-3.5 w-3.5" /> IRCTC ticket</a>
+                    )}
+                    <a href={`/api/bookings/${t.ref}/invoice?view=1`} target="_blank" rel="noopener" title={t.gst ? `GST invoice for ${t.gst.company}` : "Payment invoice"} className="flex items-center gap-1.5 rounded-xl border border-line bg-white px-3.5 py-2 text-xs font-extrabold text-ink transition hover:-translate-y-0.5"><FileText className="h-3.5 w-3.5" /> Invoice</a>
+                  </div>
                 )}
                 {t.status === "pending" && t.paymentStatus !== "paid" && holdLeft > 0 && (
                   <button onClick={() => resume(t)} disabled={resuming === t.ref} className="flex items-center gap-1.5 rounded-xl bg-ink px-3.5 py-2 text-xs font-extrabold text-white disabled:opacity-60">
@@ -172,6 +181,12 @@ export function MyTrips() {
                 {t.status === "pending" && holdLeft <= 0 && <span className="text-xs font-semibold text-muted">Hold expired</span>}
               </div>
             </div>
+            {(t.refund || t.failure) && (
+              <div className={cn("border-t px-5 py-3 text-xs font-semibold", t.refund && !t.refund.pending ? "border-emerald-100 bg-emerald-50 text-emerald-800" : "border-amber-100 bg-amber-50 text-amber-800")}>
+                {t.failure && !t.refund && <>{t.failure} A full refund will be started automatically.</>}
+                {t.refund && (t.refund.pending ? <>Refund of {fmtINR(t.refund.amount)} started — it reaches your source account in 5–7 working days.</> : <>Refund of {fmtINR(t.refund.amount)} processed to your source account.</>)}
+              </div>
+            )}
             {t.charges && (
               <div className="border-t border-line">
                 <button onClick={() => setOpen(open === t.ref ? null : t.ref)} className="flex w-full items-center justify-between px-5 py-2.5 text-xs font-bold text-ink/70 hover:bg-surface/60">

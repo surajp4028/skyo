@@ -13,7 +13,7 @@ export const GET = route(async (req: NextRequest) => {
   const where: string[] = [];
   const params: (string | number)[] = [];
   const provider = sp.get("provider");
-  if (provider === "razorpay" || provider === "tripgic" || provider === "skyo") {
+  if (provider === "razorpay" || provider === "tripgic" || provider === "skyo" || provider === "digio") {
     where.push("provider = ?");
     params.push(provider);
   }

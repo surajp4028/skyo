@@ -13,6 +13,11 @@ import { istISO, titleCase } from "@/lib/train/format";
  * Live tracker: a train number shows live status right here (no redirect);
  * a name runs one train search (1 credit) and lets the user pick.
  */
+/** Shortcuts only — nothing is fetched until the user taps one. */
+const POPULAR: [string, string][] = [
+  ["12951", "Mumbai Rajdhani"], ["12002", "Bhopal Shatabdi"], ["22436", "Vande Bharat"], ["12301", "Howrah Rajdhani"], ["12627", "Karnataka Exp"],
+];
+
 export function LiveFinder() {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Train[] | null>(null);
@@ -54,6 +59,16 @@ export function LiveFinder() {
             {isNumber ? <><Radio className="h-5 w-5" /> Track live</> : <><Search className="h-5 w-5" /> Find train</>}
           </button>
         </form>
+        {!picked && !results && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-muted">Popular:</span>
+            {POPULAR.map(([n, name]) => (
+              <button key={n} type="button" onClick={() => (setQ(n), setPicked({ number: n, name }))} className="flex items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1.5 text-xs font-bold text-ink/80 transition hover:-translate-y-0.5 hover:border-brand hover:text-brand">
+                <span className="font-mono text-[11px] text-muted">{n}</span> {name}
+              </button>
+            ))}
+          </div>
+        )}
         <AnimatePresence>
           {results && (
             <motion.ul initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mt-4 divide-y divide-line overflow-hidden">

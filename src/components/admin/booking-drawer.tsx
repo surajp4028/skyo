@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { ChevronDown, Copy, Download, ExternalLink, FileText, Loader2, RefreshCw, ShieldPlus, X } from "lucide-react";
+import { ChevronDown, Copy, Download, ExternalLink, FileText, Loader2, RefreshCw, RotateCcw, Send, ShieldPlus, Undo2, X } from "lucide-react";
 import { api, errMsg } from "@/lib/client/api";
 import { Badge } from "./ui";
 import { fmtTs, Json, pretty, PROVIDER_TONE } from "./transactions";
@@ -28,7 +28,12 @@ type Detail = {
     availability?: { status: string; text: string; checkedAt: string | null };
     ticket?: { pnr: string; ticketNo?: string; chartStatus?: string; provider?: string; issuedAt?: string; allocations: { name: string; age?: number; gender?: string; status: string; coach?: string; berth?: number; berthType?: string }[] };
     failure?: string; methodMismatch?: { priced: string; paidWith: string };
+    billing?: { state: string; pincode: string | null; address: string | null } | null;
+    gst?: { gstin: string; company: string; address: string | null; pincode: string | null; state: string | null } | null;
+    autoUpgrade?: boolean;
   };
+  refunds: { id: number; refund_id: string | null; amount_paise: number; status: string; reason: string | null; initiated_by: string; created_at: string; data: unknown }[];
+  canRefund: boolean;
   attempts: { id: number; paymentId: string | null; status: string; method: string | null; amount: number | null; errorCode: string | null; error: string | null; verified: boolean; source: string; at: string; updatedAt: string; data: unknown }[] | null;
   logs: { id: number; provider: string; direction: string; action: string; http_status: number | null; outcome: string; external_id: string | null; event_id: string | null; amount_paise: number | null; latency_ms: number | null; request: string | null; response: string | null; created_at: string }[] | null;
 };
@@ -43,6 +48,23 @@ export function BookingDrawer({ service, bookingRef, onClose, onChanged }: { ser
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const [openLog, setOpenLog] = useState<number | null>(null);
+  const [refundForm, setRefundForm] = useState<{ amount: string; reason: string } | null>(null);
+  const [acting, setActing] = useState<string | null>(null);
+  const act = async (kind: "retry" | "notify" | "refund", body?: unknown) => {
+    setActing(kind);
+    try {
+      await api(`/api/admin/bookings/${service}/${bookingRef}/${kind}`, { method: "POST", body });
+      toast.success(kind === "retry" ? "Ticket issued" : kind === "notify" ? "SMS / email sent again — see the log below" : "Refund started");
+      setRefundForm(null);
+      setTick((t) => t + 1);
+      onChanged?.();
+    } catch (e) {
+      toast.error(errMsg(e));
+      setTick((t) => t + 1);
+    } finally {
+      setActing(null);
+    }
+  };
 
   useEffect(() => {
     if (!bookingRef) return;
@@ -128,6 +150,9 @@ export function BookingDrawer({ service, bookingRef, onClose, onChanged }: { ser
                       ["Journey date", d.date || "—"],
                       ["Class / quota", `${d.cls} · ${d.quota}`],
                       ["Food", d.food ? "Included" : "Not opted"],
+                      ["Auto upgradation", d.autoUpgrade === false ? "Not opted" : "Considered"],
+                      ["Billing state", d.billing ? [d.billing.state, d.billing.pincode, d.billing.address].filter(Boolean).join(" · ") : "—"],
+                      ["GST invoice", d.gst ? `${d.gst.company} · ${d.gst.gstin}` : "No GST"],
                       ["Availability at booking", d.availability ? `${d.availability.text} (${d.availability.status})` : "—"],
                       ["Booked at", dt(x.booking.createdAt)],
                       ["Paid at", dt(x.booking.paidAt)],
@@ -188,9 +213,53 @@ export function BookingDrawer({ service, bookingRef, onClose, onChanged }: { ser
                       <div className="mt-3 flex gap-2">
                         <a href={`/api/bookings/${x.booking.ref}/ticket?view=1`} target="_blank" rel="noopener" className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-bold text-white"><FileText className="h-3.5 w-3.5" /> View PDF</a>
                         <a href={`/api/bookings/${x.booking.ref}/ticket`} className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-bold"><Download className="h-3.5 w-3.5" /> Download</a>
+                        <a href={`/api/bookings/${x.booking.ref}/invoice?view=1`} target="_blank" rel="noopener" className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-bold"><FileText className="h-3.5 w-3.5" /> Invoice</a>
                       </div>
                     )}
                   </Block>
+
+                  {(() => {
+                    const refunded = x.refunds.filter((r) => r.status !== "failed").reduce((a, r) => a + r.amount_paise, 0);
+                    const left = x.booking.amountPaise - refunded;
+                    const paid = x.booking.paymentStatus === "paid" || x.booking.paymentStatus === "refunded";
+                    return (
+                      <Block title={`Refunds${refunded ? ` · ${inr(refunded)} of ${inr(x.booking.amountPaise)}` : ""}`}>
+                        {x.canRefund && paid && (
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            {left >= 100 && <button onClick={() => setRefundForm({ amount: (left / 100).toFixed(2), reason: "" })} className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700"><Undo2 className="h-3.5 w-3.5" /> Refund</button>}
+                            {x.booking.ticketStatus === "failed" && !refunded && <button onClick={() => act("retry")} disabled={!!acting} className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-bold disabled:opacity-50">{acting === "retry" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />} Retry ticketing</button>}
+                            {x.booking.ticketStatus === "issued" && <button onClick={() => act("notify")} disabled={!!acting} className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-bold disabled:opacity-50">{acting === "notify" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Resend SMS / email</button>}
+                          </div>
+                        )}
+                        {refundForm && (
+                          <div className="mb-3 space-y-2 rounded-xl border border-red-200 bg-red-50/50 p-3">
+                            <div className="grid gap-2 sm:grid-cols-[140px_1fr]">
+                              <label className="text-xs font-semibold">Amount (₹)<input value={refundForm.amount} onChange={(e) => setRefundForm({ ...refundForm, amount: e.target.value.replace(/[^\d.]/g, "") })} inputMode="decimal" className="mt-1 h-9 w-full rounded-lg border border-line bg-white px-2 text-sm" /></label>
+                              <label className="text-xs font-semibold">Reason<input value={refundForm.reason} onChange={(e) => setRefundForm({ ...refundForm, reason: e.target.value })} maxLength={200} placeholder="e.g. Customer request / waitlist not confirmed" className="mt-1 h-9 w-full rounded-lg border border-line bg-white px-2 text-sm" /></label>
+                            </div>
+                            <p className="text-[11px] text-muted">Max {inr(left)}. Razorpay refunds reach the customer&apos;s source account in 5–7 working days.</p>
+                            <div className="flex gap-2">
+                              <button onClick={() => act("refund", { amount: Number(refundForm.amount), reason: refundForm.reason })} disabled={!!acting || refundForm.reason.trim().length < 3 || !(Number(refundForm.amount) >= 1)} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">{acting === "refund" ? "Refunding…" : `Refund ₹${refundForm.amount || 0}`}</button>
+                              <button onClick={() => setRefundForm(null)} className="rounded-lg px-3 py-1.5 text-xs font-bold text-muted">Cancel</button>
+                            </div>
+                          </div>
+                        )}
+                        {x.refunds.length === 0 ? <p className="text-xs text-muted">No refunds.</p> : (
+                          <ul className="space-y-1.5">
+                            {x.refunds.map((r) => (
+                              <li key={r.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-line px-3 py-2 text-xs">
+                                <span className={cn("rounded px-1.5 py-0.5 font-bold", r.status === "processed" ? "bg-emerald-50 text-emerald-700" : r.status === "failed" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700")}>{r.status}</span>
+                                <b>{inr(r.amount_paise)}</b>
+                                <span className="font-mono text-muted">{r.refund_id ?? "—"}</span>
+                                <span className="text-muted">{r.initiated_by === "system" ? "automatic" : "by agent"} · {r.reason}</span>
+                                <span className="ml-auto text-muted">{fmtTs(r.created_at)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </Block>
+                    );
+                  })()}
 
                   <Block title="Payment">
                     <Grid rows={[

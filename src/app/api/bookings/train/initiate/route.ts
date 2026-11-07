@@ -8,6 +8,7 @@ import { classCode, journeyDate, quota, stationCode, trainNumber } from "@/lib/s
 import { checkoutOptions, initiateTrainBooking } from "@/lib/server/booking/train-booking";
 import { audit } from "@/lib/server/audit";
 import { getClientIp } from "@/lib/server/request";
+import { billingSchema } from "@/lib/server/gst";
 
 /**
  * Start a train booking. The browser sends WHAT to book — never the amount.
@@ -32,9 +33,15 @@ export const POST = route(async (req: NextRequest) => {
       food: z.boolean().default(true),
       payMode: z.enum(["upi", "card"]).default("upi"),
       insurance: z.boolean().default(true),
+      billing: billingSchema.nullable().optional(),
+      useGst: z.boolean().default(false),
+      autoUpgrade: z.boolean().default(true),
+      notifyEmail: z.union([z.literal(""), z.null(), z.string().trim().toLowerCase().email().max(120)]).optional(),
+      couponCode: z.string().trim().max(32).regex(/^[A-Za-z0-9_-]*$/).optional().nullable(),
     }),
   );
-  const r = await initiateTrainBooking({ id: u.id, uid: u.uid }, body);
+  const billing = body.billing ? { state: body.billing.state, pincode: body.billing.pincode || null, address: body.billing.address || null } : null;
+  const r = await initiateTrainBooking({ id: u.id, uid: u.uid }, { ...body, billing });
   await audit({ actorType: "user", actorId: u.id, action: "booking.initiated", targetType: "booking", targetId: r.bookingRef, ip: getClientIp(req.headers), meta: { amount: r.order.amount, pax: r.details.pricing.count } });
   const site = await getPublicSettings();
   return ok({ bookingRef: r.bookingRef, pricing: r.details.pricing, charges: r.details.charges, checkout: checkoutOptions(r.bookingRef, r.order.id, r.order.amount, r.details, site.site_name) });

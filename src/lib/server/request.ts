@@ -33,7 +33,7 @@ export function getClientInfo(headers: Headers): ClientInfo {
   return { ip: getClientIp(headers), userAgent, device, client };
 }
 
-function isPrivateIp(ip: string): boolean {
+export function isPrivateIp(ip: string): boolean {
   return (
     ip === "0.0.0.0" ||
     ip === "::1" ||

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { ArrowLeft, Ban, CheckCircle2, Copy, Globe, LogOut, PauseCircle, ShieldCheck } from "lucide-react";
 import { useFetch } from "./use-fetch";
+import { CouponsManager } from "./coupons";
+import { can } from "@/lib/permissions";
 import { Avatar, Badge, Btn, Card, Table, Td } from "./ui";
 import { useAdmin } from "./admin-context";
 import { forceLogoutUser } from "./users";
@@ -13,10 +15,12 @@ type Detail = {
   user: {
     id: number; uid: string; name: string | null; email: string | null; phone: string | null; email_verified_at: string | null; phone_verified_at: string | null; status: string;
     signup_method: string; consent_at: string | null; consent_version: string | null; signup_ip: string | null; last_login_at: string | null; last_login_ip: string | null;
-    last_location: string | null; last_device: string | null; created_at: string;
+    last_location: string | null; last_device: string | null; created_at: string; avatar: string | null;
   };
   sessions: { id: number; ip: string; location: string | null; device: string; client: string; login_method: string; created_at: string; last_seen_at: string; revoked_reason: string | null; active: number }[];
   bookings: { booking_ref: string; service: string; status: string; title: string; travel_date: string; amount_paise: number; created_at: string }[];
+  gst: { gstin: string; company: string; address: string | null; pincode: string | null; state: string | null; status: string | null; source: "fetch" | "manual"; updatedAt: string } | null;
+  billing: { state: string; pincode: string | null; address: string | null } | null;
 };
 
 export function UserDetail({ id }: { id: number }) {
@@ -52,7 +56,7 @@ export function UserDetail({ id }: { id: number }) {
         <>
           <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div className="flex items-center gap-4">
-              <Avatar name={u.name} className="h-14 w-14 text-base" />
+              <Avatar name={u.name} src={u.avatar} className="h-14 w-14 rounded-2xl text-base" />
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-[22px] font-semibold tracking-tight">{u.name || "Unnamed traveller"}</h1>
@@ -142,6 +146,36 @@ export function UserDetail({ id }: { id: number }) {
               </Card>
             </div>
           </div>
+          <Card className="mt-6">
+            <div className="border-b border-neutral-200 px-5 py-3 text-sm font-semibold">GST & billing</div>
+            <div className="grid gap-4 p-5 md:grid-cols-2">
+              <div>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">GST details</div>
+                {data.gst ? (
+                  <div className="space-y-1 text-sm">
+                    <div className="font-semibold">{data.gst.company}</div>
+                    <div className="font-mono text-xs">{data.gst.gstin}</div>
+                    <div className="text-xs text-neutral-500">{[data.gst.address, data.gst.state, data.gst.pincode].filter(Boolean).join(", ") || "—"}</div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <Badge>{data.gst.source === "fetch" ? "verified via Digio" : "entered manually"}</Badge>
+                      {data.gst.status && <Badge>{`GST ${data.gst.status}`}</Badge>}
+                    </div>
+                    <div className="text-[11px] text-neutral-500">Updated {fmtDateTime(data.gst.updatedAt)}</div>
+                  </div>
+                ) : <p className="text-sm text-neutral-500">No GST details added.</p>}
+              </div>
+              <div>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">Billing state</div>
+                {data.billing ? (
+                  <div className="space-y-1 text-sm">
+                    <div className="font-semibold">{data.billing.state}</div>
+                    <div className="text-xs text-neutral-500">{[data.billing.address, data.billing.pincode].filter(Boolean).join(" · ") || "No address / pincode"}</div>
+                  </div>
+                ) : <p className="text-sm text-neutral-500">Not set yet.</p>}
+              </div>
+            </div>
+          </Card>
+          {can(admin, "coupons.manage") && <div className="mt-6"><CouponsManager userUid={u.uid} userId={u.id} /></div>}
         </>
       )}
     </>

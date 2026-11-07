@@ -37,6 +37,12 @@ export function userKey(uid: string, ...parts: string[]) {
   return `${storagePrefix()}${uid}/${parts.map(safePart).join("/")}`;
 }
 
+/** Agent files: <prefix>admins/ADM<id>/... */
+export function adminKey(adminId: number, ...parts: string[]) {
+  if (!Number.isInteger(adminId) || adminId < 1) throw new Error("invalid admin id for storage key");
+  return `${storagePrefix()}admins/ADM${adminId}/${parts.map(safePart).join("/")}`;
+}
+
 export async function putObject(key: string, body: Uint8Array, contentType: string) {
   if (!storageConfigured()) throw new Error("S3 storage is not configured (AWS_BUCKET / AWS keys)");
   const base = { Bucket: bucket(), Key: key, Body: body, ContentType: contentType, CacheControl: "private, max-age=0" };

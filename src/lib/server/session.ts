@@ -127,9 +127,11 @@ export async function getSessionAdmin(): Promise<SessionAdmin | null> {
     email_enc: string;
     role: "admin" | "staff";
     permissions: string | string[] | null;
+    has_avatar: number;
+    avatar_updated_at: Date | null;
   }>(
     `SELECT s.id AS sid, TIMESTAMPDIFF(SECOND, s.last_seen_at, UTC_TIMESTAMP()) AS idle,
-            a.id, a.name_enc, a.email_enc, a.role, a.permissions
+            a.id, a.name_enc, a.email_enc, a.role, a.permissions, (a.avatar_key_enc IS NOT NULL) AS has_avatar, a.avatar_updated_at
        FROM admin_sessions s JOIN admins a ON a.id = s.admin_id
       WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > UTC_TIMESTAMP() AND a.status = 'active'`,
     [sha256(token)],
@@ -147,6 +149,7 @@ export async function getSessionAdmin(): Promise<SessionAdmin | null> {
     email: await decrypt(row.email_enc),
     role: row.role,
     permissions: raw.filter(isPermission) as Permission[],
+    avatar: row.has_avatar ? `/api/admin/profile/avatar?v=${row.avatar_updated_at ? new Date(row.avatar_updated_at).getTime() : 0}` : null,
     sessionId: row.sid,
   };
 }

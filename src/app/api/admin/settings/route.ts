@@ -50,6 +50,8 @@ const schema = z.object({
   max_passengers_per_booking: z.string().regex(/^[1-6]$/, "1–6 (IRCTC allows up to 6)").optional(),
   train_daily_credit_cap: z.string().regex(/^\d{1,6}$/, "Whole number").optional(),
   train_dev_single_result: onOff.optional(),
+  gst_input_mode: z.enum(["fetch", "manual", "both"]).optional(),
+  max_coupons: z.string().regex(/^\d{1,4}$/).refine((v) => +v >= 1 && +v <= 1000, "1 – 1000").optional(),
   train_pg_fee_pct: pct.optional(),
   train_pg_gst_pct: pct.optional(),
   train_irctc_fee_nonac_upi: rupees.optional(),

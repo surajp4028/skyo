@@ -3,7 +3,7 @@ import { ApiError, route } from "@/lib/server/http";
 import { getSessionAdmin, getSessionUser } from "@/lib/server/session";
 import { queryOne } from "@/lib/server/db";
 import { can } from "@/lib/permissions";
-import { ticketFile } from "@/lib/server/booking/post-issue";
+import { providerTicketFile, ticketFile } from "@/lib/server/booking/post-issue";
 
 type Ctx = { params: Promise<{ ref: string }> };
 
@@ -17,10 +17,12 @@ export const GET = route<Ctx>(async (req: NextRequest, { params }) => {
   const allowed = !!b && ((user && user.uid === b.user_uid) || (admin && can(admin, "bookings.train")));
   if (!allowed) throw new ApiError(404, "NOT_FOUND", "Ticket not found");
   if (b!.ticket_status !== "issued") throw new ApiError(409, "NO_TICKET", "The ticket hasn't been issued yet.");
-  const pdf = await ticketFile(ref);
+  const irctc = req.nextUrl.searchParams.get("kind") === "irctc";
+  const pdf = irctc ? await providerTicketFile(ref) : await ticketFile(ref);
+  if (!pdf && irctc) throw new ApiError(404, "NO_PROVIDER_TICKET", "The IRCTC ticket isn't available yet.");
   if (!pdf) throw new ApiError(409, "NO_TICKET", "The ticket hasn't been issued yet.");
   const inline = req.nextUrl.searchParams.get("view") === "1";
   return new Response(Buffer.from(pdf), {
-    headers: { "Content-Type": "application/pdf", "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="SKYO-eTicket-${ref}.pdf"`, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
+    headers: { "Content-Type": "application/pdf", "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="SKYO-${irctc ? "IRCTC-Ticket" : "eTicket"}-${ref}.pdf"`, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
   });
 });

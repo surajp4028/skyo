@@ -6,6 +6,7 @@ import { can, SERVICES } from "@/lib/permissions";
 import { maskEmail, maskPhone } from "@/lib/server/validators";
 import { listBookingAttempts } from "@/lib/server/payments/attempts";
 import { audit } from "@/lib/server/audit";
+import { listRefunds } from "@/lib/server/payments/refunds";
 import { getClientIp } from "@/lib/server/request";
 import type { TrainBookingDetails } from "@/lib/server/booking/train-booking";
 
@@ -62,6 +63,8 @@ export const GET = route<Ctx>(async (req, { params }) => {
     contact,
     details: { ...d, contact: undefined },
     attempts: seeLogs ? await listBookingAttempts(ref) : null,
+    refunds: await listRefunds(ref),
+    canRefund: can(a, "payments.refund"),
     logs,
   });
 });

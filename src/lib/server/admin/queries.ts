@@ -1,5 +1,5 @@
 import "server-only";
-import { query, queryOne } from "../db";
+import { exec, query, queryOne } from "../db";
 import { blindIndex, decrypt, isSkyoId } from "../crypto";
 import { maskEmail, maskPhone, parseIdentifier } from "../validators";
 import type { ServiceKey } from "@/lib/permissions";
@@ -95,10 +95,11 @@ export async function listUsers(sp: URLSearchParams, full: boolean) {
   const rows = await query<{
     id: number; uid: string; name_enc: string | null; email_enc: string | null; phone_enc: string | null; email_verified_at: Date | null; phone_verified_at: Date | null;
     status: string; signup_method: string; last_login_at: Date | null; last_login_ip_enc: string | null; last_location_enc: string | null; last_device_enc: string | null;
-    created_at: Date; active_sessions: number; bookings: number;
+    created_at: Date; active_sessions: number; bookings: number; has_avatar: number; avatar_updated_at: Date | null;
   }>(
     `SELECT u.id, u.uid, u.name_enc, u.email_enc, u.phone_enc, u.email_verified_at, u.phone_verified_at, u.status, u.signup_method,
             u.last_login_at, u.last_login_ip_enc, u.last_location_enc, u.last_device_enc, u.created_at,
+            (u.avatar_key_enc IS NOT NULL) has_avatar, u.avatar_updated_at,
             (SELECT COUNT(*) FROM user_sessions s WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > UTC_TIMESTAMP()) active_sessions,
             (SELECT COUNT(*) FROM bookings b WHERE b.user_uid = u.uid) bookings
        FROM users u ${w} ORDER BY u.id DESC LIMIT ? OFFSET ?`,
@@ -121,6 +122,7 @@ export async function listUsers(sp: URLSearchParams, full: boolean) {
       created_at: r.created_at,
       active_sessions: Number(r.active_sessions),
       bookings: Number(r.bookings),
+      avatar: r.has_avatar ? adminAvatarUrl(r.id, r.avatar_updated_at) : null,
     })),
   );
   return { users, total: Number(total), page, size };
@@ -130,10 +132,11 @@ export async function getUserDetail(id: number, full: boolean) {
   const u = await queryOne<{
     id: number; uid: string; name_enc: string | null; email_enc: string | null; phone_enc: string | null; email_verified_at: Date | null; phone_verified_at: Date | null;
     status: string; signup_method: string; consent_at: Date | null; consent_version: string | null; signup_ip_enc: string | null; last_login_at: Date | null;
-    last_login_ip_enc: string | null; last_location_enc: string | null; last_device_enc: string | null; created_at: Date;
+    last_login_ip_enc: string | null; last_location_enc: string | null; last_device_enc: string | null; created_at: Date; has_avatar: number; avatar_updated_at: Date | null;
   }>(
     `SELECT id, uid, name_enc, email_enc, phone_enc, email_verified_at, phone_verified_at, status, signup_method, consent_at, consent_version,
-            signup_ip_enc, last_login_at, last_login_ip_enc, last_location_enc, last_device_enc, created_at FROM users WHERE id = ?`,
+            signup_ip_enc, last_login_at, last_login_ip_enc, last_location_enc, last_device_enc, created_at,
+            (avatar_key_enc IS NOT NULL) has_avatar, avatar_updated_at FROM users WHERE id = ?`,
     [id],
   );
   if (!u) return null;
@@ -168,6 +171,7 @@ export async function getUserDetail(id: number, full: boolean) {
       last_location: (await decrypt(u.last_location_enc)) || null,
       last_device: (await decrypt(u.last_device_enc)) || null,
       created_at: u.created_at,
+      avatar: u.has_avatar ? adminAvatarUrl(u.id, u.avatar_updated_at) : null,
     },
     sessions: await Promise.all(
       sessRows.map(async ({ ip_enc, location_enc, device_enc, user_agent_enc, ...r }) => ({
@@ -247,6 +251,7 @@ export async function listSessions(sp: URLSearchParams, full: boolean) {
 }
 
 export async function listBookings(service: ServiceKey, sp: URLSearchParams) {
+  await exec("UPDATE bookings SET status = 'cancelled' WHERE status = 'pending' AND payment_status = 'unpaid' AND hold_expires_at < UTC_TIMESTAMP() - INTERVAL 30 MINUTE");
   const { page, size, offset } = paging(sp);
   const where = ["b.service = ?"];
   const params: (string | number)[] = [service];
@@ -345,3 +350,6 @@ export async function listAudit(sp: URLSearchParams) {
   );
   return { logs, total: Number(total), page, size };
 }
+
+/** Admin-side URL for a customer's private profile photo (served after a users.view check). */
+export const adminAvatarUrl = (userId: number, updated: Date | null) => `/api/admin/users/${userId}/avatar?v=${updated ? new Date(updated).getTime() : 0}`;

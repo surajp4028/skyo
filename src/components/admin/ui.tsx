@@ -181,9 +181,26 @@ export function Pager({ page, size, total, onPage }: { page: number; size: numbe
   );
 }
 
-export function Avatar({ name, className }: { name: string | null; className?: string }) {
-  const initials = (name || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
-  return <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand/15 to-iris/20 text-[11px] font-extrabold text-ink ring-1 ring-white", className)}>{initials}</div>;
+/** Initials first; the photo fades in on top once it has loaded (and is dropped if it fails). */
+export function Avatar({ name, className, src }: { name: string | null; className?: string; src?: string | null }) {
+  const initials = (name || "?").trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+  const [state, setState] = useState<{ src: string | null | undefined; s: "loading" | "loaded" | "error" }>({ src, s: "loading" });
+  const st = state.src === src ? state.s : "loading";
+  return (
+    <div className={cn("relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-brand/15 to-iris/20 text-[11px] font-extrabold text-ink ring-1 ring-white", className)}>
+      <span className={cn("transition-opacity", st === "loaded" && "opacity-0")}>{initials}</span>
+      {src && st !== "error" && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={name || "Profile photo"}
+          onLoad={() => setState({ src, s: "loaded" })}
+          onError={() => setState({ src, s: "error" })}
+          className={cn("absolute inset-0 h-full w-full object-cover transition-opacity duration-300", st === "loaded" ? "opacity-100" : "opacity-0")}
+        />
+      )}
+    </div>
+  );
 }
 
 export function Forbidden() {

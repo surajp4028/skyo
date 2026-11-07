@@ -1,7 +1,8 @@
 import { ApiError, ok, route } from "@/lib/server/http";
 import { requireAdmin } from "@/lib/server/session";
 import { queryOne } from "@/lib/server/db";
-import { fetchOrderPayments } from "@/lib/server/payments/razorpay";
+import { fetchOrderPayments, fetchRefund } from "@/lib/server/payments/razorpay";
+import { listRefunds, updateRefundFromWebhook } from "@/lib/server/payments/refunds";
 import { recordAttempt } from "@/lib/server/payments/attempts";
 import { confirmPayment } from "@/lib/server/booking/train-booking";
 import { audit } from "@/lib/server/audit";
@@ -28,6 +29,11 @@ export const POST = route<Ctx>(async (_req, { params }) => {
   const good = r.items.find((p) => p.status === "captured" || p.status === "authorized");
   let result: unknown = null;
   if (good && b.payment_status !== "paid") result = await confirmPayment(b.pay_order_id, good, "webhook");
+  // refunds still pending on our side → ask Razorpay for their current state
+  for (const rf of await listRefunds(ref)) {
+    const pid = (rf.data as { payment_id?: string } | null)?.payment_id;
+    if (rf.status === "pending" && rf.refund_id && pid) await updateRefundFromWebhook(await fetchRefund(pid, rf.refund_id, ref)).catch(() => false);
+  }
   await audit({ actorType: "admin", actorId: a.id, action: "booking.reconciled", targetType: "booking", targetId: ref, meta: { payments: r.count, confirmed: !!result } });
   return ok({ payments: r.items.map((p) => ({ id: p.id, status: p.status, method: p.method, amount: p.amount })), confirmedNow: !!result, result });
 });

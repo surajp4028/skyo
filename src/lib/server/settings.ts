@@ -26,6 +26,8 @@ export const SETTING_DEFS = {
   max_saved_passengers: { label: "Max saved passengers per account", default: "20", max: 3, public: true },
   max_passengers_per_booking: { label: "Max passengers per train booking", default: "6", max: 1, public: true },
   train_daily_credit_cap: { label: "RailCore daily credit cap", default: process.env.RK_DAILY_CREDIT_CAP || "80", max: 6, public: false },
+  gst_input_mode: { label: "GST details: fetch / manual / both", default: "both", max: 6, public: true },
+  max_coupons: { label: "Max coupons", default: "20", max: 4, public: false },
   train_dev_single_result: { label: "Dev: show only 1 train in search results", default: "on", max: 3, public: false },
   // ---- Train charges (amounts in rupees, percentages as numbers) ----
   train_pg_fee_pct: { label: "Payment gateway fee %", default: "2", max: 6, public: true },
@@ -90,6 +92,7 @@ export async function getPublicSettings() {
     train_live: string;
     max_saved_passengers: string;
     max_passengers_per_booking: string;
+    gst_input_mode: string;
     train_pg_fee_pct: string;
     train_pg_gst_pct: string;
     train_irctc_fee_nonac_upi: string;

@@ -1,9 +1,10 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { BusFront, Building2, Database, Globe2, KeyRound, LayoutGrid, Mail, MessageSquare, Palmtree, Plane, Settings2, ShieldCheck, Timer, TrainFront, Users } from "lucide-react";
+import { BadgePercent, BusFront, Building2, Database, Globe2, KeyRound, LayoutGrid, Mail, MessageSquare, Palmtree, Plane, Settings2, ShieldCheck, Timer, TrainFront, Users } from "lucide-react";
 import { useFetch } from "./use-fetch";
 import { Btn, Card, PageHeader } from "./ui";
+import { CouponsManager } from "./coupons";
 import { api, errMsg } from "@/lib/client/api";
 import { Field } from "@/components/ui/field";
 import { trainCharges, type ChargeSettings, type PayMode } from "@/lib/train/charges";
@@ -15,6 +16,7 @@ const TABS = [
   { key: "general", label: "General", icon: Globe2, group: "Platform" },
   { key: "services", label: "Services", icon: LayoutGrid, group: "Platform" },
   { key: "travellers", label: "Travellers", icon: Users, group: "Platform" },
+  { key: "coupons", label: "Coupons", icon: BadgePercent, group: "Platform" },
   { key: "train", label: "Trains", icon: TrainFront, group: "Services" },
   { key: "flight", label: "Flights", icon: Plane, group: "Services" },
   { key: "bus", label: "Buses", icon: BusFront, group: "Services" },
@@ -119,12 +121,33 @@ export function SettingsView() {
           )}
 
           {tab === "travellers" && (
+            <Section title="GST details input" desc="How customers add GST details (profile and booking page). Fetch uses the Digio GST lookup (paid per call).">
+              <div className="flex flex-wrap gap-2">
+                {([["fetch", "Fetch only", "GSTIN → details from GST records"], ["manual", "Manual only", "Customer types company, address, pincode"], ["both", "Both", "Fetch first, manual if the lookup fails"]] as const).map(([k, l, d]) => (
+                  <button key={k} type="button" onClick={() => setEdits((p) => ({ ...p, gst_input_mode: k }))} className={cn("rounded-xl border px-4 py-3 text-left transition", (v.gst_input_mode || "both") === k ? "border-ink bg-ink text-white" : "border-line hover:bg-surface")}>
+                    <div className="text-sm font-bold">{l}</div>
+                    <div className={cn("text-[11px]", (v.gst_input_mode || "both") === k ? "text-white/70" : "text-muted")}>{d}</div>
+                  </button>
+                ))}
+              </div>
+            </Section>
+          )}
+          {tab === "travellers" && (
             <Section title="Travellers & bookings" desc="Limits applied on the account page and in the booking flow.">
               <div className="grid max-w-lg gap-4 sm:grid-cols-2">
                 <Field label="Max saved travellers" name="max_saved_passengers" inputMode="numeric" value={v.max_saved_passengers || ""} onChange={set("max_saved_passengers")} hint="1 – 50 per account" />
                 <Field label="Max per train booking" name="max_passengers_per_booking" inputMode="numeric" value={v.max_passengers_per_booking || ""} onChange={set("max_passengers_per_booking")} hint="1 – 6 (Tatkal is capped at 4)" />
               </div>
             </Section>
+          )}
+
+          {tab === "coupons" && (
+            <>
+              <CouponsManager />
+              <Section title="Coupon limit" desc="How many coupons can exist at once (general + personal). Save settings after changing.">
+                <div className="max-w-xs"><Field label="Max coupons" name="max_coupons" inputMode="numeric" value={v.max_coupons ?? ""} onChange={set("max_coupons")} hint="Default 20" /></div>
+              </Section>
+            </>
           )}
 
           {tab === "train" && <TrainTab v={v} set={set} toggle={toggle} />}

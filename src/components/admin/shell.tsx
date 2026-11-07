@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity, Bell, CreditCard, Inbox, BusFront, Building2, ChevronRight, ExternalLink, LayoutDashboard, LogOut, Menu, Palmtree, PanelLeftClose, PanelLeftOpen,
-  Plane, ScrollText, Settings, ShieldCheck, TrainFront, UserCog, Users, X,
+  Plane, ScrollText, Settings, ShieldCheck, TrainFront, UserCog, UserRound, Users, X,
 } from "lucide-react";
 import { LogoMark } from "@/components/site/logo";
 import { useSite } from "@/lib/client/providers";
@@ -42,6 +42,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { href: "/admin/staff", label: "Staff & access", icon: UserCog, perm: "staff.manage" },
       { href: "/admin/settings", label: "Settings", icon: Settings, perm: "settings.manage" },
+      { href: "/admin/profile", label: "My profile", icon: UserRound },
     ],
   },
 ];
@@ -101,7 +102,9 @@ function ShellInner({ children }: { children: ReactNode }) {
             <a href="/" target="_blank" rel="noreferrer" className="hidden items-center gap-1.5 rounded-xl border border-line bg-white px-3 py-2 text-xs font-bold text-ink/70 hover:border-ink/30 sm:flex">
               View site <ExternalLink className="h-3.5 w-3.5" />
             </a>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-iris text-xs font-extrabold text-white">{initials(admin.name)}</div>
+            <Link href="/admin/profile" title="My profile" className="rounded-xl ring-brand/40 transition hover:ring-2">
+              <AgentAvatar name={admin.name} src={admin.avatar} className="text-white" />
+            </Link>
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">
@@ -112,6 +115,12 @@ function ShellInner({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
+}
+
+function AgentAvatar({ name, src, className }: { name: string; src?: string | null; className?: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  if (src) return <img src={src} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover" />;
+  return <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-iris text-xs font-extrabold", className)}>{initials(name)}</div>;
 }
 
 const initials = (n: string) => n.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
@@ -178,13 +187,15 @@ function Sidebar({
 
       <div className="relative shrink-0 border-t border-white/10 p-3">
         <div className={cn("flex items-center gap-3 rounded-2xl bg-white/[0.06] p-2.5 ring-1 ring-white/10", collapsed && "flex-col gap-2 p-2")}>
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-iris text-xs font-extrabold">{initials(admin.name)}</div>
-          {!collapsed && (
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-bold">{admin.name}</div>
-              <div className="flex items-center gap-1 text-[11px] text-white/50"><ShieldCheck className="h-3 w-3" /> {admin.role === "admin" ? "Administrator" : "Staff"}</div>
-            </div>
-          )}
+          <Link href="/admin/profile" onClick={onNavigate} title="My profile" className={cn("flex min-w-0 items-center gap-3", collapsed ? "flex-col" : "flex-1")}>
+            <AgentAvatar name={admin.name} src={admin.avatar} />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-bold">{admin.name}</div>
+                <div className="flex items-center gap-1 text-[11px] text-white/50"><ShieldCheck className="h-3 w-3" /> {admin.role === "admin" ? "Administrator" : "Staff"}</div>
+              </div>
+            )}
+          </Link>
           <button
             title="Log out"
             onClick={async () => {

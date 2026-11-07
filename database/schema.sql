@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS users (
   last_device_enc     TEXT         NULL,
   avatar_key_enc      TEXT         NULL,
   avatar_updated_at   DATETIME     NULL,
+  billing_enc         TEXT         NULL,
   created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_uid (uid),
@@ -79,6 +80,8 @@ CREATE TABLE IF NOT EXISTS admins (
   last_login_at       DATETIME     NULL,
   last_login_ip_enc   TEXT         NULL,
   password_changed_at DATETIME     NULL,
+  avatar_key_enc      TEXT         NULL,
+  avatar_updated_at   DATETIME     NULL,
   created_by          INT UNSIGNED NULL,
   created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -296,7 +299,7 @@ CREATE TABLE IF NOT EXISTS saved_passengers (
 CREATE TABLE IF NOT EXISTS payment_logs (
   id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   booking_ref  VARCHAR(20)   NULL,
-  provider     ENUM('razorpay','tripgic','skyo') NOT NULL,
+  provider     ENUM('razorpay','tripgic','skyo','digio') NOT NULL,
   direction    ENUM('outbound','inbound') NOT NULL,
   action       VARCHAR(48)   NOT NULL,
   http_status  SMALLINT      NULL,
@@ -334,4 +337,84 @@ CREATE TABLE IF NOT EXISTS payment_attempts (
   UNIQUE KEY uq_payment_attempt (payment_id),
   KEY idx_attempt_booking (booking_ref),
   KEY idx_attempt_user (user_uid, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Coupons (WooCommerce-style). value = percent (0–100) or fixed ₹; zero_service waives the SKYO service fee.
+CREATE TABLE IF NOT EXISTS coupons (
+  id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  code            VARCHAR(32)   NOT NULL,
+  title           VARCHAR(100)  NULL,
+  discount_type   ENUM('percent','fixed','zero_service') NOT NULL,
+  value           DECIMAL(10,2) NOT NULL DEFAULT 0,
+  apply_on        ENUM('base_fare','service_fee','total') NOT NULL DEFAULT 'total',
+  max_discount    DECIMAL(10,2) NULL,
+  min_order       DECIMAL(10,2) NULL,
+  service         VARCHAR(16)   NOT NULL DEFAULT 'train',
+  per_user_limit  INT UNSIGNED  NULL,
+  total_limit     INT UNSIGNED  NULL,
+  user_uid        VARCHAR(16)   NULL,
+  status          ENUM('active','paused') NOT NULL DEFAULT 'active',
+  starts_at       DATETIME      NULL,
+  expires_at      DATETIME      NULL,
+  is_default      TINYINT(1)    NOT NULL DEFAULT 0,
+  used_count      INT UNSIGNED  NOT NULL DEFAULT 0,
+  created_by      INT UNSIGNED  NULL,
+  created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_coupon_code (code),
+  KEY idx_coupon_user (user_uid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One row per booking that used a coupon. 'reserved' while the booking awaits payment, 'used' once paid.
+CREATE TABLE IF NOT EXISTS coupon_redemptions (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  coupon_id       INT UNSIGNED  NOT NULL,
+  code            VARCHAR(32)   NOT NULL,
+  user_uid        VARCHAR(16)   NOT NULL,
+  booking_ref     VARCHAR(20)   NOT NULL,
+  discount_paise  BIGINT UNSIGNED NOT NULL,
+  status          ENUM('reserved','used','released') NOT NULL DEFAULT 'reserved',
+  created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  used_at         DATETIME      NULL,
+  UNIQUE KEY uq_redemption_booking (booking_ref),
+  KEY idx_redemption_coupon (coupon_id, status),
+  KEY idx_redemption_user (user_uid, coupon_id),
+  CONSTRAINT fk_redemption_coupon FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Customer GST details for tax invoices (one per account). Company/address/GSTIN encrypted.
+CREATE TABLE IF NOT EXISTS user_gst (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id       INT UNSIGNED  NOT NULL,
+  gstin_enc     TEXT          NOT NULL,
+  gstin_bidx    CHAR(64)      NOT NULL,
+  company_enc   TEXT          NOT NULL,
+  address_enc   TEXT          NULL,
+  pincode       CHAR(6)       NULL,
+  state         VARCHAR(60)   NULL,
+  gst_status    VARCHAR(40)   NULL,
+  source        ENUM('fetch','manual') NOT NULL,
+  raw_enc       MEDIUMTEXT    NULL,
+  created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_user_gst_user (user_id),
+  KEY idx_user_gst_bidx (gstin_bidx),
+  CONSTRAINT fk_user_gst_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Razorpay refunds (automatic when ticketing fails, or by an agent). Latest provider payload encrypted.
+CREATE TABLE IF NOT EXISTS refunds (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  booking_ref   VARCHAR(20)   NOT NULL,
+  payment_id    VARCHAR(64)   NOT NULL,
+  refund_id     VARCHAR(64)   NULL,
+  amount_paise  BIGINT UNSIGNED NOT NULL,
+  status        VARCHAR(16)   NOT NULL,
+  reason        VARCHAR(200)  NULL,
+  initiated_by  VARCHAR(32)   NOT NULL,
+  data_enc      MEDIUMTEXT    NULL,
+  created_at    TIMESTAMP(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    TIMESTAMP(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_refund_id (refund_id),
+  KEY idx_refund_booking (booking_ref)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

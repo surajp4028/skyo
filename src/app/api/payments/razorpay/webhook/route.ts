@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { fetchPayment, verifyWebhookSignature, type RzpPayment } from "@/lib/server/payments/razorpay";
 import { recordAttempt } from "@/lib/server/payments/attempts";
 import { queryOne } from "@/lib/server/db";
+import { updateRefundFromWebhook } from "@/lib/server/payments/refunds";
+import type { RzpRefund } from "@/lib/server/payments/razorpay";
 import { logProvider } from "@/lib/server/payments/log";
 import { confirmPayment } from "@/lib/server/booking/train-booking";
 
@@ -10,7 +12,8 @@ import { confirmPayment } from "@/lib/server/booking/train-booking";
  * Razorpay webhook — configure in Dashboard → Webhooks:
  *   URL:    https://<your-domain>/api/payments/razorpay/webhook
  *   Secret: RAZORPAY_WEBHOOK_SECRET
- *   Events: payment.captured, payment.failed, order.paid (payment.authorized only if manual capture)
+ *   Events: payment.captured, payment.failed, order.paid, refund.processed, refund.failed
+ *           (payment.authorized only if manual capture)
  * Double validation:
  *   1. X-Razorpay-Signature (HMAC-SHA256 of the RAW body with the webhook secret) must match.
  *   2. The payment is then re-fetched from Razorpay's API (GET /v1/payments/{id}) and only THAT record
@@ -22,7 +25,7 @@ export async function POST(req: NextRequest) {
   const sig = req.headers.get("x-razorpay-signature");
   const eventId = req.headers.get("x-razorpay-event-id");
   const valid = verifyWebhookSignature(raw, sig);
-  let payload: { event?: string; payload?: { payment?: { entity?: RzpPayment }; order?: { entity?: { id?: string; receipt?: string } } } } = {};
+  let payload: { event?: string; payload?: { payment?: { entity?: RzpPayment }; order?: { entity?: { id?: string; receipt?: string } }; refund?: { entity?: RzpRefund } } } = {};
   try {
     payload = JSON.parse(raw);
   } catch {}
@@ -38,6 +41,8 @@ export async function POST(req: NextRequest) {
   if (!fresh) return NextResponse.json({ ok: true, duplicate: true }); // already processed
 
   try {
+    const refund = payload.payload?.refund?.entity;
+    if (payload.event?.startsWith("refund.") && refund?.id) await updateRefundFromWebhook(refund);
     const handled = ["payment.captured", "order.paid", "payment.authorized", "payment.failed"];
     if (payload.event && handled.includes(payload.event) && pay?.id && pay.order_id) {
       const booking = await queryOne<{ booking_ref: string; user_uid: string }>("SELECT booking_ref, user_uid FROM bookings WHERE pay_order_id = ?", [pay.order_id]);

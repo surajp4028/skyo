@@ -75,6 +75,20 @@ export const fetchPayment = (id: string, bookingRef?: string) => call<RzpPayment
 export const fetchOrderPayments = (orderId: string, bookingRef?: string) =>
   call<{ entity: "collection"; count: number; items: RzpPayment[] }>("GET", `/orders/${encodeURIComponent(orderId)}/payments`, undefined, { action: "order.payments", bookingRef });
 
+export type RzpRefund = { id: string; entity: "refund"; amount: number; currency: string; payment_id: string; status: "pending" | "processed" | "failed"; speed_processed?: string; created_at: number; notes?: Record<string, string> };
+
+/** POST /v1/payments/{id}/refund — amount in paise (omit for the full amount). Normal speed (5–7 working days). */
+export const refundPayment = (paymentId: string, amountPaise: number, p: { bookingRef: string; reason: string; receipt: string }) =>
+  call<RzpRefund>(
+    "POST",
+    `/payments/${encodeURIComponent(paymentId)}/refund`,
+    { amount: amountPaise, speed: "normal", receipt: p.receipt.slice(0, 40), notes: { booking_ref: p.bookingRef, reason: p.reason.slice(0, 250) } },
+    { action: "refund.create", bookingRef: p.bookingRef, amountPaise },
+  );
+
+export const fetchRefund = (paymentId: string, refundId: string, bookingRef?: string) =>
+  call<RzpRefund>("GET", `/payments/${encodeURIComponent(paymentId)}/refunds/${encodeURIComponent(refundId)}`, undefined, { action: "refund.fetch", bookingRef });
+
 export const capturePayment = (id: string, amountPaise: number, bookingRef?: string) =>
   call<RzpPayment>("POST", `/payments/${encodeURIComponent(id)}/capture`, { amount: amountPaise, currency: "INR" }, { action: "payment.capture", bookingRef, amountPaise });
 

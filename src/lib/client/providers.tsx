@@ -18,6 +18,7 @@ export type PublicSettings = {
   train_live: string;
   max_saved_passengers: string;
   max_passengers_per_booking: string;
+  gst_input_mode: string;
   train_pg_fee_pct: string;
   train_pg_gst_pct: string;
   train_irctc_fee_nonac_upi: string;

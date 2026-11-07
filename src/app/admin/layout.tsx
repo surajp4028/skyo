@@ -8,5 +8,5 @@ export const metadata: Metadata = { title: "Agent console", robots: { index: fal
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const a = await getSessionAdmin();
   if (!a) redirect("/login?as=agent");
-  return <AdminShell admin={{ id: a.id, name: a.name, email: a.email, role: a.role, permissions: a.permissions }}>{children}</AdminShell>;
+  return <AdminShell admin={{ id: a.id, name: a.name, email: a.email, role: a.role, permissions: a.permissions, avatar: a.avatar ?? null }}>{children}</AdminShell>;
 }

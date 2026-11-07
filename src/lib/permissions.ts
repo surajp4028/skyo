@@ -8,6 +8,8 @@ export const PERMISSIONS = {
   "sessions.revoke": { group: "Security", label: "Force logout sessions" },
   "audit.view": { group: "Security", label: "View audit trail" },
   "payments.view": { group: "Bookings", label: "Payment & ticketing transactions (request / response logs)" },
+  "payments.refund": { group: "Bookings", label: "Refund payments, retry ticketing, resend notifications" },
+  "coupons.manage": { group: "Bookings", label: "Create / edit coupons (incl. personal codes)" },
   "bookings.train": { group: "Bookings", label: "Train bookings" },
   "bookings.flight": { group: "Bookings", label: "Flight bookings" },
   "bookings.bus": { group: "Bookings", label: "Bus bookings" },
@@ -23,7 +25,7 @@ export const isPermission = (p: string): p is Permission => Object.prototype.has
 export const ADMIN_ONLY = ["staff.manage", "settings.manage"] as const;
 
 export type AdminRole = "admin" | "staff";
-export type AdminIdentity = { id: number; name: string; email: string; role: AdminRole; permissions: Permission[] };
+export type AdminIdentity = { id: number; name: string; email: string; role: AdminRole; permissions: Permission[]; avatar?: string | null };
 
 export function can(admin: Pick<AdminIdentity, "role" | "permissions">, perm: Permission | (typeof ADMIN_ONLY)[number]) {
   if (admin.role === "admin") return true;
