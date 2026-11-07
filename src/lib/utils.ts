@@ -49,3 +49,16 @@ export function timeAgo(d: string | Date | null | undefined) {
 
 export const fmtDateTime = (d: string | Date | null | undefined) =>
   d ? new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+
+/**
+ * "12 Jun 2026". Calendar dates ("2026-06-12" or a DATE column at UTC midnight) are shown as-is;
+ * real timestamps are shown in IST.
+ */
+export function fmtDate(d: string | Date | null | undefined): string {
+  if (!d) return "—";
+  const s = typeof d === "string" ? d : d.toISOString();
+  const dateOnly = /^\d{4}-\d{2}-\d{2}(T00:00:00(\.000)?Z)?$/.test(s);
+  const dt = new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T00:00:00Z` : s);
+  if (Number.isNaN(dt.getTime())) return String(d);
+  return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: dateOnly ? "UTC" : "Asia/Kolkata" });
+}

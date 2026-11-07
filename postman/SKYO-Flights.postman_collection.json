@@ -1,0 +1,1832 @@
+{
+  "info": {
+    "name": "SKYO · Flights (aviationstack + SKYO API)",
+    "_postman_id": "5c8e7c35-5f1e-4a7e-9d1a-3b7f2e91c4d0",
+    "description": "1) aviationstack direct — every documented v1 endpoint with all parameters (each successful call uses 1 of your monthly requests; errors are free).\n2) SKYO flight API — public, traveller (cookie session) and agent endpoints.\nSet aviationstack_key in the environment, never in the collection.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "aviationstack_base",
+      "value": "https://api.aviationstack.com/v1"
+    },
+    {
+      "key": "skyo_base",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "journey_date",
+      "value": "2026-11-20"
+    }
+  ],
+  "item": [
+    {
+      "name": "aviationstack (direct)",
+      "item": [
+        {
+          "name": "Real-time flights (route)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/flights?access_key={{aviationstack_key}}&dep_iata=DEL&arr_iata=BOM&limit=100",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "flights"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "dep_iata",
+                  "value": "DEL",
+                  "disabled": false,
+                  "description": "Departure airport/city IATA"
+                },
+                {
+                  "key": "arr_iata",
+                  "value": "BOM",
+                  "disabled": false,
+                  "description": "Arrival airport/city IATA"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "disabled": false,
+                  "description": "Rows per request (max 100 on Free/Basic)"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "flight_status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "scheduled | active | landed | cancelled | incident | diverted"
+                },
+                {
+                  "key": "airline_iata",
+                  "value": "",
+                  "disabled": true,
+                  "description": "e.g. 6E"
+                },
+                {
+                  "key": "airline_icao",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "airline_name",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "dep_icao",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "arr_icao",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "flight_number",
+                  "value": "",
+                  "disabled": true,
+                  "description": "e.g. 2557"
+                },
+                {
+                  "key": "flight_iata",
+                  "value": "",
+                  "disabled": true,
+                  "description": "e.g. 6E395"
+                },
+                {
+                  "key": "flight_icao",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "min_delay_dep",
+                  "value": "",
+                  "disabled": true,
+                  "description": "minutes"
+                },
+                {
+                  "key": "max_delay_dep",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "min_delay_arr",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "max_delay_arr",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "arr_scheduled_time_arr",
+                  "value": "",
+                  "disabled": true,
+                  "description": "YYYY-MM-DD"
+                },
+                {
+                  "key": "dep_scheduled_time_dep",
+                  "value": "",
+                  "disabled": true,
+                  "description": "YYYY-MM-DD"
+                },
+                {
+                  "key": "callback",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "What SKYO uses on the FREE plan: one call = the route's flights today (operating + codeshare rows). Times are LOCAL airport time stamped +00:00. 1 request."
+          }
+        },
+        {
+          "name": "Flight status by flight number",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/flights?access_key={{aviationstack_key}}&flight_iata=6E395&limit=10",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "flights"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "flight_iata",
+                  "value": "6E395",
+                  "disabled": false,
+                  "description": "Flight IATA code"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Used by SKYO live tracking (cached per flight). 1 request."
+          }
+        },
+        {
+          "name": "Historical flights (Basic+)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/flights?access_key={{aviationstack_key}}&flight_date=2026-11-01&dep_iata=DEL&arr_iata=BOM",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "flights"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "flight_date",
+                  "value": "2026-11-01",
+                  "disabled": false,
+                  "description": "YYYY-MM-DD, last 3–12 months"
+                },
+                {
+                  "key": "dep_iata",
+                  "value": "DEL",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "arr_iata",
+                  "value": "BOM",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "disabled": true,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Basic plan and above. Free plan returns function_access_restricted."
+          }
+        },
+        {
+          "name": "Future flight schedules (Basic+)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/flightsFuture?access_key={{aviationstack_key}}&iataCode=DEL&type=departure&date=2026-12-15",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "flightsFuture"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "iataCode",
+                  "value": "DEL",
+                  "disabled": false,
+                  "description": "Airport IATA"
+                },
+                {
+                  "key": "type",
+                  "value": "departure",
+                  "disabled": false,
+                  "description": "departure | arrival"
+                },
+                {
+                  "key": "date",
+                  "value": "2026-12-15",
+                  "disabled": false,
+                  "description": "YYYY-MM-DD (future)"
+                },
+                {
+                  "key": "airline_iata",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "airline_icao",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "flight_number",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "disabled": true,
+                  "description": "Max 100 below Professional plan"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true,
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "callback",
+                  "value": "",
+                  "disabled": true,
+                  "description": "JSONP callback name"
+                }
+              ]
+            },
+            "description": "Basic plan and above. Rate limit 1 req / 10 s (paid), 1 / 60 s (free). Fields: weekday, departure.scheduledTime (HH:MM), aircraft.modelCode/modelText, airline.iataCode, flight.iataNumber, codeshared."
+          }
+        },
+        {
+          "name": "Timetable (Basic+)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/timetable?access_key={{aviationstack_key}}&iataCode=DEL&type=departure",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "timetable"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "iataCode",
+                  "value": "DEL",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "type",
+                  "value": "departure",
+                  "disabled": false,
+                  "description": "departure | arrival"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "landed | scheduled | cancelled | active | incident | diverted | redirected | unknown"
+                },
+                {
+                  "key": "dep_terminal",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "arr_terminal",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "dep_delay",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "arr_delay",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "dep_schTime",
+                  "value": "",
+                  "disabled": true,
+                  "description": "date-time"
+                },
+                {
+                  "key": "arr_schTime",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "dep_estTime",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "arr_estTime",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "dep_actTime",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "arr_actTime",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "dep_estRunway",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "arr_estRunway",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "dep_actRunway",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "arr_actRunway",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "airline_iata",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "airline_icao",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "airline_name",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "flight_iata",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "flight_icao",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "flight_num",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "disabled": true,
+                  "description": "Max 100 below Professional plan"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true,
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "callback",
+                  "value": "",
+                  "disabled": true,
+                  "description": "JSONP callback name"
+                }
+              ]
+            },
+            "description": "Today's departures/arrivals board for an airport. Basic plan and above."
+          }
+        },
+        {
+          "name": "Airline routes (Basic+)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/routes?access_key={{aviationstack_key}}&dep_iata=DEL",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "routes"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "dep_iata",
+                  "value": "DEL",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "arr_iata",
+                  "value": "BOM",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "airline_iata",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "airline_icao",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "dep_icao",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "arr_icao",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "flight_number",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "disabled": true,
+                  "description": "Max 100 below Professional plan"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true,
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "callback",
+                  "value": "",
+                  "disabled": true,
+                  "description": "JSONP callback name"
+                }
+              ]
+            },
+            "description": "Route metadata, updated every 24 h. Basic plan and above."
+          }
+        },
+        {
+          "name": "Airports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/airports?access_key={{aviationstack_key}}",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "airports"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Autocomplete — Basic plan and above"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "disabled": true,
+                  "description": "Max 100 below Professional plan"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true,
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "callback",
+                  "value": "",
+                  "disabled": true,
+                  "description": "JSONP callback name"
+                }
+              ]
+            },
+            "description": "All plans (search param is Basic+). SKYO ships its own airport list so this isn't called at runtime."
+          }
+        },
+        {
+          "name": "Airlines",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/airlines?access_key={{aviationstack_key}}",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "airlines"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Basic+"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "disabled": true,
+                  "description": "Max 100 below Professional plan"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true,
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "callback",
+                  "value": "",
+                  "disabled": true,
+                  "description": "JSONP callback name"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Airplanes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/airplanes?access_key={{aviationstack_key}}",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "airplanes"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Basic+"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "disabled": true,
+                  "description": "Max 100 below Professional plan"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true,
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "callback",
+                  "value": "",
+                  "disabled": true,
+                  "description": "JSONP callback name"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Aircraft types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/aircraft_types?access_key={{aviationstack_key}}",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "aircraft_types"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Basic+"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "disabled": true,
+                  "description": "Max 100 below Professional plan"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true,
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "callback",
+                  "value": "",
+                  "disabled": true,
+                  "description": "JSONP callback name"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Aviation taxes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/taxes?access_key={{aviationstack_key}}",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "taxes"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Basic+"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "disabled": true,
+                  "description": "Max 100 below Professional plan"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true,
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "callback",
+                  "value": "",
+                  "disabled": true,
+                  "description": "JSONP callback name"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Cities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/cities?access_key={{aviationstack_key}}",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "cities"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Basic+"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "disabled": true,
+                  "description": "Max 100 below Professional plan"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true,
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "callback",
+                  "value": "",
+                  "disabled": true,
+                  "description": "JSONP callback name"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Countries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aviationstack_base}}/countries?access_key={{aviationstack_key}}",
+              "host": [
+                "{{aviationstack_base}}"
+              ],
+              "path": [
+                "countries"
+              ],
+              "query": [
+                {
+                  "key": "access_key",
+                  "value": "{{aviationstack_key}}",
+                  "disabled": false,
+                  "description": "Your aviationstack key (dashboard). Never commit it."
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Basic+"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "disabled": true,
+                  "description": "Max 100 below Professional plan"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true,
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "callback",
+                  "value": "",
+                  "disabled": true,
+                  "description": "JSONP callback name"
+                }
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "SKYO · Flights (public & traveller)",
+      "item": [
+        {
+          "name": "Search flights",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/flight/search?from=DEL&to=BOM&date={{journey_date}}&cabin=economy",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "flight",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "DEL",
+                  "disabled": false,
+                  "description": "IATA"
+                },
+                {
+                  "key": "to",
+                  "value": "BOM",
+                  "disabled": false,
+                  "description": "IATA"
+                },
+                {
+                  "key": "date",
+                  "value": "{{journey_date}}",
+                  "disabled": false,
+                  "description": "YYYY-MM-DD, today … +330 days"
+                },
+                {
+                  "key": "cabin",
+                  "value": "economy",
+                  "disabled": false,
+                  "description": "economy | business"
+                }
+              ]
+            },
+            "description": "Cached route = 0 aviationstack requests; a route nobody searched yet = 1 request. Anonymous visitors may open 2 new routes/day, logged-in users 6. Dev setting can limit results to 1."
+          }
+        },
+        {
+          "name": "Airport suggestions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/flight/airports?q=del",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "flight",
+                "airports"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "del",
+                  "disabled": false,
+                  "description": "code, city, airport or state"
+                }
+              ]
+            },
+            "description": "Local directory — 0 requests."
+          }
+        },
+        {
+          "name": "Seat map",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/flight/seats?from=DEL&to=BOM&date={{journey_date}}&option=6E395&cabin=economy",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "flight",
+                "seats"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "DEL",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "to",
+                  "value": "BOM",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "date",
+                  "value": "{{journey_date}}",
+                  "disabled": false,
+                  "description": ""
+                },
+                {
+                  "key": "option",
+                  "value": "6E395",
+                  "disabled": false,
+                  "description": "option id from search (e.g. 6E395 or 6E395.AI501)"
+                },
+                {
+                  "key": "cabin",
+                  "value": "economy",
+                  "disabled": false,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Per segment: aircraft layout, taken seats (incl. SKYO holds) and each seat's fee. 0 requests."
+          }
+        },
+        {
+          "name": "Live flight status (login)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/flight/status?flight=6E395",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "flight",
+                "status"
+              ],
+              "query": [
+                {
+                  "key": "flight",
+                  "value": "6E395",
+                  "disabled": false,
+                  "description": "flight IATA"
+                }
+              ]
+            },
+            "description": "Needs a traveller session cookie. Cached per flight for flight_live_cache_min."
+          }
+        },
+        {
+          "name": "Start flight booking (login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/bookings/flight/initiate",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "flight",
+                "initiate"
+              ]
+            },
+            "description": "Server re-prices from the cached schedule, holds seats (15 min) and returns Razorpay Checkout options. The amount is never taken from the client.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"optionId\": \"6E395\",\n  \"from\": \"DEL\",\n  \"to\": \"BOM\",\n  \"date\": \"2026-11-20\",\n  \"cabin\": \"economy\",\n  \"passengerIds\": [\n    1\n  ],\n  \"seats\": {\n    \"6E395\": [\n      \"12A\"\n    ]\n  },\n  \"payMode\": \"upi\",\n  \"insurance\": true,\n  \"couponCode\": \"SKYOFLY\",\n  \"billing\": {\n    \"state\": \"Delhi\",\n    \"pincode\": \"110001\",\n    \"address\": null\n  },\n  \"useGst\": false,\n  \"notifyEmail\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Verify Razorpay checkout (login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/bookings/flight/verify",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "flight",
+                "verify"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingRef\": \"SKT12345678\",\n  \"razorpay_payment_id\": \"pay_xxx\",\n  \"razorpay_order_id\": \"order_xxx\",\n  \"razorpay_signature\": \"<hex>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Report checkout failure (login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/bookings/flight/failed",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "flight",
+                "failed"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingRef\": \"SKT12345678\",\n  \"error\": {\n    \"code\": \"BAD_REQUEST_ERROR\",\n    \"description\": \"Payment failed\",\n    \"metadata\": {\n      \"payment_id\": \"pay_xxx\",\n      \"order_id\": \"order_xxx\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Booking status (login)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/bookings/SKT12345678",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "SKT12345678"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Resume checkout (login)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/bookings/SKT12345678/checkout",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "SKT12345678",
+                "checkout"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "E-ticket PDF",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/bookings/SKT12345678/ticket",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "SKT12345678",
+                "ticket"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Invoice PDF",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/bookings/SKT12345678/invoice?",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "SKT12345678",
+                "invoice"
+              ],
+              "query": [
+                {
+                  "key": "view",
+                  "value": "1",
+                  "disabled": true,
+                  "description": "inline"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "My trips (login)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/account/bookings?service=flight",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "account",
+                "bookings"
+              ],
+              "query": [
+                {
+                  "key": "service",
+                  "value": "flight",
+                  "disabled": false,
+                  "description": ""
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Flight coupons (login)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/coupons?service=flight",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "coupons"
+              ],
+              "query": [
+                {
+                  "key": "service",
+                  "value": "flight",
+                  "disabled": false,
+                  "description": ""
+                }
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "SKYO · Admin (agent session)",
+      "item": [
+        {
+          "name": "aviationstack usage + cached routes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/flight-usage",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "flight-usage"
+              ]
+            },
+            "description": "Agent session with bookings.flight."
+          }
+        },
+        {
+          "name": "Refresh / drop a cached route",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/flight-usage/refresh",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "flight-usage",
+                "refresh"
+              ]
+            },
+            "description": "refresh = 1 request per page · drop = 0. Admin only.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"DEL\",\n  \"to\": \"BOM\",\n  \"action\": \"refresh\",\n  \"pages\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "One aviationstack call (full response)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/flight-usage/calls/1",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "flight-usage",
+                "calls",
+                "1"
+              ]
+            },
+            "description": "payments.view permission."
+          }
+        },
+        {
+          "name": "Flight bookings list",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/bookings/flight?",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "bookings",
+                "flight"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "pending|confirmed|cancelled|failed|refunded|action|refund_pending"
+                },
+                {
+                  "key": "range",
+                  "value": "",
+                  "disabled": true,
+                  "description": "today|7d|30d"
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true,
+                  "description": "booking ref or SKYO ID"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true,
+                  "description": ""
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Flight booking detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/bookings/flight/SKT12345678",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "bookings",
+                "flight",
+                "SKT12345678"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Re-check with Razorpay",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/bookings/flight/SKT12345678/reconcile",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "bookings",
+                "flight",
+                "SKT12345678",
+                "reconcile"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Retry ticketing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/bookings/flight/SKT12345678/retry",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "bookings",
+                "flight",
+                "SKT12345678",
+                "retry"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/bookings/flight/SKT12345678/refund",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "bookings",
+                "flight",
+                "SKT12345678",
+                "refund"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountPaise\": 10000,\n  \"reason\": \"Customer request\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Resend SMS / email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/bookings/flight/SKT12345678/notify",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "bookings",
+                "flight",
+                "SKT12345678",
+                "notify"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Cancel unpaid booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/bookings/flight/SKT12345678/cancel",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "bookings",
+                "flight",
+                "SKT12345678",
+                "cancel"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Duplicate booking\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Disputes & refunds (all services)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/disputes?filter=action",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "disputes"
+              ],
+              "query": [
+                {
+                  "key": "filter",
+                  "value": "action",
+                  "disabled": false,
+                  "description": "action | pending | refunded | all"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Flight settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo",
+                "description": "SKYO CSRF guard — required on every POST/PUT/DELETE"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/settings",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "settings"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flight_dev_single_result\": \"off\",\n  \"flight_monthly_cap\": \"95\",\n  \"flight_cache_hours\": \"168\",\n  \"flight_per_km\": \"2.6\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

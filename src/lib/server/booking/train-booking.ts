@@ -18,8 +18,12 @@ import { markCouponUsed, reserveCoupon, validateCoupon } from "../coupons";
 import { autoRefundFailedBooking } from "../payments/refunds";
 import { notifyFailure } from "./post-issue";
 import { getUserGst, saveBilling, type Billing } from "../gst";
+import { issueFlightForBooking } from "./flight-issue";
+import type { FlightBookingDetails } from "./flight-booking";
 
 const HOLD_MINUTES = 15;
+/** A payment started just before the hold ended may finish a little later — allow 10 minutes. */
+const LATE_GRACE_MS = 10 * 60_000;
 const BOOKABLE = new Set(["AVAILABLE", "RAC", "WAITLIST"]);
 
 export type TrainBookingDetails = {
@@ -141,8 +145,11 @@ export async function initiateTrainBooking(
   return { bookingRef: ref, order, details };
 }
 
-export function checkoutOptions(ref: string, orderId: string, amountPaise: number, d: TrainBookingDetails, siteName: string) {
+export function checkoutOptions(ref: string, orderId: string, amountPaise: number, d: TrainBookingDetails, siteName: string, holdExpiresAt?: Date | null) {
+  const left = holdExpiresAt ? Math.floor((new Date(holdExpiresAt).getTime() - Date.now()) / 1000) : HOLD_MINUTES * 60;
   return {
+    // Razorpay closes the window when the booking hold ends, so nobody pays for an expired hold
+    timeout: Math.max(60, Math.min(HOLD_MINUTES * 60, left)),
     key: razorpayKeyId(),
     order_id: orderId,
     amount: amountPaise,
@@ -166,10 +173,10 @@ export function checkoutOptions(ref: string, orderId: string, amountPaise: numbe
   };
 }
 
-type Row = { id: number; booking_ref: string; user_uid: string; status: string; payment_status: string; amount_paise: number; pay_order_id: string | null; pay_payment_id: string | null; details_enc: string; ticket_status: string; hold_expires_at: Date | null };
+type Row = { id: number; booking_ref: string; user_uid: string; service: string; status: string; payment_status: string; amount_paise: number; pay_order_id: string | null; pay_payment_id: string | null; details_enc: string; ticket_status: string; hold_expires_at: Date | null };
 
-const rowByRef = (ref: string) => queryOne<Row>("SELECT id, booking_ref, user_uid, status, payment_status, amount_paise, pay_order_id, pay_payment_id, details_enc, ticket_status, hold_expires_at FROM bookings WHERE booking_ref = ?", [ref]);
-const rowByOrder = (orderId: string) => queryOne<Row>("SELECT id, booking_ref, user_uid, status, payment_status, amount_paise, pay_order_id, pay_payment_id, details_enc, ticket_status, hold_expires_at FROM bookings WHERE pay_order_id = ?", [orderId]);
+const rowByRef = (ref: string) => queryOne<Row>("SELECT id, booking_ref, user_uid, service, status, payment_status, amount_paise, pay_order_id, pay_payment_id, details_enc, ticket_status, hold_expires_at FROM bookings WHERE booking_ref = ?", [ref]);
+const rowByOrder = (orderId: string) => queryOne<Row>("SELECT id, booking_ref, user_uid, service, status, payment_status, amount_paise, pay_order_id, pay_payment_id, details_enc, ticket_status, hold_expires_at FROM bookings WHERE pay_order_id = ?", [orderId]);
 
 export async function bookingForUser(ref: string, uid: string) {
   const r = await rowByRef(ref);
@@ -209,6 +216,17 @@ export async function confirmPayment(orderId: string, payment: RzpPayment, via: 
   const details = JSON.parse(await decrypt(b.details_enc)) as TrainBookingDetails;
   const paidUpi = p.method === "upi";
   if (details.payMode && (details.payMode === "upi") !== paidUpi) details.methodMismatch = { priced: details.payMode, paidWith: p.method || "unknown" };
+  // Payment that lands well after the hold expired (seat/fare may have changed) → no ticket, full refund
+  const lateBy = b.hold_expires_at ? Date.now() - new Date(b.hold_expires_at).getTime() : 0;
+  const cancelledByAgent = b.status === "cancelled" && !!(details as { cancelled?: unknown }).cancelled;
+  if (lateBy > LATE_GRACE_MS || cancelledByAgent) {
+    details.failure = cancelledByAgent ? "Payment received after the booking was cancelled by our team" : `Payment received ${Math.round(lateBy / 60000)} min after the booking hold expired`;
+    await exec("UPDATE bookings SET status = 'failed', ticket_status = 'failed', details_enc = ? WHERE id = ?", [await encrypt(JSON.stringify(details)), b.id]);
+    await logProvider({ bookingRef: b.booking_ref, provider: "skyo", direction: "inbound", action: "payment.late", outcome: "error", externalId: p.id, amountPaise: p.amount, request: { hold_expires_at: b.hold_expires_at }, response: { late_by_min: Math.round(lateBy / 60000), action: "auto refund" } });
+    await autoRefundFailedBooking(b.booking_ref, details.failure);
+    void notifyFailure(b.booking_ref).catch(() => {});
+    return { ok: false as const, reason: "HOLD_EXPIRED", bookingRef: b.booking_ref };
+  }
   await exec("UPDATE bookings SET details_enc = ? WHERE id = ?", [await encrypt(JSON.stringify(details)), b.id]);
   await issueForBooking(b.booking_ref, { autoRefund: true });
   return { ok: true as const, bookingRef: b.booking_ref };
@@ -220,6 +238,7 @@ export async function confirmPayment(orderId: string, payment: RzpPayment, via: 
  */
 export async function issueForBooking(ref: string, opts: { autoRefund: boolean }) {
   const b = await rowByRef(ref);
+  if (b?.service === "flight") return issueFlightForBooking(ref, opts);
   if (!b || b.payment_status !== "paid" || !b.pay_payment_id) throw new ApiError(409, "NOT_PAID", "Only paid bookings can be ticketed.");
   if (b.ticket_status === "issued") return { ok: true as const, already: true };
   const details = JSON.parse(await decrypt(b.details_enc)) as TrainBookingDetails;
@@ -257,16 +276,17 @@ export async function confirmFromCheckout(orderId: string, paymentId: string, bo
 }
 
 /**
- * Unpaid bookings whose 15-min hold ended (+30 min grace for in-flight payments) become "cancelled".
+ * Unpaid bookings whose 15-min hold ended (+10 min grace for a payment already in progress) become "cancelled".
+ * The customer sees "Expired" as soon as the hold ends; Razorpay Checkout also closes at that moment.
  * A payment that still arrives later is handled normally by confirmPayment (ticket or auto-refund).
  */
 export async function expireStaleHolds() {
-  await exec("UPDATE bookings SET status = 'cancelled' WHERE status = 'pending' AND payment_status = 'unpaid' AND hold_expires_at < UTC_TIMESTAMP() - INTERVAL 30 MINUTE");
+  await exec("UPDATE bookings SET status = 'cancelled' WHERE status = 'pending' AND payment_status IN ('unpaid','failed') AND hold_expires_at < UTC_TIMESTAMP() - INTERVAL 10 MINUTE");
 }
 
 export async function listUserBookings(uid: string, service = "") {
   await expireStaleHolds();
-  const rows = await query<Row & { created_at: Date; pnr_enc: string | null; service: string; refunded: number | null; refund_pending: number }>(
+  const rows = await query<Row & { created_at: Date; pnr_enc: string | null; refunded: number | null; refund_pending: number }>(
     `SELECT id, booking_ref, user_uid, service, status, payment_status, amount_paise, pay_order_id, pay_payment_id, details_enc, ticket_status, hold_expires_at, pnr_enc, created_at,
             (SELECT SUM(r.amount_paise) FROM refunds r WHERE r.booking_ref = bookings.booking_ref AND r.status <> 'failed') AS refunded,
             (SELECT COUNT(*) FROM refunds r WHERE r.booking_ref = bookings.booking_ref AND r.status = 'pending') AS refund_pending
@@ -275,7 +295,8 @@ export async function listUserBookings(uid: string, service = "") {
   );
   return Promise.all(
     rows.map(async (r) => {
-      const d = JSON.parse(await decrypt(r.details_enc)) as TrainBookingDetails;
+      const d = JSON.parse(await decrypt(r.details_enc)) as TrainBookingDetails & Partial<Pick<FlightBookingDetails, "flight" | "kind">>;
+      const fd = d.kind === "flight" ? (d as unknown as FlightBookingDetails) : null;
       return {
         ref: r.booking_ref, service: r.service, status: r.status, paymentStatus: r.payment_status, ticketStatus: r.ticket_status,
         amount: r.amount_paise / 100, createdAt: r.created_at, holdExpiresAt: r.hold_expires_at, pnr: (await decrypt(r.pnr_enc)) || null,
@@ -285,6 +306,7 @@ export async function listUserBookings(uid: string, service = "") {
         gst: d.gst ? { gstin: d.gst.gstin, company: d.gst.company } : null,
         refund: r.refunded ? { amount: Number(r.refunded) / 100, pending: Number(r.refund_pending) > 0 } : null,
         failure: r.ticket_status === "failed" ? "We couldn't confirm this ticket." : null,
+        flight: fd ? { ...fd.flight, passengers: fd.passengers, allocations: fd.ticket?.allocations ?? null, airlinePnrs: fd.ticket?.airlinePnrs ?? null } : null,
       };
     }),
   );

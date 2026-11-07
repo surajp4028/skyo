@@ -41,6 +41,42 @@ export const SETTING_DEFS = {
   train_agent_gst_pct: { label: "GST % on agent fee", default: "0", max: 5, public: true },
   train_insurance: { label: "Travel insurance", default: "on", max: 3, public: true },
   train_insurance_fee: { label: "Insurance premium (per passenger)", default: "5", max: 7, public: true },
+  // ---- Flights: aviationstack budget (free plan = 100 requests / month) ----
+  flight_api: { label: "Live flight data (aviationstack)", default: "on", max: 3, public: false },
+  flight_dev_single_result: { label: "Dev: show only 1 flight in search results", default: "on", max: 3, public: false },
+  flight_monthly_cap: { label: "aviationstack requests per month (cap)", default: "95", max: 6, public: false },
+  flight_cache_hours: { label: "Route schedule cache (hours)", default: "168", max: 5, public: false },
+  flight_pages_per_route: { label: "Pages fetched per route (100 flights each)", default: "1", max: 1, public: false },
+  flight_connections: { label: "One-stop connections from cached routes", default: "on", max: 3, public: true },
+  flight_connection_fetch: { label: "Hubs fetched live for connections (2 requests each)", default: "0", max: 1, public: false },
+  flight_live: { label: "Live flight tracking", default: "on", max: 3, public: true },
+  flight_live_cache_min: { label: "Live status cache (minutes)", default: "15", max: 4, public: false },
+  max_passengers_per_flight: { label: "Max travellers per flight booking", default: "9", max: 1, public: true },
+  // ---- Flight fare model (₹ / %) ----
+  flight_base_fare: { label: "Base fare (₹)", default: "1450", max: 7, public: false },
+  flight_per_km: { label: "Per km (₹)", default: "2.6", max: 6, public: false },
+  flight_fullservice_pct: { label: "Full-service airline premium %", default: "12", max: 5, public: false },
+  flight_business_mult: { label: "Business cabin multiplier", default: "3.2", max: 5, public: false },
+  flight_intl_mult: { label: "International multiplier", default: "1.6", max: 5, public: false },
+  flight_lastminute_pct: { label: "Last-minute surge % (≤ 1 day)", default: "45", max: 5, public: false },
+  flight_peak_pct: { label: "Peak-hour premium % (6–10 am, 5–9 pm)", default: "8", max: 5, public: false },
+  flight_connection_discount_pct: { label: "Connection discount %", default: "10", max: 5, public: false },
+  flight_airport_fee: { label: "Airport fees per traveller · domestic (₹)", default: "460", max: 7, public: true },
+  flight_airport_fee_intl: { label: "Airport fees per traveller · international (₹)", default: "1250", max: 7, public: true },
+  flight_gst_eco_pct: { label: "GST % on economy airfare", default: "5", max: 5, public: true },
+  flight_gst_biz_pct: { label: "GST % on business airfare", default: "12", max: 5, public: true },
+  // ---- Flight seats & fees ----
+  flight_seat_fee_window: { label: "Window seat (₹)", default: "250", max: 6, public: true },
+  flight_seat_fee_aisle: { label: "Aisle seat (₹)", default: "200", max: 6, public: true },
+  flight_seat_fee_middle: { label: "Middle seat (₹)", default: "0", max: 6, public: true },
+  flight_seat_fee_xl: { label: "Extra legroom / exit row (₹)", default: "650", max: 6, public: true },
+  flight_seat_fee_front: { label: "Front rows 1–5 (₹)", default: "350", max: 6, public: true },
+  flight_agent_fee: { label: "SKYO service fee per traveller (₹)", default: "149", max: 7, public: true },
+  flight_agent_gst_pct: { label: "GST % on service fee", default: "18", max: 5, public: true },
+  flight_insurance: { label: "Travel insurance", default: "on", max: 3, public: true },
+  flight_insurance_fee: { label: "Insurance premium per traveller (₹)", default: "99", max: 7, public: true },
+  flight_pg_fee_pct: { label: "Payment gateway fee %", default: "2", max: 6, public: true },
+  flight_pg_gst_pct: { label: "GST % on gateway fee", default: "18", max: 5, public: true },
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFS;
@@ -104,6 +140,24 @@ export async function getPublicSettings() {
     train_agent_gst_pct: string;
     train_insurance: string;
     train_insurance_fee: string;
+    flight_connections: string;
+    flight_live: string;
+    max_passengers_per_flight: string;
+    flight_airport_fee: string;
+    flight_airport_fee_intl: string;
+    flight_gst_eco_pct: string;
+    flight_gst_biz_pct: string;
+    flight_seat_fee_window: string;
+    flight_seat_fee_aisle: string;
+    flight_seat_fee_middle: string;
+    flight_seat_fee_xl: string;
+    flight_seat_fee_front: string;
+    flight_agent_fee: string;
+    flight_agent_gst_pct: string;
+    flight_insurance: string;
+    flight_insurance_fee: string;
+    flight_pg_fee_pct: string;
+    flight_pg_gst_pct: string;
   };
 }
 

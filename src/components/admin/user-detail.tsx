@@ -9,7 +9,7 @@ import { Avatar, Badge, Btn, Card, Table, Td } from "./ui";
 import { useAdmin } from "./admin-context";
 import { forceLogoutUser } from "./users";
 import { api, errMsg } from "@/lib/client/api";
-import { fmtDateTime, formatINR, timeAgo } from "@/lib/utils";
+import { fmtDate, fmtDateTime, formatINR, timeAgo } from "@/lib/utils";
 
 type Detail = {
   user: {
@@ -137,7 +137,7 @@ export function UserDetail({ id }: { id: number }) {
                       <Td className="font-mono text-xs">{b.booking_ref}</Td>
                       <Td className="capitalize">{b.service}</Td>
                       <Td>{b.title}</Td>
-                      <Td>{b.travel_date ? new Date(b.travel_date).toLocaleDateString("en-IN") : "—"}</Td>
+                      <Td>{fmtDate(b.travel_date)}</Td>
                       <Td className="font-medium tabular-nums">{formatINR(b.amount_paise)}</Td>
                       <Td><Badge>{b.status}</Badge></Td>
                     </tr>

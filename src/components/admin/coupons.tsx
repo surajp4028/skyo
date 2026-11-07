@@ -8,7 +8,7 @@ import { useFetch } from "./use-fetch";
 import { Btn, Card } from "./ui";
 import { api, errMsg } from "@/lib/client/api";
 import { couponLabel } from "@/lib/train/charges";
-import { cn } from "@/lib/utils";
+import { cn, fmtDate } from "@/lib/utils";
 
 export type AdminCoupon = {
   id: number; code: string; title: string | null; type: "percent" | "fixed" | "zero_service"; value: number; applyOn: "base_fare" | "service_fee" | "total";
@@ -92,7 +92,7 @@ export function CouponsManager({ userUid, userId }: { userUid?: string; userId?:
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-xs font-semibold">{couponLabel(c)}</div>
-                      <div className="text-[11px] text-muted">{c.title || "—"}{c.minOrder ? ` · min ₹${c.minOrder}` : ""}{c.expiresAt ? ` · till ${new Date(c.expiresAt).toLocaleDateString("en-IN")}` : ""}</div>
+                      <div className="text-[11px] text-muted">{c.title || "—"}{c.minOrder ? ` · min ₹${c.minOrder}` : ""}{c.expiresAt ? ` · till ${fmtDate(c.expiresAt)}` : ""}</div>
                     </td>
                     <td className="px-4 py-3 text-xs">{c.userUid ? <span className="inline-flex items-center gap-1 rounded bg-violet-50 px-1.5 py-0.5 font-mono font-bold text-violet-700"><UserRound className="h-3 w-3" />{c.userUid}</span> : <span className="text-muted">Everyone</span>}</td>
                     <td className="px-4 py-3 text-center text-xs"><b>{c.used}</b>{c.reserved ? <span className="text-muted"> +{c.reserved} pending</span> : null}{c.discountGivenPaise ? <div className="text-[10px] text-muted">{inr(c.discountGivenPaise)} off</div> : null}</td>
@@ -133,7 +133,7 @@ function IconBtn({ children, title, onClick, danger }: { children: ReactNode; ti
 
 const formBody = (f: Partial<AdminCoupon>) => ({
   code: (f.code || "").toUpperCase(), title: f.title || null, type: f.type || "percent", value: Number(f.value || 0), applyOn: f.applyOn || "total",
-  maxDiscount: f.maxDiscount ? Number(f.maxDiscount) : null, minOrder: f.minOrder ? Number(f.minOrder) : null, service: f.service === "all" ? "all" : "train",
+  maxDiscount: f.maxDiscount ? Number(f.maxDiscount) : null, minOrder: f.minOrder ? Number(f.minOrder) : null, service: f.service === "all" || f.service === "flight" ? f.service : "train",
   perUserLimit: f.perUserLimit ? Number(f.perUserLimit) : null, totalLimit: f.totalLimit ? Number(f.totalLimit) : null, userUid: f.userUid || null,
   status: f.status || "active", startsAt: f.startsAt ? toIstInput(f.startsAt) : null, expiresAt: f.expiresAt ? toIstInput(f.expiresAt) : null,
 });
@@ -219,6 +219,7 @@ function CouponForm({ initial, lockUser, onClose, onSaved }: { initial: Partial<
               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted">Service</span>
               <select value={f.service} onChange={set("service")} className="h-10 w-full rounded-xl border border-line bg-white px-3 text-sm font-semibold outline-none focus:border-brand">
                 <option value="train">Trains</option>
+                <option value="flight">Flights</option>
                 <option value="all">All services</option>
               </select>
             </label>

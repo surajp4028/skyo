@@ -8,7 +8,9 @@ import { ChevronDown, Copy, Download, ExternalLink, FileText, Loader2, RefreshCw
 import { api, errMsg } from "@/lib/client/api";
 import { Badge } from "./ui";
 import { fmtTs, Json, pretty, PROVIDER_TONE } from "./transactions";
-import { cn } from "@/lib/utils";
+import { PayBadge } from "./pay-badge";
+import { payInfo } from "@/lib/payment-method";
+import { cn, fmtDate } from "@/lib/utils";
 
 type Line = { key: string; label: string; paise: number; note?: string };
 type Detail = {
@@ -31,9 +33,18 @@ type Detail = {
     billing?: { state: string; pincode: string | null; address: string | null } | null;
     gst?: { gstin: string; company: string; address: string | null; pincode: string | null; state: string | null } | null;
     autoUpgrade?: boolean;
+    kind?: "flight";
+    flight?: {
+      id: string; cabin: string; stops: number; durationMin: number; dep: string; arr: string; dayOffset: number; layovers: number[]; refundable: boolean;
+      baggage: Record<string, { cabin: string; checkIn: string }>;
+      legs: { key: string; airline: { iata: string; name: string }; number: string; durationMin: number; distanceKm: number; dayOffset: number; aircraft: { code: string; name: string }; codeshares: string[];
+        from: { iata: string; city: string; airport: string; terminal: string | null; time: string }; to: { iata: string; city: string; airport: string; terminal: string | null; time: string } }[];
+    };
+    schedule?: { source: string };
   };
   refunds: { id: number; refund_id: string | null; amount_paise: number; status: string; reason: string | null; initiated_by: string; created_at: string; data: unknown }[];
   canRefund: boolean;
+  notifications: { channel: string; kind: string; state: "sent" | "failed" | "skipped" | "dry run"; detail: string | null; at: string }[];
   attempts: { id: number; paymentId: string | null; status: string; method: string | null; amount: number | null; errorCode: string | null; error: string | null; verified: boolean; source: string; at: string; updatedAt: string; data: unknown }[] | null;
   logs: { id: number; provider: string; direction: string; action: string; http_status: number | null; outcome: string; external_id: string | null; event_id: string | null; amount_paise: number | null; latency_ms: number | null; request: string | null; response: string | null; created_at: string }[] | null;
 };
@@ -50,12 +61,15 @@ export function BookingDrawer({ service, bookingRef, onClose, onChanged }: { ser
   const [openLog, setOpenLog] = useState<number | null>(null);
   const [refundForm, setRefundForm] = useState<{ amount: string; reason: string } | null>(null);
   const [acting, setActing] = useState<string | null>(null);
-  const act = async (kind: "retry" | "notify" | "refund", body?: unknown) => {
+  const [cancelReason, setCancelReason] = useState<string | null>(null);
+  const [openedAt, setOpenedAt] = useState(() => Date.now());
+  const act = async (kind: "retry" | "notify" | "refund" | "cancel", body?: unknown) => {
     setActing(kind);
     try {
       await api(`/api/admin/bookings/${service}/${bookingRef}/${kind}`, { method: "POST", body });
-      toast.success(kind === "retry" ? "Ticket issued" : kind === "notify" ? "SMS / email sent again — see the log below" : "Refund started");
+      toast.success(kind === "retry" ? "Ticket issued" : kind === "notify" ? "SMS / email sent again — see the log below" : kind === "cancel" ? "Booking cancelled" : "Refund started");
       setRefundForm(null);
+      setCancelReason(null);
       setTick((t) => t + 1);
       onChanged?.();
     } catch (e) {
@@ -70,7 +84,7 @@ export function BookingDrawer({ service, bookingRef, onClose, onChanged }: { ser
     if (!bookingRef) return;
     let alive = true;
     api<Detail>(`/api/admin/bookings/${service}/${bookingRef}`)
-      .then((d) => alive && setData({ ref: bookingRef, d }))
+      .then((d) => alive && (setData({ ref: bookingRef, d }), setOpenedAt(Date.now())))
       .catch((e) => alive && setData({ ref: bookingRef, error: errMsg(e) }));
     return () => {
       alive = false;
@@ -115,7 +129,7 @@ export function BookingDrawer({ service, bookingRef, onClose, onChanged }: { ser
                 {x && <div className="mt-1 flex flex-wrap gap-1.5"><Badge>{x.booking.status}</Badge><Badge>{`payment: ${x.booking.paymentStatus}`}</Badge><Badge>{`ticket: ${x.booking.ticketStatus.replace("_", " ")}`}</Badge></div>}
               </div>
               <div className="flex items-center gap-2">
-                {x?.booking.orderId && service === "train" && (
+                {x?.booking.orderId && (service === "train" || service === "flight") && (
                   <button onClick={reconcile} disabled={busy} title="Ask Razorpay for every payment on this order and sync" className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-bold hover:bg-surface disabled:opacity-60">
                     {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Re-check with Razorpay
                   </button>
@@ -131,6 +145,27 @@ export function BookingDrawer({ service, bookingRef, onClose, onChanged }: { ser
                 <p className="rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-700">{data.error}</p>
               ) : x && d ? (
                 <>
+                  {x.booking.status === "pending" && x.booking.paymentStatus !== "paid" && x.booking.holdExpiresAt && new Date(x.booking.holdExpiresAt).getTime() <= openedAt && (
+                    <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-600">
+                      <b>Hold expired</b> at {dt(x.booking.holdExpiresAt)} — not paid. It is cancelled automatically 10 minutes after the hold; a payment that still arrives is refunded.
+                    </div>
+                  )}
+                  {x.canRefund && x.booking.status === "pending" && x.booking.paymentStatus !== "paid" && (!x.booking.holdExpiresAt || new Date(x.booking.holdExpiresAt).getTime() > openedAt) && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-semibold text-amber-800">Payment pending — hold until {dt(x.booking.holdExpiresAt)}</span>
+                        {cancelReason === null && <button onClick={() => setCancelReason("")} className="rounded-lg border border-red-200 bg-white px-3 py-1.5 font-bold text-red-700">Cancel booking</button>}
+                      </div>
+                      {cancelReason !== null && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} maxLength={200} placeholder="Reason (e.g. customer asked / duplicate)" className="h-9 min-w-[220px] flex-1 rounded-lg border border-line bg-white px-2 text-sm" />
+                          <button onClick={() => act("cancel", { reason: cancelReason })} disabled={!!acting || cancelReason.trim().length < 3} className="rounded-lg bg-red-600 px-3 font-bold text-white disabled:opacity-50">{acting === "cancel" ? "Cancelling…" : "Confirm cancel"}</button>
+                          <button onClick={() => setCancelReason(null)} className="px-2 font-bold text-muted">Keep</button>
+                        </div>
+                      )}
+                      <p className="mt-1.5 text-[11px] text-amber-700">Razorpay is checked first. If the customer still pays after cancelling, the money is refunded automatically.</p>
+                    </div>
+                  )}
                   {d.failure && <p className="rounded-xl bg-red-50 p-3 text-xs font-semibold text-red-700">Ticketing failed: {d.failure}</p>}
                   {d.methodMismatch && <p className="rounded-xl bg-amber-50 p-3 text-xs font-semibold text-amber-800">Priced for {d.methodMismatch.priced.toUpperCase()} but paid with {d.methodMismatch.paidWith}. IRCTC fee may differ.</p>}
 
@@ -144,10 +179,11 @@ export function BookingDrawer({ service, bookingRef, onClose, onChanged }: { ser
                     {x.contact.masked && <p className="mt-2 text-[11px] text-muted">Contact details masked — needs the “See full email / phone” permission.</p>}
                   </Block>
 
+                  {d.flight ? <FlightBlocks d={d as Detail["details"] & { flight: NonNullable<Detail["details"]["flight"]> }} x={x} /> : (<>
                   <Block title="Journey">
                     <Grid rows={[
                       ["Route", `${d.from} → ${d.to}`],
-                      ["Journey date", d.date || "—"],
+                      ["Journey date", fmtDate(d.date)],
                       ["Class / quota", `${d.cls} · ${d.quota}`],
                       ["Food", d.food ? "Included" : "Not opted"],
                       ["Auto upgradation", d.autoUpgrade === false ? "Not opted" : "Considered"],
@@ -183,6 +219,7 @@ export function BookingDrawer({ service, bookingRef, onClose, onChanged }: { ser
                       </table>
                     </div>
                   </Block>
+                  </>)}
 
                   <Block title="Charges">
                     {d.charges ? (
@@ -228,7 +265,7 @@ export function BookingDrawer({ service, bookingRef, onClose, onChanged }: { ser
                           <div className="mb-3 flex flex-wrap gap-2">
                             {left >= 100 && <button onClick={() => setRefundForm({ amount: (left / 100).toFixed(2), reason: "" })} className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700"><Undo2 className="h-3.5 w-3.5" /> Refund</button>}
                             {x.booking.ticketStatus === "failed" && !refunded && <button onClick={() => act("retry")} disabled={!!acting} className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-bold disabled:opacity-50">{acting === "retry" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />} Retry ticketing</button>}
-                            {x.booking.ticketStatus === "issued" && <button onClick={() => act("notify")} disabled={!!acting} className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-bold disabled:opacity-50">{acting === "notify" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Resend SMS / email</button>}
+                            {x.booking.ticketStatus === "issued" && x.booking.paymentStatus !== "refunded" && <button onClick={() => act("notify")} disabled={!!acting} className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-bold disabled:opacity-50">{acting === "notify" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Resend SMS / email</button>}
                           </div>
                         )}
                         {refundForm && (
@@ -261,7 +298,37 @@ export function BookingDrawer({ service, bookingRef, onClose, onChanged }: { ser
                     );
                   })()}
 
+                  <Block title="SMS & email">
+                    {x.notifications.length === 0 ? (
+                      <p className="text-xs text-muted">Nothing sent yet{x.booking.ticketStatus === "issued" ? " — use “Resend SMS / email”." : "."}</p>
+                    ) : (
+                      <ul className="space-y-1.5">
+                        {x.notifications.map((n, i) => (
+                          <li key={i} className="flex flex-wrap items-center gap-2 rounded-xl border border-line px-3 py-2 text-xs">
+                            <span className="w-12 font-bold">{n.channel}</span>
+                            <span className={cn("rounded px-1.5 py-0.5 font-bold", n.state === "sent" ? "bg-emerald-50 text-emerald-700" : n.state === "failed" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700")}>{n.state}</span>
+                            <span className="text-muted">{n.kind}</span>
+                            {n.detail && <span className="min-w-0 flex-1 truncate text-muted" title={n.detail}>· {n.detail}</span>}
+                            <span className="ml-auto text-muted">{fmtTs(n.at)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </Block>
+
                   <Block title="Payment">
+                    {(() => {
+                      const pi = payInfo((x.attempts || []).find((a) => a.paymentId === x.booking.paymentId)?.data as Parameters<typeof payInfo>[0]);
+                      return pi ? (
+                        <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-line px-3 py-2 text-xs">
+                          <PayBadge info={pi} />
+                          {pi.issuer && <span className="text-muted">Issuer {pi.issuer}</span>}
+                          {pi.authCode && <span className="text-muted">Auth {pi.authCode}</span>}
+                          {pi.feePaise != null && <span className="text-muted">Razorpay fee {inr(pi.feePaise - (pi.taxPaise ?? 0))} + GST {inr(pi.taxPaise ?? 0)}</span>}
+                          {pi.feePaise != null && <span className="font-semibold">Net settlement {inr(x.booking.amountPaise - pi.feePaise)}</span>}
+                        </div>
+                      ) : null;
+                    })()}
                     <Grid rows={[
                       ["Gateway", x.booking.payProvider || "—"],
                       ["Order ID", x.booking.orderId ? <CopyText key="o" v={x.booking.orderId} /> : "—"],
@@ -345,5 +412,75 @@ function Grid({ rows }: { rows: [string, ReactNode][] }) {
 function CopyText({ v }: { v: string }) {
   return (
     <button onClick={() => navigator.clipboard?.writeText(v).then(() => toast.success("Copied"))} className="inline-flex items-center gap-1 font-mono text-xs hover:text-brand">{v} <Copy className="h-3 w-3" /></button>
+  );
+}
+
+/** Flight bookings: itinerary per segment, travellers with seats / e-ticket numbers, airline PNRs. */
+function FlightBlocks({ d, x }: { d: Detail["details"] & { flight: NonNullable<Detail["details"]["flight"]> }; x: Detail }) {
+  const f = d.flight;
+  const t = d.ticket as (Detail["details"]["ticket"] & { airlinePnrs?: Record<string, string>; allocations: { name: string; seats?: Record<string, string>; eticket?: string; type?: string }[] }) | undefined;
+  const pax = (d.passengers || []) as { name: string; age: number; gender: string; type?: string; seats?: Record<string, string | null> }[];
+  return (
+    <>
+      <Block title={`Flight · ${f.cabin} · ${f.stops ? "1 stop" : "non-stop"}`}>
+        <div className="space-y-2">
+          {f.legs.map((l, i) => (
+            <div key={l.key}>
+              <div className="rounded-xl border border-line p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span className="font-extrabold">{l.airline.name} · {l.airline.iata} {l.number}</span>
+                  <span className="text-[11px] text-muted">{l.aircraft.name} · {l.distanceKm.toLocaleString("en-IN")} km{t?.airlinePnrs?.[l.key] ? ` · airline PNR ${t.airlinePnrs[l.key]}` : ""}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-xs">
+                  <div><div className="text-lg font-black">{l.from.time}</div><div className="font-bold">{l.from.city} ({l.from.iata})</div><div className="text-muted">{l.from.airport} · T{l.from.terminal || "–"}</div></div>
+                  <div className="text-center text-[11px] font-bold text-muted">{Math.floor(l.durationMin / 60)}h {l.durationMin % 60}m</div>
+                  <div className="text-right"><div className="text-lg font-black">{l.to.time}{l.dayOffset ? <sup className="text-[9px] text-orange-500">+{l.dayOffset}</sup> : null}</div><div className="font-bold">{l.to.city} ({l.to.iata})</div><div className="text-muted">{l.to.airport} · T{l.to.terminal || "–"}</div></div>
+                </div>
+                {l.codeshares.length > 0 && <div className="mt-1.5 text-[11px] text-muted">Codeshares: {l.codeshares.join(", ")}</div>}
+              </div>
+              {i < f.legs.length - 1 && <div className="my-1 pl-3 text-[11px] font-bold text-amber-700">Layover {Math.floor((f.layovers[i] ?? 0) / 60)}h {(f.layovers[i] ?? 0) % 60}m in {l.to.city}</div>}
+            </div>
+          ))}
+        </div>
+        <div className="mt-3">
+          <Grid rows={[
+            ["Journey date", fmtDate(d.date)],
+            ["Option id", f.id],
+            ["Baggage", `${f.baggage[f.cabin.toLowerCase()]?.checkIn ?? "—"} check-in · ${f.baggage[f.cabin.toLowerCase()]?.cabin ?? "—"} cabin`],
+            ["Fare type", f.refundable ? "Refundable" : "Saver (partly refundable)"],
+            ["Billing state", d.billing ? [d.billing.state, d.billing.pincode, d.billing.address].filter(Boolean).join(" · ") : "—"],
+            ["GST invoice", d.gst ? `${d.gst.company} · ${d.gst.gstin}` : "No GST"],
+            ["Seats at booking", d.availability ? d.availability.text : "—"],
+            ["Schedule source", d.schedule?.source || "aviationstack"],
+            ["Booked at", dt(x.booking.createdAt)],
+            ["Paid at", dt(x.booking.paidAt)],
+            ["Ticket issued at", dt(x.booking.issuedAt)],
+          ]} />
+        </div>
+      </Block>
+      <Block title={`Travellers (${pax.length})`}>
+        <div className="overflow-x-auto rounded-xl border border-line">
+          <table className="w-full text-xs">
+            <thead className="bg-surface text-left text-[10px] uppercase tracking-wider text-muted"><tr><th className="px-3 py-2">#</th><th className="px-3 py-2">Name</th><th className="px-3 py-2">Age</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Seats</th><th className="px-3 py-2">E-ticket</th></tr></thead>
+            <tbody className="divide-y divide-line">
+              {pax.map((p, i) => {
+                const a = t?.allocations?.[i];
+                const seats = f.legs.map((l) => a?.seats?.[l.key] || p.seats?.[l.key] || "auto").join(" / ");
+                return (
+                  <tr key={i}>
+                    <td className="px-3 py-2 text-muted">{i + 1}</td>
+                    <td className="px-3 py-2 font-bold">{p.name} <span className="font-normal text-muted">({GENDER[p.gender]?.[0] ?? p.gender})</span></td>
+                    <td className="px-3 py-2">{p.age}</td>
+                    <td className="px-3 py-2">{p.type === "child" ? "Child" : "Adult"}</td>
+                    <td className="px-3 py-2 font-mono font-bold text-[#0057ff]">{seats}</td>
+                    <td className="px-3 py-2 font-mono">{a?.eticket || "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Block>
+    </>
   );
 }

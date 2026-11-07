@@ -8,7 +8,7 @@ import { encOpt } from "../crypto";
  */
 export type LogEntry = {
   bookingRef?: string | null;
-  provider: "razorpay" | "tripgic" | "skyo" | "digio";
+  provider: "razorpay" | "tripgic" | "skyo" | "digio" | "aviationstack";
   direction: "outbound" | "inbound";
   action: string;
   httpStatus?: number | null;

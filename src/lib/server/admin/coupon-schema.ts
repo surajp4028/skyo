@@ -15,7 +15,7 @@ export const couponInput = z
     applyOn: z.enum(["base_fare", "service_fee", "total"]).default("total"),
     maxDiscount: z.union([z.null(), money]).optional(),
     minOrder: z.union([z.null(), money]).optional(),
-    service: z.enum(["train", "all"]).default("train"),
+    service: z.enum(["train", "flight", "all"]).default("train"),
     perUserLimit: intOrNull.optional(),
     totalLimit: intOrNull.optional(),
     userUid: z.union([z.string().trim().toUpperCase().regex(/^SKYO\d{8}$/, "SKYO ID like SKYO12345678"), z.null()]).optional(),

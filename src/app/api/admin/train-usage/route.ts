@@ -26,6 +26,7 @@ export const GET = route(async () => {
   return ok({
     plan: railConfig.plan,
     enabled: (await getSetting("train_api")) === "on",
+    devSingle: (await getSetting("train_dev_single_result")) === "on",
     dailyCap: Number(await getSetting("train_daily_credit_cap")),
     today,
     balance: last?.credits_remaining ?? null,

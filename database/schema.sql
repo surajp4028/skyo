@@ -299,7 +299,7 @@ CREATE TABLE IF NOT EXISTS saved_passengers (
 CREATE TABLE IF NOT EXISTS payment_logs (
   id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   booking_ref  VARCHAR(20)   NULL,
-  provider     ENUM('razorpay','tripgic','skyo','digio') NOT NULL,
+  provider     ENUM('razorpay','tripgic','skyo','digio','aviationstack') NOT NULL,
   direction    ENUM('outbound','inbound') NOT NULL,
   action       VARCHAR(48)   NOT NULL,
   http_status  SMALLINT      NULL,
@@ -417,4 +417,67 @@ CREATE TABLE IF NOT EXISTS refunds (
   updated_at    TIMESTAMP(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_refund_id (refund_id),
   KEY idx_refund_booking (booking_ref)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Flights (aviationstack). Free plan = 100 requests / month, so every
+-- upstream call is metered here and route schedules are cached.
+-- ---------------------------------------------------------------------
+-- Every aviationstack request (the access key is never stored).
+CREATE TABLE IF NOT EXISTS flight_api_calls (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  endpoint      VARCHAR(32)   NOT NULL,
+  params        VARCHAR(255)  NOT NULL,
+  http_status   SMALLINT      NOT NULL,
+  error_code    VARCHAR(48)   NULL,
+  billable      TINYINT(1)    NOT NULL DEFAULT 0,
+  result_count  INT           NOT NULL DEFAULT 0,
+  result_total  INT           NULL,
+  latency_ms    INT           NOT NULL DEFAULT 0,
+  reason        VARCHAR(32)   NULL,
+  user_id       INT UNSIGNED  NULL,
+  admin_id      INT UNSIGNED  NULL,
+  response_enc  MEDIUMTEXT    NULL,
+  created_at    TIMESTAMP(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY idx_flight_calls_created (created_at),
+  KEY idx_flight_calls_endpoint (endpoint, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One cached daily schedule per route (operating flights, codeshares folded in).
+CREATE TABLE IF NOT EXISTS flight_routes (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  dep_iata      CHAR(3)       NOT NULL,
+  arr_iata      CHAR(3)       NOT NULL,
+  flights       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  upstream_total INT          NULL,
+  pages         TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  source_date   DATE          NULL,
+  data_enc      MEDIUMTEXT    NOT NULL,
+  searches      INT UNSIGNED  NOT NULL DEFAULT 0,
+  fetched_at    DATETIME      NOT NULL,
+  last_search_at DATETIME     NULL,
+  UNIQUE KEY uq_flight_route (dep_iata, arr_iata),
+  KEY idx_flight_routes_fetched (fetched_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Live status per flight + day (short cache so tracking doesn't burn requests).
+CREATE TABLE IF NOT EXISTS flight_status_cache (
+  flight_iata   VARCHAR(10)   NOT NULL,
+  flight_date   DATE          NOT NULL,
+  data_enc      MEDIUMTEXT    NOT NULL,
+  fetched_at    DATETIME      NOT NULL,
+  PRIMARY KEY (flight_iata, flight_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Seats sold / held on SKYO. One row per seat; rows of dead bookings are cleared before a new hold.
+CREATE TABLE IF NOT EXISTS flight_seat_holds (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  flight_key    VARCHAR(10)   NOT NULL,
+  flight_date   DATE          NOT NULL,
+  cabin         ENUM('economy','business') NOT NULL,
+  seat          VARCHAR(4)    NOT NULL,
+  booking_ref   VARCHAR(20)   NOT NULL,
+  created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_flight_seat (flight_key, flight_date, seat),
+  KEY idx_flight_seat_booking (booking_ref)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

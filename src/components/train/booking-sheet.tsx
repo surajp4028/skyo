@@ -177,10 +177,12 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
 
   return createPortal(
     <motion.div className="fixed inset-0 z-[95] flex items-end justify-center sm:items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <div className="absolute inset-0 bg-ink/55 backdrop-blur-sm" onClick={() => stage === "form" && onClose()} />
+      <div className="absolute inset-0 bg-ink/55 backdrop-blur-sm" onClick={() => stage !== "paying" && stage !== "verifying" && onClose()} />
       <motion.div initial={{ y: 40, scale: 0.98 }} animate={{ y: 0, scale: 1 }} exit={{ y: 40, opacity: 0 }} transition={{ type: "spring", stiffness: 320, damping: 30 }} className="relative flex max-h-[94vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-lift sm:rounded-3xl">
         <div className="relative shrink-0 bg-[linear-gradient(120deg,#0057ff,#1a82ff_60%,#38bdf8)] p-5 text-white">
-          {stage === "form" && <button onClick={onClose} aria-label="Close" className="absolute right-3 top-3 rounded-xl p-2 text-white/80 hover:bg-white/15"><X className="h-5 w-5" /></button>}
+          {stage !== "paying" && stage !== "verifying" && (
+            <button onClick={onClose} aria-label="Close" className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:rotate-90 hover:bg-white/30"><X className="h-5 w-5" /></button>
+          )}
           <div className="flex items-center gap-2 text-xs font-bold text-white/80"><TrainFront className="h-4 w-4" /> {b.train}{b.name ? ` · ${b.name}` : ""}</div>
           <div className="mt-1.5 text-2xl font-extrabold">{b.from} → {b.to}</div>
           <div className="mt-0.5 text-xs text-white/85">{prettyDate(b.date, { weekday: "long", day: "numeric", month: "long" })} · {CLASS_NAMES[b.cls] || b.cls} · {quotaLabel(b.quota)}</div>
@@ -402,8 +404,12 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
 
             {stage === "done" && booking && (
               <motion.div key="done" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
-                <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 14 }} className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-mint/15 text-mint"><CheckCircle2 className="h-9 w-9" /></motion.span>
-                <h3 className="mt-4 text-2xl font-extrabold">Booking confirmed</h3>
+                <div className="relative mx-auto h-20 w-20">
+                  <motion.span initial={{ scale: 0.6, opacity: 0.6 }} animate={{ scale: 1.6, opacity: 0 }} transition={{ duration: 1.4, repeat: 2 }} className="absolute inset-0 rounded-full bg-mint/30" />
+                  <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 14 }} className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-mint text-white shadow-[0_16px_40px_-12px_rgba(16,185,129,0.8)]"><CheckCircle2 className="h-10 w-10" /></motion.span>
+                </div>
+                <h3 className="mt-5 text-2xl font-extrabold">Booking confirmed!</h3>
+                <p className="mt-1 text-sm text-muted">Your e-ticket is ready — we&apos;ve also sent it by SMS / email.</p>
                 <div className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-ink px-5 py-2 font-mono text-lg font-extrabold tracking-wider text-white">PNR {booking.pnr}</div>
                 <div className="mt-4 space-y-1.5 text-left">
                   {booking.details.ticket?.allocations.map((a, i) => (
@@ -419,9 +425,10 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
 
             {stage === "failed" && (
               <motion.div key="failed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-8 text-center">
-                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-600"><AlertTriangle className="h-7 w-7" /></span>
-                <h3 className="mt-4 text-lg font-extrabold">We couldn&apos;t complete this booking</h3>
-                <p className="mt-1 text-sm text-muted">{failMsg}</p>
+                <motion.span initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 260, damping: 14 }} className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-rose-400 to-red-500 text-white shadow-[0_16px_40px_-12px_rgba(239,68,68,0.7)]"><AlertTriangle className="h-8 w-8" /></motion.span>
+                <h3 className="mt-5 text-xl font-extrabold">We couldn&apos;t complete this booking</h3>
+                <p className="mx-auto mt-1 max-w-sm text-sm text-muted">{failMsg}</p>
+                <p className="mx-auto mt-3 max-w-sm rounded-2xl bg-surface px-4 py-3 text-xs text-muted">If money was debited, it is refunded automatically to the same account in 5–7 working days. You can track it in My account → Transactions.</p>
                 {ref && <p className="mt-2 text-xs text-muted">Reference {ref} — our team can see every step of this payment.</p>}
               </motion.div>
             )}

@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { StationInput } from "@/components/train/station-input";
@@ -12,6 +12,8 @@ import { useSite } from "@/lib/client/providers";
 import { isServiceOn, isTrainLiveOn } from "@/lib/services";
 import { AnimatedTabs } from "@/components/ui/animated-tabs";
 import { cn } from "@/lib/utils";
+import { readRecentTrainSearch, saveRecentTrainSearch } from "@/lib/client/recent-search";
+import { FlightSearchBar } from "@/components/flight/flight-search-bar";
 
 type Tab = "train" | "flight" | "bus" | "hotel" | "package";
 const TABS: { value: Tab; label: string; icon: ReactNode }[] = [
@@ -132,6 +134,21 @@ function TrainForm() {
   const [quota, setQuota] = useState<"General" | "Tatkal" | "Ladies" | "Senior Citizen">("General");
   const [slots, setSlots] = useState<string[]>([]);
   const QUOTA_CODE = { General: "GN", Tatkal: "TQ", Ladies: "LD", "Senior Citizen": "SS" } as const;
+  const [recent, setRecent] = useState(false);
+  // Prefill with the traveller's last search (read after mount — localStorage isn't available on the server)
+  useEffect(() => {
+    const r = readRecentTrainSearch();
+    if (!r) return;
+    const quotaName = (Object.entries(QUOTA_CODE).find(([, c]) => c === r.quota)?.[0] ?? "General") as keyof typeof QUOTA_CODE;
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time restore of a saved search */
+    setFrom(r.fromLabel);
+    setTo(r.toLabel);
+    setDate(r.date >= addDays(0) ? r.date : addDays(1));
+    setQuota(quotaName);
+    setRecent(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <form
       onSubmit={(e) => {
@@ -140,6 +157,7 @@ function TrainForm() {
         const t = parseStationInput(to);
         if (!f || !t) return toast.error("Pick both stations from the suggestions");
         if (f === t) return toast.error("From and To can't be the same");
+        saveRecentTrainSearch({ fromLabel: from, toLabel: to, date, quota: QUOTA_CODE[quota] });
         router.push(`/trains?${new URLSearchParams({ from: f, to: t, date, quota: QUOTA_CODE[quota], fl: from, tl: to, ...(slots.length ? { slots: slots.join(",") } : {}) })}`);
       }}
       className="space-y-3"
@@ -164,6 +182,7 @@ function TrainForm() {
         <div className="flex gap-2 text-xs font-bold">
           <button type="button" onClick={() => toast.info("PNR status is coming soon", { description: "Our live rail data partner doesn't offer PNR lookups yet." })} className="flex items-center gap-1.5 rounded-full bg-iris/10 px-3 py-1.5 text-iris"><Ticket className="h-3.5 w-3.5" /> PNR status</button>
           {liveOn && <Link href="/trains/live" className="flex items-center gap-1.5 rounded-full bg-sky/10 px-3 py-1.5 text-sky-600"><Radio className="h-3.5 w-3.5" /> Running status</Link>}
+          {recent && <span className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-ink/60">Your last search</span>}
         </div>
       </div>
       <div className="px-1"><TimeSlots value={slots} onChange={setSlots} /></div>
@@ -172,42 +191,7 @@ function TrainForm() {
 }
 
 function FlightForm() {
-  const [from, setFrom] = useState("Delhi");
-  const [to, setTo] = useState("Mumbai");
-  const [dep, setDep] = useState(() => addDays(3));
-  const [ret, setRet] = useState<string | null>(null);
-  const trip = ret ? "Round trip" : "One way";
-  const [slots, setSlots] = useState<string[]>([]);
-  const [pax, setPax] = useState(1);
-  const [cabin, setCabin] = useState("Economy");
-  const [fare, setFare] = useState<"Regular" | "Student" | "Senior citizen" | "Armed forces">("Regular");
-  return (
-    <form onSubmit={(e) => (e.preventDefault(), soon("Flight", !!from && !!to && from !== to))} className="space-y-3">
-      <datalist id="cities">{CITIES.map((s) => <option key={s} value={s} />)}</datalist>
-      <div className="px-1"><Chips items={["One way", "Round trip"] as ("One way" | "Round trip")[]} value={trip} onChange={(t) => setRet(t === "One way" ? null : addDaysTo(dep, 3))} /></div>
-      <div className="flex flex-col gap-2 md:flex-row md:items-stretch">
-        <Place label="From" value={from} onChange={setFrom} list="cities" placeholder="City or airport" />
-        <Swap onClick={() => (setFrom(to), setTo(from))} />
-        <Place label="To" value={to} onChange={setTo} list="cities" placeholder="City or airport" />
-        <DatePicker label="Departure" value={dep} onChange={setDep} endLabel="Return" endValue={ret} onEndChange={setRet} className="md:max-w-[340px]" />
-        <Box label="Travellers & class" icon={<Users className="h-3.5 w-3.5" />} className="md:max-w-[200px]">
-          <div className="mt-1 flex items-center gap-2">
-            <button type="button" onClick={() => setPax((p) => Math.max(1, p - 1))} className="h-7 w-7 rounded-full bg-surface font-bold">−</button>
-            <span className="w-6 text-center text-[17px] font-bold">{pax}</span>
-            <button type="button" onClick={() => setPax((p) => Math.min(9, p + 1))} className="h-7 w-7 rounded-full bg-surface font-bold">+</button>
-            <select value={cabin} onChange={(e) => setCabin(e.target.value)} className="ml-1 min-w-0 bg-transparent text-xs font-semibold text-muted outline-none">
-              <option>Economy</option><option>Premium</option><option>Business</option>
-            </select>
-          </div>
-        </Box>
-        <SearchBtn label="Search" />
-      </div>
-      <div className="flex flex-col gap-3 px-1 lg:flex-row lg:items-center lg:justify-between">
-        <Chips items={["Regular", "Student", "Senior citizen", "Armed forces"] as ("Regular" | "Student" | "Senior citizen" | "Armed forces")[]} value={fare} onChange={setFare} />
-        <TimeSlots value={slots} onChange={setSlots} />
-      </div>
-    </form>
-  );
+  return <FlightSearchBar />;
 }
 
 function BusForm() {

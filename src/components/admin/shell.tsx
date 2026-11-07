@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity, Bell, CreditCard, Inbox, BusFront, Building2, ChevronRight, ExternalLink, LayoutDashboard, LogOut, Menu, Palmtree, PanelLeftClose, PanelLeftOpen,
-  Plane, ScrollText, Settings, ShieldCheck, TrainFront, UserCog, UserRound, Users, X,
+  Plane, Scale, ScrollText, Settings, ShieldCheck, TrainFront, UserCog, UserRound, Users, X,
 } from "lucide-react";
 import { LogoMark } from "@/components/site/logo";
 import { useSite } from "@/lib/client/providers";
@@ -21,6 +21,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     section: "Bookings",
     items: [
       { href: "/admin/bookings/train", label: "Trains", icon: TrainFront, perm: "bookings.train", badge: "LIVE" },
+      { href: "/admin/disputes", label: "Disputes / Refunds", icon: Scale, perm: "bookings.train" },
       { href: "/admin/bookings/flight", label: "Flights", icon: Plane, perm: "bookings.flight" },
       { href: "/admin/bookings/bus", label: "Buses", icon: BusFront, perm: "bookings.bus" },
       { href: "/admin/bookings/hotel", label: "Hotels", icon: Building2, perm: "bookings.hotel" },

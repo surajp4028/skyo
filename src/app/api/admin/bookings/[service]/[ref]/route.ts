@@ -64,6 +64,25 @@ export const GET = route<Ctx>(async (req, { params }) => {
     details: { ...d, contact: undefined },
     attempts: seeLogs ? await listBookingAttempts(ref) : null,
     refunds: await listRefunds(ref),
+    notifications: await Promise.all(
+      (await query<{ action: string; outcome: string; http_status: number | null; response_enc: string | null; created_at: Date }>(
+        "SELECT action, outcome, http_status, response_enc, created_at FROM payment_logs WHERE booking_ref = ? AND action LIKE 'notify.%' ORDER BY id DESC LIMIT 12",
+        [ref],
+      )).map(async (n) => {
+        let res: { skipped?: string; message?: string; error?: string | { message?: string }; dryRun?: boolean; id?: string } = {};
+        try {
+          res = JSON.parse((await decrypt(n.response_enc)) || "{}");
+        } catch {}
+        const errText = typeof res.error === "string" ? res.error : res.error?.message;
+        return {
+          channel: n.action.includes("sms") ? "SMS" : "Email",
+          kind: n.action.endsWith("_failure") ? "refund notice" : "confirmation",
+          state: n.outcome === "ok" ? (res.dryRun ? "dry run" : "sent") : res.skipped ? "skipped" : "failed",
+          detail: res.skipped || errText || res.message || (n.http_status ? `HTTP ${n.http_status}` : null),
+          at: n.created_at,
+        };
+      }),
+    ),
     canRefund: can(a, "payments.refund"),
     logs,
   });

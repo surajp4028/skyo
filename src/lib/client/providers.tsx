@@ -30,6 +30,24 @@ export type PublicSettings = {
   train_agent_gst_pct: string;
   train_insurance: string;
   train_insurance_fee: string;
+  flight_connections: string;
+  flight_live: string;
+  max_passengers_per_flight: string;
+  flight_airport_fee: string;
+  flight_airport_fee_intl: string;
+  flight_gst_eco_pct: string;
+  flight_gst_biz_pct: string;
+  flight_seat_fee_window: string;
+  flight_seat_fee_aisle: string;
+  flight_seat_fee_middle: string;
+  flight_seat_fee_xl: string;
+  flight_seat_fee_front: string;
+  flight_agent_fee: string;
+  flight_agent_gst_pct: string;
+  flight_insurance: string;
+  flight_insurance_fee: string;
+  flight_pg_fee_pct: string;
+  flight_pg_gst_pct: string;
 };
 export type Me = {
   uid: string;

@@ -1,5 +1,6 @@
 import "server-only";
 import { exec, query, queryOne } from "../db";
+import { payInfo, type PayInfo } from "@/lib/payment-method";
 import { blindIndex, decrypt, isSkyoId } from "../crypto";
 import { maskEmail, maskPhone, parseIdentifier } from "../validators";
 import type { ServiceKey } from "@/lib/permissions";
@@ -251,7 +252,7 @@ export async function listSessions(sp: URLSearchParams, full: boolean) {
 }
 
 export async function listBookings(service: ServiceKey, sp: URLSearchParams) {
-  await exec("UPDATE bookings SET status = 'cancelled' WHERE status = 'pending' AND payment_status = 'unpaid' AND hold_expires_at < UTC_TIMESTAMP() - INTERVAL 30 MINUTE");
+  await exec("UPDATE bookings SET status = 'cancelled' WHERE status = 'pending' AND payment_status IN ('unpaid','failed') AND hold_expires_at < UTC_TIMESTAMP() - INTERVAL 10 MINUTE");
   const { page, size, offset } = paging(sp);
   const where = ["b.service = ?"];
   const params: (string | number)[] = [service];
@@ -259,7 +260,16 @@ export async function listBookings(service: ServiceKey, sp: URLSearchParams) {
   if (st && ["pending", "confirmed", "cancelled", "failed", "refunded"].includes(st)) {
     where.push("b.status = ?");
     params.push(st);
+  } else if (st === "action") {
+    // paid but no ticket and nothing refunded yet → an agent must act
+    where.push("b.payment_status = 'paid' AND b.ticket_status <> 'issued' AND NOT EXISTS (SELECT 1 FROM refunds r WHERE r.booking_ref = b.booking_ref AND r.status <> 'failed')");
+  } else if (st === "refund_pending") {
+    where.push("EXISTS (SELECT 1 FROM refunds r WHERE r.booking_ref = b.booking_ref AND r.status = 'pending')");
   }
+  const range = sp.get("range");
+  if (range === "today") where.push("b.created_at >= UTC_TIMESTAMP() - INTERVAL 1 DAY");
+  else if (range === "7d") where.push("b.created_at >= UTC_TIMESTAMP() - INTERVAL 7 DAY");
+  else if (range === "30d") where.push("b.created_at >= UTC_TIMESTAMP() - INTERVAL 30 DAY");
   const q = (sp.get("q") || "").trim().slice(0, 60);
   if (q) {
     if (isSkyoId(q)) {
@@ -275,21 +285,44 @@ export async function listBookings(service: ServiceKey, sp: URLSearchParams) {
   const rows = await query<{
     id: number; booking_ref: string; status: string; payment_status: string; title_enc: string; origin_enc: string | null; destination_enc: string | null; provider_ref_enc: string | null;
     travel_date: Date | null; travellers: number; amount_paise: number; provider: string | null; created_at: Date; ticket_status: string; pay_payment_id: string | null; user_id: number; user_uid: string; user_name_enc: string | null;
+    hold_expires_at: Date | null; refund_processed: number | null; refund_pending: number | null;
   }>(
     `SELECT b.id, b.booking_ref, b.status, b.payment_status, b.title_enc, b.origin_enc, b.destination_enc, b.provider_ref_enc, b.travel_date, b.travellers,
-            b.amount_paise, b.provider, b.created_at, b.ticket_status, b.pay_payment_id, u.id AS user_id, b.user_uid, u.name_enc AS user_name_enc
+            b.amount_paise, b.provider, b.created_at, b.ticket_status, b.pay_payment_id, b.hold_expires_at, u.id AS user_id, b.user_uid, u.name_enc AS user_name_enc,
+            (SELECT SUM(r.amount_paise) FROM refunds r WHERE r.booking_ref = b.booking_ref AND r.status = 'processed') AS refund_processed,
+            (SELECT SUM(r.amount_paise) FROM refunds r WHERE r.booking_ref = b.booking_ref AND r.status = 'pending') AS refund_pending
        FROM bookings b JOIN users u ON u.uid = b.user_uid ${w} ORDER BY b.id DESC LIMIT ? OFFSET ?`,
     [...params, size, offset],
   );
   const bookings = await Promise.all(
-    rows.map(async ({ title_enc, origin_enc, destination_enc, provider_ref_enc, user_name_enc, ...r }) => ({
+    rows.map(async ({ title_enc, origin_enc, destination_enc, provider_ref_enc, user_name_enc, refund_processed, refund_pending, ...r }) => ({
       ...r,
+      refund: { processed: Number(refund_processed || 0), pending: Number(refund_pending || 0) },
       title: await decrypt(title_enc),
       origin: (await decrypt(origin_enc)) || null,
       destination: (await decrypt(destination_enc)) || null,
       provider_ref: (await decrypt(provider_ref_enc)) || null,
       user_name: (await decrypt(user_name_enc)) || null,
     })),
+  );
+  // payment instrument (card network / UPI / bank) from the captured Razorpay payment we stored
+  const pids = bookings.map((b) => b.pay_payment_id).filter(Boolean) as string[];
+  if (pids.length) {
+    const atts = await query<{ payment_id: string; data_enc: string | null }>(`SELECT payment_id, data_enc FROM payment_attempts WHERE payment_id IN (${pids.map(() => "?").join(",")})`, pids);
+    const map = new Map<string, PayInfo | null>();
+    for (const a of atts) {
+      try {
+        map.set(a.payment_id, payInfo(JSON.parse((await decrypt(a.data_enc)) || "null")));
+      } catch {}
+    }
+    for (const b of bookings) (b as typeof b & { pay?: PayInfo | null }).pay = b.pay_payment_id ? map.get(b.pay_payment_id) ?? null : null;
+  }
+  const [chips] = await query<{ all: number; confirmed: number; pending: number; failed: number; cancelled: number; refunded: number; action: number; refund_pending: number }>(
+    `SELECT COUNT(*) \`all\`, SUM(b.status='confirmed') confirmed, SUM(b.status='pending') pending, SUM(b.status='failed') failed, SUM(b.status='cancelled') cancelled, SUM(b.status='refunded') refunded,
+            SUM(b.payment_status='paid' AND b.ticket_status <> 'issued' AND NOT EXISTS (SELECT 1 FROM refunds r WHERE r.booking_ref = b.booking_ref AND r.status <> 'failed')) action,
+            SUM(EXISTS (SELECT 1 FROM refunds r WHERE r.booking_ref = b.booking_ref AND r.status = 'pending')) refund_pending
+       FROM bookings b WHERE b.service = ?`,
+    [service],
   );
   const [sum] = await query<{ confirmed: number; pending: number; cancelled: number; revenue: number }>(
     `SELECT SUM(status='confirmed') confirmed, SUM(status='pending') pending, SUM(status IN ('cancelled','refunded')) cancelled,
@@ -302,6 +335,7 @@ export async function listBookings(service: ServiceKey, sp: URLSearchParams) {
     page,
     size,
     summary: { confirmed: Number(sum?.confirmed || 0), pending: Number(sum?.pending || 0), cancelled: Number(sum?.cancelled || 0), revenuePaise: Number(sum?.revenue || 0) },
+    counts: Object.fromEntries(Object.entries(chips || {}).map(([k, v]) => [k, Number(v || 0)])) as Record<string, number>,
   };
 }
 

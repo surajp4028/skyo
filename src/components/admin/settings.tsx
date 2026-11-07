@@ -8,6 +8,8 @@ import { CouponsManager } from "./coupons";
 import { api, errMsg } from "@/lib/client/api";
 import { Field } from "@/components/ui/field";
 import { trainCharges, type ChargeSettings, type PayMode } from "@/lib/train/charges";
+import { flightCharges, legFare, type FlightChargeSettings } from "@/lib/flight/model";
+import { FlightUsage } from "./flight-usage";
 import { cn } from "@/lib/utils";
 
 type Resp = { settings: Record<string, string>; system: { encryption: string; email: string; sms: string; otpTtl: number; userSessionDays: number; adminIdleMinutes: number } };
@@ -26,11 +28,11 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
 
-export function SettingsView() {
+export function SettingsView({ initialTab }: { initialTab?: string }) {
   const { data } = useFetch<Resp>("/api/admin/settings");
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<Tab>("general");
+  const [tab, setTab] = useState<Tab>(TABS.some((t) => t.key === initialTab) ? (initialTab as Tab) : "general");
   const v: Record<string, string> = { ...(data?.settings || {}), ...edits };
   const set = (k: string) => (e: { target: { value: string } }) => setEdits((p) => ({ ...p, [k]: e.target.value }));
   const toggle = (k: string) => setEdits((p) => ({ ...p, [k]: (v[k] ?? "on") === "on" ? "off" : "on" }));
@@ -75,7 +77,7 @@ export function SettingsView() {
                   className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", tab === t.key ? "bg-ink text-white" : "text-ink/70 hover:bg-surface")}
                 >
                   <t.icon className="h-4 w-4" /> {t.label}
-                  {g === "Services" && t.key !== "train" && <span className={cn("ml-auto rounded px-1.5 text-[10px]", tab === t.key ? "bg-white/15" : "bg-surface text-muted")}>soon</span>}
+                  {g === "Services" && t.key !== "train" && t.key !== "flight" && <span className={cn("ml-auto rounded px-1.5 text-[10px]", tab === t.key ? "bg-white/15" : "bg-surface text-muted")}>soon</span>}
                 </button>
               ))}
             </div>
@@ -151,8 +153,9 @@ export function SettingsView() {
           )}
 
           {tab === "train" && <TrainTab v={v} set={set} toggle={toggle} />}
+          {tab === "flight" && <FlightTab v={v} set={set} toggle={toggle} />}
 
-          {(tab === "flight" || tab === "bus" || tab === "hotel" || tab === "package") && (
+          {(tab === "bus" || tab === "hotel" || tab === "package") && (
             <Section title={`${TABS.find((t) => t.key === tab)!.label} charges`} desc="Booking for this service isn't live yet. Its fees, insurance and provider settings will appear here once the supplier API is connected.">
               <div className="rounded-2xl border-2 border-dashed border-line p-8 text-center text-sm text-muted">Nothing to configure yet.</div>
             </Section>
@@ -234,6 +237,100 @@ function TrainTab({ v, set, toggle }: { v: Record<string, string>; set: (k: stri
           </ul>
           <div className="mt-3 flex items-end justify-between border-t border-line pt-3"><span className="font-bold">Customer pays</span><span className="text-xl font-extrabold tabular-nums">₹{(preview.totalPaise / 100).toFixed(2)}</span></div>
           <p className="mt-2 text-[11px] text-muted">Preview uses the values on screen, including unsaved changes. The server uses the same formula when it creates the Razorpay order.</p>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function FlightTab({ v, set, toggle }: { v: Record<string, string>; set: (k: string) => (e: { target: { value: string } }) => void; toggle: (k: string) => void }) {
+  const [cabin, setCabin] = useState<"economy" | "business">("economy");
+  const [days, setDays] = useState(7);
+  const f = (k: string, label: string, hint?: string) => <Field label={label} name={k} inputMode="decimal" value={v[k] ?? ""} onChange={set(k)} hint={hint} />;
+  // Sample: DEL → BOM (1,137 km), IndiGo, 09:30, 2 adults, 1 window seat
+  const s = v as unknown as FlightChargeSettings;
+  const [today] = useState(() => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10));
+  const date = new Date(Date.parse(`${today}T00:00:00Z`) + days * 86400_000).toISOString().slice(0, 10);
+  const fare = legFare(s, { key: "6E6107", airline: { iata: "6E", name: "IndiGo", icao: "IGO" }, distanceKm: 1137, from: { iata: "DEL", airport: "", city: "", terminal: null, gate: null, time: "09:30", tz: "Asia/Kolkata" }, to: { iata: "BOM", airport: "", city: "", terminal: null, gate: null, time: "12:05", tz: "Asia/Kolkata" } }, date, cabin, today);
+  const preview = flightCharges(s, { fare, count: 2, cabin, seatFeesPaise: cabin === "business" ? 0 : Math.round(Number(v.flight_seat_fee_window || 0) * 100), seatNote: "12A", payMode: "upi", insurance: true });
+  return (
+    <>
+      <FlightUsage />
+      <Section title="Live flight data · aviationstack" desc="Free plan = 100 requests / month, real-time flights only. One request fetches a whole route's daily schedule; SKYO caches it so every search on that route is free until it expires.">
+        <div className="divide-y divide-line">
+          <Toggle label="Enable live flight data" desc="Kill switch — when off, SKYO makes no aviationstack calls. Cached routes keep working." on={v.flight_api === "on"} onClick={() => toggle("flight_api")} />
+          <Toggle label="Dev: show only 1 flight in search results" desc="Keeps result lists short while you build. Turn off to show every flight." on={v.flight_dev_single_result === "on"} onClick={() => toggle("flight_dev_single_result")} />
+          <Toggle label="One-stop connections" desc="Builds connections through hubs (DEL, BOM, BLR…) from routes already in the cache — 0 extra requests." on={v.flight_connections === "on"} onClick={() => toggle("flight_connections")} />
+          <Toggle label="Live flight tracking" desc="Logged-in travellers can track flights operating today. Each new flight costs 1 request, then it's cached." on={v.flight_live === "on"} onClick={() => toggle("flight_live")} />
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <Field label="Requests per month (cap)" name="flight_monthly_cap" inputMode="numeric" value={v.flight_monthly_cap || ""} onChange={set("flight_monthly_cap")} hint="Free plan has 100 — keep a few spare" />
+          <Field label="Route cache (hours)" name="flight_cache_hours" inputMode="numeric" value={v.flight_cache_hours || ""} onChange={set("flight_cache_hours")} hint="168 = 7 days" />
+          <Field label="Pages per route" name="flight_pages_per_route" inputMode="numeric" value={v.flight_pages_per_route || ""} onChange={set("flight_pages_per_route")} hint="1 page = 100 rows ≈ 35 flights" />
+          <Field label="Hubs fetched for connections" name="flight_connection_fetch" inputMode="numeric" value={v.flight_connection_fetch || ""} onChange={set("flight_connection_fetch")} hint="0 = cache only · each hub = 2 requests" />
+          <Field label="Live status cache (minutes)" name="flight_live_cache_min" inputMode="numeric" value={v.flight_live_cache_min || ""} onChange={set("flight_live_cache_min")} hint="Default 15" />
+          <Field label="Max travellers per booking" name="max_passengers_per_flight" inputMode="numeric" value={v.max_passengers_per_flight || ""} onChange={set("max_passengers_per_flight")} hint="1 – 9" />
+        </div>
+      </Section>
+
+      <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
+        <div className="space-y-6">
+          <Section title="Fare model" desc="aviationstack has schedules, not prices. Until Tripgic returns live fares, SKYO prices each flight from distance, cabin, days to departure and time of day — same formula on the server and in this preview.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {f("flight_base_fare", "Base fare (₹)", "Fixed part of every fare")}
+              {f("flight_per_km", "Per km (₹)", "DEL–BOM is 1,137 km")}
+              {f("flight_fullservice_pct", "Full-service airline premium (%)", "Air India, Vistara…")}
+              {f("flight_business_mult", "Business multiplier", "e.g. 3.2 × economy")}
+              {f("flight_intl_mult", "International multiplier")}
+              {f("flight_lastminute_pct", "Last-minute surge (%)", "Tapers off by 14 days out")}
+              {f("flight_peak_pct", "Peak-hour premium (%)", "6–10 am and 5–9 pm")}
+              {f("flight_connection_discount_pct", "Connection discount (%)", "Off the base fare for 1-stop trips")}
+            </div>
+          </Section>
+          <Section title="Taxes & airport fees" desc="Collected on behalf of the airline / airport, per traveller.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {f("flight_airport_fee", "Airport fees · domestic (₹)", "UDF + ASF + PSF")}
+              {f("flight_airport_fee_intl", "Airport fees · international (₹)")}
+              {f("flight_gst_eco_pct", "GST on economy airfare (%)", "5 in India")}
+              {f("flight_gst_biz_pct", "GST on business airfare (%)", "12 in India")}
+            </div>
+          </Section>
+          <Section title="Seat prices" desc="Charged per seat picked on the seat map. Business seats are included in the fare. Skipped seats are auto-assigned free.">
+            <div className="grid gap-4 sm:grid-cols-3">
+              {f("flight_seat_fee_window", "Window (₹)")}
+              {f("flight_seat_fee_aisle", "Aisle (₹)")}
+              {f("flight_seat_fee_middle", "Middle (₹)", "0 = free")}
+              {f("flight_seat_fee_front", "Front rows 1–5 (₹)")}
+              {f("flight_seat_fee_xl", "Extra legroom / exit (₹)")}
+            </div>
+          </Section>
+          <Section title="SKYO service fee & gateway" desc="Service fee per traveller; gateway % applies to the whole amount after coupons.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {f("flight_agent_fee", "Service fee per traveller (₹)")}
+              {f("flight_agent_gst_pct", "GST on service fee (%)")}
+              {f("flight_pg_fee_pct", "Gateway fee (%)")}
+              {f("flight_pg_gst_pct", "GST on gateway fee (%)")}
+            </div>
+          </Section>
+          <Section title="Travel insurance" desc="Optional for the customer, ticked by default.">
+            <Toggle label="Offer travel insurance" desc="Premium per traveller." on={v.flight_insurance === "on"} onClick={() => toggle("flight_insurance")} />
+            {v.flight_insurance === "on" && <div className="mt-2 max-w-xs">{f("flight_insurance_fee", "Premium per traveller (₹)")}</div>}
+          </Section>
+        </div>
+        <Card className="h-fit p-5 xl:sticky xl:top-20">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-muted">Live preview</div>
+          <div className="mt-1 text-sm font-bold">DEL → BOM · IndiGo 09:30 · 2 adults{cabin === "economy" ? " · 1 window seat" : ""}</div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {(["economy", "business"] as const).map((c) => <Chip key={c} on={cabin === c} onClick={() => setCabin(c)}>{c === "economy" ? "Economy" : "Business"}</Chip>)}
+            {[1, 7, 30].map((d) => <Chip key={d} on={days === d} onClick={() => setDays(d)}>{d === 1 ? "Tomorrow" : `${d} days out`}</Chip>)}
+          </div>
+          <ul className="mt-4 space-y-1.5 text-sm">
+            {preview.lines.map((l) => (
+              <li key={l.key} className="flex justify-between gap-3"><span className="text-muted">{l.label}</span><span className="font-semibold tabular-nums">₹{(l.paise / 100).toFixed(2)}</span></li>
+            ))}
+          </ul>
+          <div className="mt-3 flex items-end justify-between border-t border-line pt-3"><span className="font-bold">Customer pays</span><span className="text-xl font-extrabold tabular-nums">₹{(preview.totalPaise / 100).toFixed(2)}</span></div>
+          <p className="mt-2 text-[11px] text-muted">Fare per adult ₹{((fare.basePaise + fare.taxesPaise) / 100).toFixed(0)} (±7% varies by flight). Uses the values on screen, including unsaved changes.</p>
         </Card>
       </div>
     </>

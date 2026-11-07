@@ -153,7 +153,13 @@ Admins see used / pending / left / total discount and "who used it"; customers s
   via Razorpay (`POST /v1/payments/{id}/refund`) and the customer gets an email (and SMS when no DLT template is set).
 - **Agent actions** (permission `payments.refund`) in the booking panel: **Refund** (full or partial, with reason),
   **Retry ticketing** (paid + ticket failed + nothing refunded yet), **Resend SMS / email**.
-  "Re-check with Razorpay" also syncs pending refund status. Webhook events `refund.processed` / `refund.failed` update it live.
+  "Re-check with Razorpay" pulls every refund on the payment (`GET /v1/payments/{id}/refunds`, incl. Dashboard refunds).
+  Webhook events `refund.created` / `refund.processed` / `refund.failed` are matched to the booking by payment id and
+  re-read from Razorpay before being trusted. A booking shows "refunded" only once Razorpay has **processed** it.
+- **Admin → Disputes / Refunds** lists every payment without a valid ticket (ticket failed, paid > 10 min after the hold,
+  amount mismatch) and every refund, with Needs action / Refund pending / Refunded filters.
+- Late payments (> 10 min after the 15-minute hold) are never ticketed — they're refunded automatically. Razorpay
+  Checkout also gets a `timeout` equal to the time left on the hold.
 - Refunds are stored in `refunds`; customers see them in My trips and My account → Transactions. Total refunded can never
   exceed the amount paid; a full refund releases a reserved coupon.
 - Unpaid bookings 30 minutes past their 15-minute hold become "cancelled" automatically.
@@ -211,14 +217,66 @@ still confirms bookings.
 **Test mode**: domestic test card `5267 3181 8797 5449`, any future expiry/CVV, any OTP. (`4111 1111 1111 1111` is treated as an
 international card and fails if international payments aren't enabled.) Cashfree is not implemented.
 
+## Flights — aviationstack integration
+
+**Provider.** [aviationstack](https://docs.apilayer.com/aviationstack/docs/aviationstack-api-v-1-0-0) gives flight
+**schedules and live status** — not fares or seat inventory. `AVIATION_KEY` lives only in `.env.local` and is used only by
+`src/lib/server/flight/aviationstack.ts` (never logged, never sent to the browser).
+
+**Free plan = 100 requests / month** (real-time `/v1/flights` + catalog endpoints; `flightsFuture`, `timetable`, `routes`,
+historical and autocomplete need Basic). How SKYO stays inside it:
+
+| Guard | Where |
+|---|---|
+| One request = a whole route's daily schedule (`/flights?dep_iata&arr_iata&limit=100`), cached in `flight_routes` for `flight_cache_hours` (default 7 days) and projected onto any date | `flight/search.ts` |
+| Codeshare rows folded into the operating flight (≈ 2/3 of rows on Indian routes) | `normalizeRoute()` |
+| Monthly cap (`flight_monthly_cap`, default 95) counted from the ledger; errors aren't billed by aviationstack and aren't counted | `aviationstack.ts` |
+| Kill switch `flight_api`, plan gate for paid-only endpoints (`AVIATION_PLAN`) | `aviationstack.ts` |
+| New routes per visitor per day: 2 anonymous / 6 logged-in; identical requests coalesced | `/api/flight/search` |
+| Connections built only from cached hub legs (0 requests) unless `flight_connection_fetch` > 0 | `searchFlights()` |
+| Live status: login only, 12/hour per user, cached per flight `flight_live_cache_min` | `flight/status.ts` |
+| Dev mode `flight_dev_single_result` (default on) shows 1 result | Settings → Flights / usage card toggle |
+
+Every call is stored in `flight_api_calls` (endpoint, params without the key, status, rows, latency, reason, full response
+encrypted). Admin → Bookings → Flights and Settings → Flights show the meter, why requests were spent, cached routes
+(refresh = 1 request, drop = free) and each call's full response.
+
+**Times.** aviationstack stamps local airport time as `+00:00` — SKYO reads the clock time as local and converts with the
+airport's IANA zone for durations.
+
+**Fares (until Tripgic sends real ones).** `src/lib/flight/model.ts` — base + per-km, full-service premium, business /
+international multipliers, days-to-departure curve, peak-hour premium, ±7 % per flight, connection discount; then airport
+fees, GST (5 % economy / 12 % business), seat fees, SKYO service fee + GST, insurance, coupon, gateway fee + GST — all
+admin-editable with a live preview. The server always re-prices; the browser only previews.
+
+**Seats.** Aircraft layout by airline + distance (A320/A321 3-3, Air India with business 2-2, ATR 2-2, 787/777 wide-body),
+occupancy that rises towards departure, plus seats held on SKYO (`flight_seat_holds`, unique per flight/date/seat, held in
+the same transaction as the booking). Window / aisle / middle / front / extra-legroom prices; unpicked seats are auto-assigned
+free at ticketing.
+
+**Booking.** `POST /api/bookings/flight/initiate` → Razorpay order (same verify / webhook / refund / disputes pipeline as trains,
+refs `SKT…`) → `issueFlightForBooking()` (Tripgic **mock**: PNR, airline PNR per segment, e-ticket numbers, seats) → flight
+e-ticket PDF to S3 `<SKYO ID>/flight/<ref>_<date>.pdf`, SMS + email. Coupons can target `flight`; seeded `SKYOFLY` (₹300 off).
+
+**Pages.** `/flights` results (filters, sort, date strip, flight details) → booking sheet (travellers → dark seat map →
+review & pay) · `/flights/status` live tracking with route map · My trips flight cards with seats, e-ticket, invoice, Track live.
+
+**Postman.** `postman/SKYO-Flights.postman_collection.json` (every aviationstack v1 endpoint with all parameters + SKYO
+flight / admin APIs) and `postman/SKYO-local.postman_environment.json` — put your key in the environment's
+`aviationstack_key`, not in the collection.
+
+> The free plan is "non-commercial use". Move to aviationstack Basic (10,000 requests, `flightsFuture`) before going live.
+
 ## Pages
 
-`/` home · `/trains` results (route/live/coaches drawer) · `/trains/[number]` train page · `/trains/live` train tools
+`/` home · `/flights` flight results · `/flights/status` live flight status · `/trains` results (route/live/coaches drawer) · `/trains/[number]` train page · `/trains/live` train tools
 (live status, station board, vacant berths, unreserved fare) · `/account` · `/about` · `/contact` (encrypted inbox → Admin → Messages)
 
 ## Still to do
 
-- Tripgic live API (`TRIPGIC_MODE=live`) — waiting for their docs/keys; ticketing is mocked.
+- Tripgic live API (`TRIPGIC_MODE=live`) — waiting for their docs/keys; train and flight ticketing are mocked.
+- Flights: real fares + live seat inventory come from Tripgic; aviationstack Basic plan for `flightsFuture` (exact future schedules) and commercial use.
+- Infant (under 2) flight bookings.
 - Refund flow when payment succeeds but ticket issue fails (booking is marked `failed`, refund is manual today).
 - Fast2SMS DLT template / sender (`FAST2SMS_SENDER_ID`, `FAST2SMS_TEMPLATE_ID`) and ZeptoMail templates are copied from the iMoney project — register SKYO-branded ones before launch.
 - Have Privacy Policy / Terms reviewed by counsel.

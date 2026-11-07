@@ -5,20 +5,26 @@ import { getObject, putObject, storageConfigured, userKey } from "../storage";
 import { logProvider } from "../payments/log";
 import { sendBookingSms, sendResendEmail } from "../notify";
 import { getSetting } from "../settings";
-import { ticketPdf } from "./ticket-pdf";
+import { flightTicketPdf, ticketPdf } from "./ticket-pdf";
+import { fmtDate } from "@/lib/utils";
 import type { TrainBookingDetails } from "./train-booking";
+import type { FlightBookingDetails } from "./flight-booking";
 
-type Row = { booking_ref: string; user_uid: string; ticket_status: string; amount_paise: number; pay_payment_id: string | null; paid_at: Date | null; details_enc: string; ticket_key_enc: string | null };
+type Row = { booking_ref: string; user_uid: string; service: string; ticket_status: string; amount_paise: number; pay_payment_id: string | null; paid_at: Date | null; details_enc: string; ticket_key_enc: string | null };
 
 const load = (ref: string) =>
-  queryOne<Row>("SELECT booking_ref, user_uid, ticket_status, amount_paise, pay_payment_id, paid_at, details_enc, ticket_key_enc FROM bookings WHERE booking_ref = ?", [ref]);
+  queryOne<Row>("SELECT booking_ref, user_uid, service, ticket_status, amount_paise, pay_payment_id, paid_at, details_enc, ticket_key_enc FROM bookings WHERE booking_ref = ?", [ref]);
 
-/** S3 key for a train ticket: <SKYO ID>/train/<booking ref>_<journey YYYYMMDD>.pdf */
-export const ticketKey = (uid: string, ref: string, date: string) => userKey(uid, "train", `${ref}_${date.replace(/-/g, "")}.pdf`);
+/** S3 key for a ticket: <SKYO ID>/<train|flight>/<booking ref>_<journey YYYYMMDD>.pdf */
+export const ticketKey = (uid: string, ref: string, date: string, service = "train") => userKey(uid, service === "flight" ? "flight" : "train", `${ref}_${date.replace(/-/g, "")}.pdf`);
+
+const isFlight = (d: TrainBookingDetails | FlightBookingDetails): d is FlightBookingDetails => (d as FlightBookingDetails).kind === "flight";
 
 async function render(b: Row) {
   const d = JSON.parse(await decrypt(b.details_enc)) as TrainBookingDetails;
-  const pdf = await ticketPdf({ ref: b.booking_ref, uid: b.user_uid, details: d, amount: b.amount_paise / 100, paymentId: b.pay_payment_id, paidAt: b.paid_at, site: await getSetting("site_name") });
+  const site = await getSetting("site_name");
+  const args = { ref: b.booking_ref, uid: b.user_uid, amount: b.amount_paise / 100, paymentId: b.pay_payment_id, paidAt: b.paid_at, site };
+  const pdf = isFlight(d as TrainBookingDetails | FlightBookingDetails) ? await flightTicketPdf({ ...args, details: d as unknown as FlightBookingDetails }) : await ticketPdf({ ...args, details: d });
   return { pdf, d };
 }
 
@@ -26,7 +32,7 @@ async function render(b: Row) {
 async function storeTicket(b: Row) {
   const { pdf, d } = await render(b);
   if (!storageConfigured()) return { pdf, d, key: null };
-  const key = ticketKey(b.user_uid, b.booking_ref, d.date);
+  const key = ticketKey(b.user_uid, b.booking_ref, d.date, b.service);
   const started = Date.now();
   try {
     await putObject(key, pdf, "application/pdf");
@@ -97,11 +103,17 @@ async function notifyCustomer(b: Row, d: TrainBookingDetails, pdf: Uint8Array) {
   const site = await getSetting("site_name");
   const pnr = d.ticket?.pnr ?? "-";
   const amount = `Rs.${(b.amount_paise / 100).toFixed(2)}`;
-  const statusLine = (d.ticket?.allocations || []).map((a) => `${a.name}: ${a.status}${a.coach ? ` ${a.coach}/${a.berth}` : ""}`).join(", ");
+  const f = isFlight(d as TrainBookingDetails | FlightBookingDetails) ? (d as unknown as FlightBookingDetails) : null;
+  const statusLine = f
+    ? (f.ticket?.allocations || []).map((a) => `${a.name}: ${Object.values(a.seats).join("/")}`).join(", ")
+    : (d.ticket?.allocations || []).map((a) => `${a.name}: ${a.status}${a.coach ? ` ${a.coach}/${a.berth}` : ""}`).join(", ");
+  const tripLine = f
+    ? `flight ${f.train.number} ${d.from}-${d.to} on ${fmtDate(d.date)} dep ${f.flight.dep}`
+    : `train ${d.train.number} ${d.from}-${d.to} on ${fmtDate(d.date)}`;
 
   const phone = (d.contact.phone || "").replace(/\D/g, "").slice(-10);
   if (phone.length === 10) {
-    const text = `${site}: Booking ${b.booking_ref} confirmed. PNR ${pnr}, train ${d.train.number} ${d.from}-${d.to} on ${d.date}. Paid ${amount}. E-ticket in My trips.`;
+    const text = `${site}: Booking ${b.booking_ref} confirmed. PNR ${pnr}, ${tripLine}. Paid ${amount}. E-ticket in My trips.`;
     const r = await sendBookingSms(phone, { ref: b.booking_ref, pnr, amount, text });
     await logProvider({ bookingRef: b.booking_ref, provider: "skyo", direction: "outbound", action: "notify.sms", httpStatus: r.status, outcome: r.ok ? "ok" : "error", request: r.request, response: r.response });
   } else {
@@ -111,12 +123,17 @@ async function notifyCustomer(b: Row, d: TrainBookingDetails, pdf: Uint8Array) {
   const email = d.contact.email || d.notifyEmail || null;
   if (email) {
     const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-    const rows = (d.ticket?.allocations || []).map((a) => `<tr><td style="padding:6px 10px">${esc(a.name)}</td><td style="padding:6px 10px">${esc(a.status)}${a.coach ? ` · ${esc(a.coach)}/${a.berth}` : ""}</td></tr>`).join("");
+    const rows = f
+      ? (f.ticket?.allocations || []).map((a) => `<tr><td style="padding:6px 10px">${esc(a.name)}</td><td style="padding:6px 10px">Seat ${esc(Object.values(a.seats).join(" / "))}</td><td style="padding:6px 10px;color:#6b7280">e-ticket ${esc(a.eticket)}</td></tr>`).join("")
+      : (d.ticket?.allocations || []).map((a) => `<tr><td style="padding:6px 10px">${esc(a.name)}</td><td style="padding:6px 10px">${esc(a.status)}${a.coach ? ` · ${esc(a.coach)}/${a.berth}` : ""}</td></tr>`).join("");
+    const journey = f
+      ? `<p><b>${esc(f.train.number)} · ${esc(f.train.name)}</b><br>${esc(f.flight.legs[0].from.city)} (${esc(d.from)}) ${esc(f.flight.dep)} → ${esc(f.flight.legs[f.flight.legs.length - 1].to.city)} (${esc(d.to)}) ${esc(f.flight.arr)} · ${esc(fmtDate(d.date))} · ${esc(d.cls)}<br><span style="color:#6b7280">Terminal ${esc(f.flight.legs[0].from.terminal || "-")} · check-in closes 45 min before departure</span></p>`
+      : `<p><b>${esc(d.train.number)} ${esc(d.train.name)}</b><br>${esc(d.from)} → ${esc(d.to)} · ${esc(fmtDate(d.date))} · ${esc(d.cls)}</p>`;
     const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#0a0f1f">
       <div style="background:#0057ff;color:#fff;padding:18px 22px;border-radius:12px 12px 0 0"><b style="font-size:20px">${esc(site)}</b><div>Booking confirmed · PNR ${esc(pnr)}</div></div>
       <div style="border:1px solid #e6e8ef;border-top:0;padding:20px 22px;border-radius:0 0 12px 12px">
-        <p>Hi ${esc(d.contact.name || "Traveller")}, your train ticket is booked.</p>
-        <p><b>${esc(d.train.number)} ${esc(d.train.name)}</b><br>${esc(d.from)} → ${esc(d.to)} · ${esc(d.date)} · ${esc(d.cls)}</p>
+        <p>Hi ${esc(d.contact.name || "Traveller")}, your ${f ? "flight" : "train ticket"} is booked.</p>
+        ${journey}
         <table style="border-collapse:collapse;width:100%;background:#f6f7fb;border-radius:8px">${rows}</table>
         <p>Total paid: <b>${esc(amount)}</b> · Booking ref ${esc(b.booking_ref)}</p>
         <p style="color:#6b7280;font-size:12px">Your e-ticket PDF is attached and always available in My trips. This is a test-mode sample ticket.</p>
@@ -125,7 +142,7 @@ async function notifyCustomer(b: Row, d: TrainBookingDetails, pdf: Uint8Array) {
       to: email,
       subject: `${site} · Ticket confirmed · PNR ${pnr}`,
       html,
-      text: `Booking ${b.booking_ref} confirmed. PNR ${pnr}. ${d.train.number} ${d.from}-${d.to} on ${d.date}. ${statusLine}. Paid ${amount}.`,
+      text: `Booking ${b.booking_ref} confirmed. PNR ${pnr}. ${tripLine}. ${statusLine}. Paid ${amount}.`,
       attachments: [{ filename: `${site}-eTicket-${b.booking_ref}.pdf`, content: pdf }],
     });
     await logProvider({ bookingRef: b.booking_ref, provider: "skyo", direction: "outbound", action: "notify.email", httpStatus: r.status, outcome: r.ok ? "ok" : "error", request: r.request, response: r.response });
@@ -141,7 +158,7 @@ export async function notifyFailure(ref: string) {
   const d = JSON.parse(await decrypt(b.details_enc)) as TrainBookingDetails;
   const site = await getSetting("site_name");
   const amount = `Rs.${(b.amount_paise / 100).toFixed(2)}`;
-  const text = `${site}: Sorry, booking ${ref} (${d.train.number} ${d.from}-${d.to}, ${d.date}) could not be ticketed. ${amount} is being refunded to your source account in 5-7 working days.`;
+  const text = `${site}: Sorry, booking ${ref} (${(d as unknown as FlightBookingDetails).kind === "flight" ? "flight " : ""}${d.train.number} ${d.from}-${d.to}, ${fmtDate(d.date)}) could not be ticketed. ${amount} is being refunded to your source account in 5-7 working days.`;
   const phone = (d.contact.phone || "").replace(/\D/g, "").slice(-10);
   if (phone.length === 10 && !(process.env.FAST2SMS_BOOKING_TEMPLATE_ID || "").trim()) {
     const r = await sendBookingSms(phone, { ref, pnr: "-", amount, text });

@@ -3,7 +3,7 @@ import { exec, query, queryOne } from "../db";
 import { decrypt, encrypt } from "../crypto";
 import { ApiError } from "../http";
 import { logProvider } from "./log";
-import { refundPayment, type RzpRefund } from "./razorpay";
+import { fetchPaymentRefunds, fetchRefund, refundPayment, type RzpRefund } from "./razorpay";
 import { releaseCoupon } from "../coupons";
 
 /* =====================================================================
@@ -47,23 +47,64 @@ export async function createRefund(ref: string, opts: { amountPaise?: number; re
   return r;
 }
 
-/** Full refund → booking + payment "refunded". Partial → stays as is (shown in the panel). */
+/**
+ * Booking state follows what Razorpay has actually PROCESSED:
+ *   processed ≥ paid → status + payment_status "refunded" (coupon released)
+ *   anything less    → booking keeps its status; the panel shows "refund pending" / "partially refunded".
+ */
 export async function syncBookingRefundState(ref: string) {
-  const b = await queryOne<{ amount_paise: number }>("SELECT amount_paise FROM bookings WHERE booking_ref = ?", [ref]);
+  const b = await queryOne<{ amount_paise: number; status: string; ticket_status: string }>("SELECT amount_paise, status, ticket_status FROM bookings WHERE booking_ref = ?", [ref]);
   if (!b) return;
-  if ((await refundedSoFar(ref)) >= b.amount_paise) {
+  const processed = Number((await queryOne<{ n: number | null }>("SELECT SUM(amount_paise) n FROM refunds WHERE booking_ref = ? AND status = 'processed'", [ref]))?.n || 0);
+  if (processed >= b.amount_paise) {
     await exec("UPDATE bookings SET status = 'refunded', payment_status = 'refunded' WHERE booking_ref = ?", [ref]);
     await releaseCoupon(ref);
+  } else if (b.status === "refunded") {
+    // e.g. a refund that was counted earlier later failed
+    await exec("UPDATE bookings SET status = ?, payment_status = 'paid' WHERE booking_ref = ?", [b.ticket_status === "issued" ? "confirmed" : "failed", ref]);
   }
 }
 
-/** Webhook refund.* → update our row. */
+/** Insert or update one Razorpay refund, matched to OUR booking through the payment id. */
+async function upsertRefund(r: RzpRefund, by: string) {
+  const booking = await queryOne<{ booking_ref: string; amount_paise: number }>("SELECT booking_ref, amount_paise FROM bookings WHERE pay_payment_id = ?", [r.payment_id]);
+  if (!booking) return null; // not a SKYO payment
+  const existing = await queryOne<{ id: number }>("SELECT id FROM refunds WHERE refund_id = ?", [r.id]);
+  if (existing) await exec("UPDATE refunds SET status = ?, amount_paise = ?, data_enc = ? WHERE id = ?", [r.status, r.amount, await encrypt(JSON.stringify(r)), existing.id]);
+  else
+    await exec("INSERT INTO refunds (booking_ref, payment_id, refund_id, amount_paise, status, reason, initiated_by, data_enc) VALUES (?,?,?,?,?,?,?,?)", [
+      booking.booking_ref, r.payment_id, r.id, r.amount, r.status, (r.notes?.reason || "Refunded from the Razorpay Dashboard").slice(0, 200), by, await encrypt(JSON.stringify(r)),
+    ]);
+  await syncBookingRefundState(booking.booking_ref);
+  return booking.booking_ref;
+}
+
+/**
+ * Webhook refund.created / refund.processed / refund.failed. The body is signature-checked by the route;
+ * we still re-read the refund from Razorpay's API before trusting its status (double validation).
+ */
 export async function updateRefundFromWebhook(r: RzpRefund) {
-  const row = await queryOne<{ booking_ref: string }>("SELECT booking_ref FROM refunds WHERE refund_id = ?", [r.id]);
-  if (!row) return false;
-  await exec("UPDATE refunds SET status = ?, data_enc = ? WHERE refund_id = ?", [r.status, await encrypt(JSON.stringify(r)), r.id]);
-  await syncBookingRefundState(row.booking_ref);
-  return true;
+  if (!r?.id || !r.payment_id) return false;
+  const fresh = await fetchRefund(r.payment_id, r.id).catch(() => null);
+  if (!fresh || fresh.payment_id !== r.payment_id) return false;
+  return !!(await upsertRefund(fresh, "razorpay"));
+}
+
+/** Pull every refund Razorpay has for this booking's payment (dashboard refunds included). */
+export async function syncRefundsForBooking(ref: string) {
+  const b = await queryOne<{ pay_payment_id: string | null }>("SELECT pay_payment_id FROM bookings WHERE booking_ref = ?", [ref]);
+  if (!b?.pay_payment_id) return 0;
+  const list = await fetchPaymentRefunds(b.pay_payment_id, ref);
+  for (const r of list.items) await upsertRefund(r, "razorpay");
+  return list.count;
+}
+
+/** One status word for lists: none | pending | partial | refunded */
+export function refundState(paidPaise: number, processed: number, pending: number) {
+  if (processed >= paidPaise && paidPaise > 0) return "refunded" as const;
+  if (pending > 0) return "pending" as const;
+  if (processed > 0) return "partial" as const;
+  return "none" as const;
 }
 
 /** Called when a paid booking couldn't be ticketed. Never throws — failures are logged for the team. */

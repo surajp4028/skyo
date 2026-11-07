@@ -89,6 +89,10 @@ export const refundPayment = (paymentId: string, amountPaise: number, p: { booki
 export const fetchRefund = (paymentId: string, refundId: string, bookingRef?: string) =>
   call<RzpRefund>("GET", `/payments/${encodeURIComponent(paymentId)}/refunds/${encodeURIComponent(refundId)}`, undefined, { action: "refund.fetch", bookingRef });
 
+/** Every refund on a payment (incl. ones made from the Razorpay Dashboard). */
+export const fetchPaymentRefunds = (paymentId: string, bookingRef?: string) =>
+  call<{ entity: "collection"; count: number; items: RzpRefund[] }>("GET", `/payments/${encodeURIComponent(paymentId)}/refunds`, undefined, { action: "refund.list", bookingRef });
+
 export const capturePayment = (id: string, amountPaise: number, bookingRef?: string) =>
   call<RzpPayment>("POST", `/payments/${encodeURIComponent(id)}/capture`, { amount: amountPaise, currency: "INR" }, { action: "payment.capture", bookingRef, amountPaise });
 

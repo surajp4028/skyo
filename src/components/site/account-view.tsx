@@ -134,7 +134,7 @@ export function AccountView() {
                     ))}
                   </div>
                 </Panel>
-                <TripsGrid services={services} />
+                <TripsGrid services={services} onOpen={() => setSection("trips")} />
               </>
             )}
             {section === "profile" && (
@@ -223,16 +223,39 @@ function QuickCard({ icon, title, text, href, onClick, tone }: { icon: ReactNode
   return href ? <Link href={href}>{body}</Link> : <button onClick={onClick} className="text-left">{body}</button>;
 }
 
-function TripsGrid({ services, big }: { services: typeof SVCS; big?: boolean }) {
+function TripsGrid({ services, big, onOpen }: { services: typeof SVCS; big?: boolean; onOpen?: () => void }) {
+  // confirmed bookings per service (the account's real trips)
+  const [counts, setCounts] = useState<Record<string, { total: number; upcoming: number }> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api<{ bookings: { service: string; status: string; date?: string }[] }>("/api/account/bookings")
+      .then((r) => {
+        if (!alive) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const c: Record<string, { total: number; upcoming: number }> = {};
+        for (const b of r.bookings) {
+          if (b.status !== "confirmed") continue;
+          c[b.service] ??= { total: 0, upcoming: 0 };
+          c[b.service].total++;
+          if (b.date && b.date >= today) c[b.service].upcoming++;
+        }
+        setCounts(c);
+      })
+      .catch(() => alive && setCounts({}));
+    return () => {
+      alive = false;
+    };
+  }, []);
   return (
-    <Panel title="My trips" sub="Bookings linked to your SKYO ID appear here with live status and e-tickets.">
+    <Panel title="My trips" sub="Confirmed bookings linked to your SKYO ID — tap to see tickets." action={onOpen && <button onClick={onOpen} className="text-xs font-bold text-brand">View all →</button>}>
       <div className={cn("grid gap-3", services.length >= 5 ? "grid-cols-2 md:grid-cols-5" : "grid-cols-2 md:grid-cols-4")}>
         {services.map((s, i) => (
-          <motion.div key={s.key} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="rounded-2xl border border-line p-4 text-center">
+          <motion.button type="button" onClick={onOpen} key={s.key} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="rounded-2xl border border-line p-4 text-center transition hover:-translate-y-0.5 hover:border-ink/20">
             <span className={`mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${s.tone} text-white`}><s.icon className="h-5 w-5" /></span>
-            <div className="mt-2 text-2xl font-extrabold">0</div>
+            <div className="mt-2 text-2xl font-extrabold tabular-nums">{counts ? counts[s.key]?.total ?? 0 : <span className="inline-block h-6 w-6 animate-pulse rounded bg-surface align-middle" />}</div>
             <div className="text-xs font-semibold text-muted">{s.label}</div>
-          </motion.div>
+            {!!counts?.[s.key]?.upcoming && <div className="mt-1 text-[10px] font-bold text-mint">{counts[s.key].upcoming} upcoming</div>}
+          </motion.button>
         ))}
       </div>
       {big && (
