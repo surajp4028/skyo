@@ -164,7 +164,7 @@ export function MyTrips() {
                     <div className="flex flex-1 flex-col items-center text-[11px] font-bold text-muted">
                       <span>{Math.floor(t.flight.durationMin / 60)}h {t.flight.durationMin % 60}m</span>
                       <span className="relative my-1 h-px w-full bg-[repeating-linear-gradient(90deg,#c7d2fe_0_5px,transparent_5px_9px)]"><Plane className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 fill-[#0057ff] text-[#0057ff]" /></span>
-                      <span className={t.flight.stops ? "text-amber-600" : "text-emerald-600"}>{t.flight.stops ? `1 stop · ${t.flight.legs[0].to.iata}` : "Non-stop"}</span>
+                      <span className={t.flight.stops ? "text-amber-600" : "text-emerald-600"}>{t.flight.stops ? `${t.flight.stops} stop${t.flight.stops > 1 ? "s" : ""} · ${t.flight.legs.slice(0, -1).map((l) => l.to.iata).join(", ")}` : "Non-stop"}</span>
                     </div>
                     <div className="text-right"><div className="text-2xl font-black tabular-nums">{t.flight.arr}{t.flight.dayOffset ? <sup className="text-[10px] text-orange-500">+{t.flight.dayOffset}</sup> : null}</div><div className="text-xs font-bold text-muted">{t.flight.legs[t.flight.legs.length - 1].to.city} · {t.flight.legs[t.flight.legs.length - 1].to.iata}</div></div>
                   </div>

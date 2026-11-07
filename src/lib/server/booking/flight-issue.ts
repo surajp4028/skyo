@@ -30,7 +30,7 @@ async function mockFlight(ref: string, d: FlightBookingDetails) {
     const free = (map?.seats || []).filter((s) => !s.taken && s.feePaise === 0).reverse();
     const used = new Set(d.passengers.map((p) => p.seats[leg.key]).filter(Boolean) as string[]);
     d.passengers.forEach((p, i) => {
-      if (p.seats[leg.key]) return;
+      if (p.seats[leg.key] || p.type === "infant") return;
       const s = free.find((x) => !used.has(x.id));
       if (s) {
         used.add(s.id);
@@ -45,7 +45,7 @@ async function mockFlight(ref: string, d: FlightBookingDetails) {
     auto,
     allocations: d.passengers.map((p, i) => {
       const seats: Record<string, string> = {};
-      for (const l of d.flight.legs) seats[l.key] = p.seats[l.key] || auto.find((a) => a.key === l.key && a.pax === i)?.seat || "At check-in";
+      for (const l of d.flight.legs) seats[l.key] = p.type === "infant" ? "On lap" : p.seats[l.key] || auto.find((a) => a.key === l.key && a.pax === i)?.seat || "At check-in";
       const code = ACCOUNTING[d.flight.legs[0].airline.iata] || String(crypto.randomInt(100, 999));
       return { name: p.name, age: p.age, gender: p.gender, type: p.type, status: "CNF", eticket: `${code}-${crypto.randomInt(1_000_000_000, 9_999_999_999)}`, seats, berthType: Object.values(seats).join(" / ") };
     }),

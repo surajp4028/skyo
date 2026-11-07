@@ -252,7 +252,7 @@ function FlightTab({ v, set, toggle }: { v: Record<string, string>; set: (k: str
   const [today] = useState(() => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10));
   const date = new Date(Date.parse(`${today}T00:00:00Z`) + days * 86400_000).toISOString().slice(0, 10);
   const fare = legFare(s, { key: "6E6107", airline: { iata: "6E", name: "IndiGo", icao: "IGO" }, distanceKm: 1137, from: { iata: "DEL", airport: "", city: "", terminal: null, gate: null, time: "09:30", tz: "Asia/Kolkata" }, to: { iata: "BOM", airport: "", city: "", terminal: null, gate: null, time: "12:05", tz: "Asia/Kolkata" } }, date, cabin, today);
-  const preview = flightCharges(s, { fare, count: 2, cabin, seatFeesPaise: cabin === "business" ? 0 : Math.round(Number(v.flight_seat_fee_window || 0) * 100), seatNote: "12A", payMode: "upi", insurance: true });
+  const preview = flightCharges(s, { fare, pax: { adults: 2, children: 1, infants: 0 }, cabin, seatFeesPaise: cabin === "business" ? 0 : Math.round(Number(v.flight_seat_fee_window || 0) * 100), seatNote: "12A", payMode: "upi", insurance: true });
   return (
     <>
       <FlightUsage />
@@ -270,6 +270,9 @@ function FlightTab({ v, set, toggle }: { v: Record<string, string>; set: (k: str
           <Field label="Hubs fetched for connections" name="flight_connection_fetch" inputMode="numeric" value={v.flight_connection_fetch || ""} onChange={set("flight_connection_fetch")} hint="0 = cache only · each hub = 2 requests" />
           <Field label="Live status cache (minutes)" name="flight_live_cache_min" inputMode="numeric" value={v.flight_live_cache_min || ""} onChange={set("flight_live_cache_min")} hint="Default 15" />
           <Field label="Max travellers per booking" name="max_passengers_per_flight" inputMode="numeric" value={v.max_passengers_per_flight || ""} onChange={set("max_passengers_per_flight")} hint="1 – 9" />
+          <Field label="Plan renews on day" name="flight_quota_reset_day" inputMode="numeric" value={v.flight_quota_reset_day || ""} onChange={set("flight_quota_reset_day")} hint="Day you subscribed (1 – 28) — the meter resets then" />
+          <Field label="Keep API responses (days)" name="flight_log_retention_days" inputMode="numeric" value={v.flight_log_retention_days || ""} onChange={set("flight_log_retention_days")} hint="Older full responses are cleared; the request row stays" />
+          <Field label="Keep request history (days)" name="flight_log_keep_days" inputMode="numeric" value={v.flight_log_keep_days || ""} onChange={set("flight_log_keep_days")} hint="35 – 3650" />
         </div>
       </Section>
 
@@ -285,6 +288,8 @@ function FlightTab({ v, set, toggle }: { v: Record<string, string>; set: (k: str
               {f("flight_lastminute_pct", "Last-minute surge (%)", "Tapers off by 14 days out")}
               {f("flight_peak_pct", "Peak-hour premium (%)", "6–10 am and 5–9 pm")}
               {f("flight_connection_discount_pct", "Connection discount (%)", "Off the base fare for 1-stop trips")}
+              {f("flight_child_discount_pct", "Child (2–11) discount on base fare (%)", "0 = same as adult")}
+              {f("flight_infant_fee", "Infant fee · under 2, on lap (₹)", "Flat per infant, no seat, no airport fee")}
             </div>
           </Section>
           <Section title="Taxes & airport fees" desc="Collected on behalf of the airline / airport, per traveller.">
@@ -319,7 +324,7 @@ function FlightTab({ v, set, toggle }: { v: Record<string, string>; set: (k: str
         </div>
         <Card className="h-fit p-5 xl:sticky xl:top-20">
           <div className="text-[10px] font-bold uppercase tracking-widest text-muted">Live preview</div>
-          <div className="mt-1 text-sm font-bold">DEL → BOM · IndiGo 09:30 · 2 adults{cabin === "economy" ? " · 1 window seat" : ""}</div>
+          <div className="mt-1 text-sm font-bold">DEL → BOM · IndiGo 09:30 · 2 adults + 1 child{cabin === "economy" ? " · 1 window seat" : ""}</div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {(["economy", "business"] as const).map((c) => <Chip key={c} on={cabin === c} onClick={() => setCabin(c)}>{c === "economy" ? "Economy" : "Business"}</Chip>)}
             {[1, 7, 30].map((d) => <Chip key={d} on={days === d} onClick={() => setDays(d)}>{d === 1 ? "Tomorrow" : `${d} days out`}</Chip>)}

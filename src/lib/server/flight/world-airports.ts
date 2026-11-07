@@ -25,6 +25,9 @@ const regionName = (() => {
   }
 })();
 
+/** Airports that closed / were replaced but are still in the open dataset. */
+const CLOSED = new Set(["ULN", "TXL", "SXF", "THF", "ISL", "KAI", "HKX"]);
+
 const tidyName = (n: string) => n.replace(/\s+Airport$/i, "").replace(/\s+/g, " ").trim();
 
 let index: { list: Airport[]; byCode: Map<string, Airport>; country: Map<string, string> } | null = null;
@@ -33,7 +36,7 @@ function load() {
   const byCode = new Map<string, Airport>();
   for (const a of AIRPORTS) byCode.set(a.iata, a);
   for (const [iata, name, city, state, cc, lat, lon, tz] of rows as Row[]) {
-    if (byCode.has(iata)) continue;
+    if (byCode.has(iata) || CLOSED.has(iata)) continue;
     byCode.set(iata, { iata, name: tidyName(name) || iata, city: city || tidyName(name) || iata, state, country: cc || "", lat, lon, tz: tz || "UTC" });
   }
   const country = new Map<string, string>();
@@ -66,7 +69,9 @@ export function searchWorldAirports(q: string, limit = 12): (Airport & { country
     const name = a.name.toLowerCase();
     const cn = country.get(a.country) || "";
     let sc = 99;
-    if (a.iata.toLowerCase() === s) sc = 0;
+    // an exact code wins for SKYO's own airports (DEL, BOM…); for the rest a city name typed by the
+    // traveller ("ula" → Ulaanbaatar) should beat an obscure airport whose code happens to match (ULA)
+    if (a.iata.toLowerCase() === s) sc = CURATED.has(a.iata) ? 0 : 2.3;
     else if (city === s) sc = 1;
     else if (city.startsWith(s)) sc = 2;
     else if (name.startsWith(s)) sc = 3;
@@ -82,4 +87,20 @@ export function searchWorldAirports(q: string, limit = 12): (Airport & { country
     .sort((x, y) => x[1] - y[1] || x[0].city.localeCompare(y[0].city))
     .slice(0, limit)
     .map(([a]) => ({ ...a, countryName: regionName(a.country) }));
+}
+
+/** Airports within `km` of an airport, nearest first. */
+export function nearbyAirports(code: string, km: number) {
+  const a = worldAirport(code);
+  if (!a) return [];
+  const r = (d: number) => (d * Math.PI) / 180;
+  const dist = (b: Airport) => {
+    const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lon - a.lon) / 2) ** 2;
+    return Math.round(2 * 6371 * Math.asin(Math.sqrt(h)));
+  };
+  return load().list
+    .filter((b) => b.iata !== a.iata)
+    .map((b) => ({ ...b, km: dist(b) }))
+    .filter((b) => b.km <= km)
+    .sort((x, y) => x.km - y.km);
 }

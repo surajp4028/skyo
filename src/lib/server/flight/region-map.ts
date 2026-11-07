@@ -15,12 +15,13 @@ export function regionMap(points: { key: string; lat: number; lon: number }[], t
   const lons = points.map((p) => p.lon);
   const latSpan = Math.max(...lats) - Math.min(...lats);
   const lonSpan = Math.max(...lons) - Math.min(...lons);
-  const latPad = Math.max(4, latSpan * 0.45);
-  let lonPad = Math.max(6, lonSpan * 0.4);
+  // generous context around the route: a domestic hop shows most of the country, not just two cities
+  const latPad = Math.max(9, latSpan * 0.9);
+  let lonPad = Math.max(12, lonSpan * 0.8);
   let latMin = Math.max(-70, Math.min(...lats) - latPad);
   let latMax = Math.min(80, Math.max(...lats) + latPad);
   // keep the map wider than tall so short hops still look like a map
-  const wantLon = (latMax - latMin) * 1.7;
+  const wantLon = (latMax - latMin) * 1.8;
   if (lonSpan + lonPad * 2 < wantLon) lonPad = (wantLon - lonSpan) / 2;
   const lonMin = Math.max(-180, Math.min(...lons) - lonPad);
   const lonMax = Math.min(180, Math.max(...lons) + lonPad);
@@ -30,7 +31,7 @@ export function regionMap(points: { key: string; lat: number; lon: number }[], t
   const hit = cache.get(key);
   if (hit) return hit;
 
-  const map = new DottedMap({ height: 64, grid: "diagonal", region: { lat: { min: latMin, max: latMax }, lng: { min: lonMin, max: lonMax } } });
+  const map = new DottedMap({ height: 72, grid: "diagonal", region: { lat: { min: latMin, max: latMax }, lng: { min: lonMin, max: lonMax } } });
   for (const p of points) map.addPin({ lat: p.lat, lng: p.lon, svgOptions: { color: "transparent", radius: 0.01 }, data: p.key });
   const svg = map.getSVG({ radius: 0.3, color: theme === "dark" ? "#ffffff2e" : "#0a0f1f33", shape: "circle", backgroundColor: "transparent" });
   const vb = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);

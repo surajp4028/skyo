@@ -419,7 +419,7 @@ function CopyText({ v }: { v: string }) {
 function FlightBlocks({ d, x }: { d: Detail["details"] & { flight: NonNullable<Detail["details"]["flight"]> }; x: Detail }) {
   const f = d.flight;
   const t = d.ticket as (Detail["details"]["ticket"] & { airlinePnrs?: Record<string, string>; allocations: { name: string; seats?: Record<string, string>; eticket?: string; type?: string }[] }) | undefined;
-  const pax = (d.passengers || []) as { name: string; age: number; gender: string; type?: string; seats?: Record<string, string | null> }[];
+  const pax = (d.passengers || []) as { name: string; age: number; gender: string; type?: string; seats?: Record<string, string | null>; passport?: { number: string; expiry: string; nationality: string } | null }[];
   return (
     <>
       <Block title={`Flight · ${f.cabin} · ${f.stops ? "1 stop" : "non-stop"}`}>
@@ -461,7 +461,7 @@ function FlightBlocks({ d, x }: { d: Detail["details"] & { flight: NonNullable<D
       <Block title={`Travellers (${pax.length})`}>
         <div className="overflow-x-auto rounded-xl border border-line">
           <table className="w-full text-xs">
-            <thead className="bg-surface text-left text-[10px] uppercase tracking-wider text-muted"><tr><th className="px-3 py-2">#</th><th className="px-3 py-2">Name</th><th className="px-3 py-2">Age</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Seats</th><th className="px-3 py-2">E-ticket</th></tr></thead>
+            <thead className="bg-surface text-left text-[10px] uppercase tracking-wider text-muted"><tr><th className="px-3 py-2">#</th><th className="px-3 py-2">Name</th><th className="px-3 py-2">Age</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Seats</th><th className="px-3 py-2">Passport</th><th className="px-3 py-2">E-ticket</th></tr></thead>
             <tbody className="divide-y divide-line">
               {pax.map((p, i) => {
                 const a = t?.allocations?.[i];
@@ -471,8 +471,9 @@ function FlightBlocks({ d, x }: { d: Detail["details"] & { flight: NonNullable<D
                     <td className="px-3 py-2 text-muted">{i + 1}</td>
                     <td className="px-3 py-2 font-bold">{p.name} <span className="font-normal text-muted">({GENDER[p.gender]?.[0] ?? p.gender})</span></td>
                     <td className="px-3 py-2">{p.age}</td>
-                    <td className="px-3 py-2">{p.type === "child" ? "Child" : "Adult"}</td>
+                    <td className="px-3 py-2">{p.type === "child" ? "Child" : p.type === "infant" ? "Infant (lap)" : "Adult"}</td>
                     <td className="px-3 py-2 font-mono font-bold text-[#0057ff]">{seats}</td>
+                    <td className="px-3 py-2 font-mono text-[11px]">{p.passport ? `${x.contact.masked ? `••••${p.passport.number.slice(-3)}` : p.passport.number} · ${p.passport.nationality} · exp ${fmtDate(p.passport.expiry)}` : "—"}</td>
                     <td className="px-3 py-2 font-mono">{a?.eticket || "—"}</td>
                   </tr>
                 );

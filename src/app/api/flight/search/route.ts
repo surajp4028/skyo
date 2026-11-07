@@ -4,7 +4,8 @@ import { ApiError, ok, route } from "@/lib/server/http";
 import { getSessionUser } from "@/lib/server/session";
 import { rateLimit } from "@/lib/server/ratelimit";
 import { getClientIp } from "@/lib/server/request";
-import { getRoute, searchFlights } from "@/lib/server/flight/search";
+import { exploreConnections, getRoute, searchFlights } from "@/lib/server/flight/search";
+import { monthlyCap, requestsThisMonth } from "@/lib/server/flight/aviationstack";
 import { airportCode, cabin, flightDate } from "@/lib/server/flight/validators";
 import { parseQuery } from "@/lib/server/train/validators";
 
@@ -34,5 +35,14 @@ export const GET = route(async (req: NextRequest) => {
     if (!allowFetch && !cached) throw new ApiError(429, "NEW_ROUTE_LIMIT", user ? "You've opened many new routes today. Try a popular route or come back tomorrow." : "Log in to search this route.");
   }
   const r = await searchFlights({ ...q, userId: user?.id ?? null, allowFetch });
+  // No direct flight and nothing in the cache connects these airports → look for connections right away
+  // (stops at the first hub that works, max 3 requests, never touches the last 10 of the month).
+  const justFetched = !!r.meta.fetchedAt && Date.now() - Date.parse(r.meta.fetchedAt) < 120_000; // first search of this route
+  if (allowFetch && justFetched && r.meta.connections && !r.meta.directCount && !r.meta.totalBeforeLimit) {
+    const rl2 = await rateLimit(`flight:autoexplore:${who}`, user ? 5 : 2, 86400);
+    const left = (await monthlyCap()) - (await requestsThisMonth());
+    const budget = rl2.ok ? Math.max(0, Math.min(3, left - 10)) : 0;
+    if (budget > 0) return ok({ ...(await exploreConnections({ ...q, userId: user?.id ?? null, budget })), query: q });
+  }
   return ok({ ...r, query: q });
 });

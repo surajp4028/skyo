@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Minus, Plus, RotateCcw } from "lucide-react";
 import { motion } from "motion/react";
 import { api } from "@/lib/client/api";
 import { cn } from "@/lib/utils";
@@ -55,7 +56,7 @@ export function DottedRouteMap({ codes, live, progress, theme = "light", classNa
   const planePath = "M-3,-0.8 L2.6,0 L-3,0.8 L-1.8,0 Z M-0.9,-2.6 L0.5,0 L-0.9,2.6 Z";
 
   return (
-    <div className={cn("relative w-full overflow-hidden rounded-2xl", className)} style={{ aspectRatio: `${w} / ${h}` }}>
+    <ZoomPan className={cn("relative w-full overflow-hidden rounded-2xl", className)} style={{ aspectRatio: `${w} / ${h}` }} dark={dark}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={d.map.src} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none [mask-image:radial-gradient(ellipse_75%_70%_at_50%_50%,black_55%,transparent_100%)]" />
       <svg viewBox={`0 0 ${w} ${h}`} className="absolute inset-0 h-full w-full" role="img" aria-label={`Route ${codes.join(" to ")}`}>
@@ -103,6 +104,110 @@ export function DottedRouteMap({ codes, live, progress, theme = "light", classNa
           );
         })}
       </svg>
+    </ZoomPan>
+  );
+}
+
+/**
+ * Zoom & drag for the map: + / − buttons and a reset button (bottom-right), drag to pan when zoomed,
+ * pinch / ctrl + scroll to zoom. At 1× the page scrolls normally over the map.
+ */
+function ZoomPan({ children, className, style, dark }: { children: React.ReactNode; className?: string; style?: React.CSSProperties; dark?: boolean }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [t, setT] = useState({ k: 1, x: 0, y: 0 });
+  const drag = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
+  const pts = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ d: number; k: number } | null>(null);
+  const MAX = 4;
+
+  /** keep the zoomed content covering the box (no empty edges) */
+  const clamp = (k: number, x: number, y: number) => {
+    const el = box.current;
+    const w = el?.clientWidth ?? 0;
+    const h = el?.clientHeight ?? 0;
+    return { k, x: Math.min(0, Math.max(w - w * k, x)), y: Math.min(0, Math.max(h - h * k, y)) };
+  };
+  /** zoom to `k` keeping the point (cx, cy) — box coordinates — still */
+  const zoomAt = (k: number, cx?: number, cy?: number) =>
+    setT((p) => {
+      const el = box.current;
+      const nk = Math.min(MAX, Math.max(1, k));
+      const px = cx ?? (el?.clientWidth ?? 0) / 2;
+      const py = cy ?? (el?.clientHeight ?? 0) / 2;
+      return clamp(nk, px - ((px - p.x) / p.k) * nk, py - ((py - p.y) / p.k) * nk);
+    });
+
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    // pinch on a trackpad arrives as ctrl + wheel; plain wheel keeps scrolling the page
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      setT((p) => {
+        const nk = Math.min(MAX, Math.max(1, p.k * Math.exp(-e.deltaY * 0.01)));
+        const px = e.clientX - r.left;
+        const py = e.clientY - r.top;
+        return clamp(nk, px - ((px - p.x) / p.k) * nk, py - ((py - p.y) / p.k) * nk);
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  const btn = cn("flex h-7 w-7 items-center justify-center rounded-lg backdrop-blur transition disabled:opacity-40", dark ? "bg-white/10 text-white hover:bg-white/20" : "bg-white/90 text-ink shadow-soft hover:bg-white");
+  return (
+    <div
+      ref={box}
+      className={cn(className, t.k > 1 ? "cursor-grab touch-none active:cursor-grabbing" : "touch-pan-y")}
+      style={style}
+      onPointerDown={(e) => {
+        if ((e.target as HTMLElement).closest("button")) return;
+        pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pts.current.size === 2) {
+          const [a, b] = [...pts.current.values()];
+          pinch.current = { d: Math.hypot(a.x - b.x, a.y - b.y), k: t.k };
+          drag.current = null;
+        } else if (t.k > 1) {
+          drag.current = { x: e.clientX, y: e.clientY, tx: t.x, ty: t.y };
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        }
+      }}
+      onPointerMove={(e) => {
+        if (pts.current.has(e.pointerId)) pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pinch.current && pts.current.size === 2) {
+          const [a, b] = [...pts.current.values()];
+          const r = box.current!.getBoundingClientRect();
+          zoomAt(pinch.current.k * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.current.d), (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+          return;
+        }
+        const d = drag.current;
+        if (d) setT((p) => clamp(p.k, d.tx + e.clientX - d.x, d.ty + e.clientY - d.y));
+      }}
+      onPointerUp={(e) => {
+        pts.current.delete(e.pointerId);
+        if (pts.current.size < 2) pinch.current = null;
+        drag.current = null;
+      }}
+      onPointerCancel={(e) => {
+        pts.current.delete(e.pointerId);
+        pinch.current = null;
+        drag.current = null;
+      }}
+      onDoubleClick={(e) => {
+        const r = box.current!.getBoundingClientRect();
+        zoomAt(t.k * 1.6, e.clientX - r.left, e.clientY - r.top);
+      }}
+    >
+      <div className="absolute inset-0 origin-top-left transition-transform duration-75 ease-out" style={{ transform: `translate(${t.x}px, ${t.y}px) scale(${t.k})` }}>
+        {children}
+      </div>
+      <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1">
+        <button type="button" aria-label="Zoom out" onClick={() => zoomAt(t.k / 1.5)} disabled={t.k <= 1} className={btn}><Minus className="h-3.5 w-3.5" /></button>
+        <button type="button" aria-label="Zoom in" onClick={() => zoomAt(t.k * 1.5)} disabled={t.k >= MAX} className={btn}><Plus className="h-3.5 w-3.5" /></button>
+        <button type="button" aria-label="Reset map" title="Reset" onClick={() => setT({ k: 1, x: 0, y: 0 })} disabled={t.k === 1 && !t.x && !t.y} className={btn}><RotateCcw className="h-3.5 w-3.5" /></button>
+      </div>
     </div>
   );
 }

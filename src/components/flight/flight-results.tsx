@@ -2,19 +2,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { AlertTriangle, ArrowRight, CloudSun, Database, Filter, Moon, Plane, SearchX, SlidersHorizontal, Sun, Sunrise, X } from "lucide-react";
-import { api, errMsg } from "@/lib/client/api";
-import { FlightSearchBar, type FlightQuery } from "./flight-search-bar";
+import { AlertTriangle, ArrowRight, CloudSun, Database, Filter, Loader2, MapPin, Moon, Pencil, Plane, Route, SearchX, SlidersHorizontal, Sun, Sunrise, X } from "lucide-react";
+import { api, ClientApiError, errMsg } from "@/lib/client/api";
+import { FlightSearchBar, paxText, type FlightQuery } from "./flight-search-bar";
 import { FlightCard } from "./flight-card";
 import { FlightSheet } from "./flight-sheet";
 import { AirlineLogo } from "./airline-logo";
+import { DottedRouteMap } from "./dotted-route-map";
 import { airlineInfo, type CabinKey } from "@/lib/flight/airlines";
-import { addDays, slotOfTime, todayIST, type FlightOption } from "@/lib/flight/model";
+import { addDays, fmtDur, slotOfTime, todayIST, type FlightOption } from "@/lib/flight/model";
 import { fmtINR, prettyDate } from "@/lib/train/format";
 import { saveRecentFlightSearch } from "@/lib/client/recent-flight";
 import { cn, timeAgo } from "@/lib/utils";
 
-type Result = { options: FlightOption[]; meta: { source: string; fetchedAt: string | null; sourceDate: string | null; stale: boolean; devSingle: boolean; totalBeforeLimit: number; connections: boolean; routeFound: boolean } };
+type Result = { options: FlightOption[]; meta: { source: string; fetchedAt: string | null; sourceDate: string | null; stale: boolean; devSingle: boolean; totalBeforeLimit: number; connections: boolean; routeFound: boolean; directCount: number; suggestHubs: { iata: string; city: string }[]; gateway: { iata: string; city: string; km: number } | null }; explored?: { spent: number; checked: string[]; error?: string | null } };
 
 const SLOTS = [
   { key: "early", label: "Before 6 AM", icon: Sunrise },
@@ -39,9 +40,25 @@ export function FlightResults({ q }: { q: FlightQuery }) {
   const [sort, setSort] = useState<(typeof SORTS)[number]["key"]>("price");
   const [sheet, setSheet] = useState<{ o: FlightOption; cabin: CabinKey } | null>(null);
   const [mobileFilters, setMobileFilters] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const today = todayIST();
+  const [exploring, setExploring] = useState(false);
+  const [exploreErr, setExploreErr] = useState<{ msg: string; login: boolean } | null>(null);
+  const explore = async () => {
+    setExploring(true);
+    setExploreErr(null);
+    try {
+      const r = await api<Result>("/api/flight/explore", { body: { from: q.from, to: q.to, date: q.date, cabin: q.cabin } });
+      setState({ key, data: r });
+    } catch (e) {
+      setExploreErr({ msg: errMsg(e), login: e instanceof ClientApiError && e.status === 401 });
+    } finally {
+      setExploring(false);
+    }
+  };
+  const searchTo = (to: string) => router.push(`/flights?${new URLSearchParams({ from: q.from, to, date: q.date, cabin: q.cabin, adults: String(q.adults), children: String(q.children), infants: String(q.infants) })}`);
 
-  useEffect(() => saveRecentFlightSearch({ fromLabel: q.fromLabel, toLabel: q.toLabel, date: q.date, cabin: q.cabin, adults: q.adults }), [q.fromLabel, q.toLabel, q.date, q.cabin, q.adults]);
+  useEffect(() => saveRecentFlightSearch({ fromLabel: q.fromLabel, toLabel: q.toLabel, date: q.date, cabin: q.cabin, adults: q.adults, children: q.children, infants: q.infants }), [q.fromLabel, q.toLabel, q.date, q.cabin, q.adults, q.children, q.infants]);
   useEffect(() => {
     let alive = true;
     api<Result>(`/api/flight/search?${new URLSearchParams({ from: q.from, to: q.to, date: q.date, cabin: q.cabin })}`)
@@ -63,7 +80,7 @@ export function FlightResults({ q }: { q: FlightQuery }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [all]);
   const list = useMemo(() => {
-    const l = all.filter((o) => (!stops.length || stops.includes(Math.min(o.stops, 1))) && (!airlines.length || o.legs.some((x) => airlines.includes(x.airline.iata))) && (!slots.length || slots.includes(slotOfTime(o.dep))));
+    const l = all.filter((o) => (!stops.length || stops.includes(Math.min(o.stops, 2))) && (!airlines.length || o.legs.some((x) => airlines.includes(x.airline.iata))) && (!slots.length || slots.includes(slotOfTime(o.dep))));
     const t = (s: string) => Number(s.replace(":", ""));
     const has = (o: FlightOption) => (o.fares[q.cabin] ? 0 : 1);
     return l.sort((a, b) =>
@@ -73,15 +90,28 @@ export function FlightResults({ q }: { q: FlightQuery }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [all, stops, airlines, slots, sort]);
   const cheapest = list.length ? Math.min(...list.map(price)) : null;
-  const go = (date: string) => router.push(`/flights?${new URLSearchParams({ from: q.from, to: q.to, date, cabin: q.cabin, adults: String(q.adults) })}`);
+  const go = (date: string) => router.push(`/flights?${new URLSearchParams({ from: q.from, to: q.to, date, cabin: q.cabin, adults: String(q.adults), children: String(q.children), infants: String(q.infants) })}`);
   const toggle = <T,>(arr: T[], set: (v: T[]) => void, v: T) => set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const anyFilter = stops.length || airlines.length || slots.length;
+  const direct = all.find((o) => o.stops === 0);
+  const routeCard = (
+    <div className="overflow-hidden rounded-3xl border border-line bg-white shadow-soft">
+      <div className="bg-[radial-gradient(120%_90%_at_100%_0%,#e0f2fe_0%,#ffffff_65%)] p-3">
+        <DottedRouteMap codes={[q.from, q.to]} />
+      </div>
+      <div className="grid grid-cols-3 divide-x divide-line border-t border-line text-center">
+        <div className="px-2 py-2.5"><div className="text-[10px] font-bold uppercase tracking-wider text-muted">Distance</div><div className="text-sm font-extrabold">{direct ? `${direct.legs[0].distanceKm.toLocaleString("en-IN")} km` : all[0] ? `${all[0].legs.reduce((x, l) => x + l.distanceKm, 0).toLocaleString("en-IN")} km` : "—"}</div></div>
+        <div className="px-2 py-2.5"><div className="text-[10px] font-bold uppercase tracking-wider text-muted">Fastest</div><div className="text-sm font-extrabold">{all.length ? fmtDur(Math.min(...all.map((o) => o.durationMin))) : "—"}</div></div>
+        <div className="px-2 py-2.5"><div className="text-[10px] font-bold uppercase tracking-wider text-muted">From</div><div className="text-sm font-extrabold text-[#0057ff]">{all.length ? fmtINR(Math.min(...all.map(price)) / 100) : "—"}</div></div>
+      </div>
+    </div>
+  );
 
   const filters = (
     <div className="space-y-6">
       <Group title="Stops">
-        <div className="grid grid-cols-2 gap-2">
-          {[[0, "Non-stop"], [1, "1 stop"]].map(([v, l]) => (
+        <div className="grid grid-cols-3 gap-2">
+          {[[0, "Non-stop"], [1, "1 stop"], [2, "2 stops"]].map(([v, l]) => (
             <button key={v} onClick={() => toggle(stops, setStops, v as number)} className={cn("rounded-xl border px-3 py-2 text-xs font-bold transition", stops.includes(v as number) ? "border-[#0057ff] bg-sky-50 text-[#0057ff]" : "border-line text-ink/60 hover:border-ink/30")}>{l}</button>
           ))}
         </div>
@@ -114,7 +144,7 @@ export function FlightResults({ q }: { q: FlightQuery }) {
 
   return (
     <div>
-      <section className="relative -mt-20 overflow-hidden pb-10 pt-28">
+      <section className="relative z-20 -mt-20 overflow-x-clip pb-6 pt-24 md:pb-10 md:pt-28">
         <div className="absolute inset-0 bg-[linear-gradient(180deg,#0a3dcc_0%,#1f6dff_45%,#8ccaff_100%)]" />
         <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.7),transparent_65%)]" />
         <motion.div className="pointer-events-none absolute right-[8%] top-24 hidden text-white/25 md:block" initial={{ x: -40, y: 20, opacity: 0 }} animate={{ x: 0, y: 0, opacity: 1 }} transition={{ duration: 1.4 }}>
@@ -122,10 +152,21 @@ export function FlightResults({ q }: { q: FlightQuery }) {
         </motion.div>
         <div className="relative mx-auto max-w-7xl px-4 sm:px-5">
           <div className="mb-4 flex flex-wrap items-center gap-3 text-white">
-            <h1 className="flex items-center gap-2 text-2xl font-extrabold md:text-3xl">{q.fromLabel.replace(/\s*\(.*\)$/, "")} <ArrowRight className="h-6 w-6" /> {q.toLabel.replace(/\s*\(.*\)$/, "")}</h1>
-            <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold backdrop-blur">{prettyDate(q.date, { weekday: "long", day: "numeric", month: "long" })} · {q.adults} traveller{q.adults > 1 ? "s" : ""} · {q.cabin === "business" ? "Business" : "Economy"}</span>
+            <h1 className="flex items-center gap-2 text-xl font-extrabold sm:text-2xl md:text-3xl">{q.fromLabel.replace(/\s*\(.*\)$/, "")} <ArrowRight className="h-6 w-6" /> {q.toLabel.replace(/\s*\(.*\)$/, "")}</h1>
+            <span className="hidden rounded-full bg-white/20 px-3 py-1 text-xs font-bold backdrop-blur md:inline-flex">{prettyDate(q.date, { weekday: "long", day: "numeric", month: "long" })} · {paxText(q.adults, q.children, q.infants)} · {q.cabin === "business" ? "Business" : "Economy"}</span>
           </div>
-          <div className="rounded-[28px] border border-white/70 bg-white/95 p-3 shadow-[0_30px_80px_-30px_rgba(10,15,31,0.5)] backdrop-blur-xl md:p-4">
+          {/* phones: a compact summary; tap Edit to open the full search */}
+          {!editOpen && (
+            <button onClick={() => setEditOpen(true)} className="relative z-30 flex w-full items-center gap-3 rounded-2xl border border-white/70 bg-white/95 px-4 py-3 text-left shadow-[0_20px_50px_-24px_rgba(10,15,31,0.5)] md:hidden">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-extrabold">{q.from} → {q.to} · {prettyDate(q.date, { day: "numeric", month: "short" })}</span>
+                <span className="block truncate text-[11px] font-semibold text-muted">{paxText(q.adults, q.children, q.infants)} · {q.cabin === "business" ? "Business" : "Economy"}</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-1 rounded-xl bg-[#0057ff] px-3 py-2 text-xs font-extrabold text-white"><Pencil className="h-3.5 w-3.5" /> Edit</span>
+            </button>
+          )}
+          <div className={cn("relative z-30 rounded-[28px] border border-white/70 bg-white/95 p-3 shadow-[0_30px_80px_-30px_rgba(10,15,31,0.5)] backdrop-blur-xl md:block md:p-4", !editOpen && "hidden")}>
+            {editOpen && <button onClick={() => setEditOpen(false)} className="mb-2 ml-auto flex items-center gap-1 text-xs font-bold text-muted md:hidden"><X className="h-3.5 w-3.5" /> Close</button>}
             <FlightSearchBar initial={q} compact />
           </div>
           <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto">
@@ -146,12 +187,15 @@ export function FlightResults({ q }: { q: FlightQuery }) {
 
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-5 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="hidden lg:block">
+          <div className="space-y-4">
+          {routeCard}
           <div className="sticky top-24 rounded-3xl border border-line bg-white p-5 shadow-soft">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="flex items-center gap-2 font-extrabold"><Filter className="h-4 w-4" /> Filters</h2>
               {anyFilter ? <button onClick={() => (setStops([]), setAirlines([]), setSlots([]))} className="text-xs font-bold text-[#0057ff]">Clear</button> : null}
             </div>
             {filters}
+          </div>
           </div>
         </aside>
 
@@ -171,7 +215,7 @@ export function FlightResults({ q }: { q: FlightQuery }) {
 
           {!loading && meta && (
             <div className="mb-4 space-y-2">
-              {meta.devSingle && <p className="inline-flex rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700">Dev mode: showing 1 of {meta.totalBeforeLimit} flights · turn off in Admin → Settings → Flights</p>}
+              {meta.devSingle && meta.totalBeforeLimit > 1 && <p className="inline-flex rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700">Test mode · showing 1 of {meta.totalBeforeLimit} flights</p>}
               <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted"><Database className="h-3.5 w-3.5" /> Schedule from aviationstack{meta.fetchedAt ? ` · updated ${timeAgo(meta.fetchedAt)}` : ""}{meta.stale ? " · refresh pending" : ""}. Fares are SKYO prices, confirmed on the next step.</p>
             </div>
           )}
@@ -180,13 +224,51 @@ export function FlightResults({ q }: { q: FlightQuery }) {
             <div className="space-y-4">{[0, 1, 2].map((i) => <div key={i} className="h-44 animate-shimmer rounded-[26px] bg-[linear-gradient(90deg,#eef0f6_0%,#f8f9fc_40%,#eef0f6_80%)] bg-[length:200%_100%]" />)}</div>
           ) : state?.error ? (
             <Empty icon={<AlertTriangle className="h-7 w-7" />} title="We couldn't load flights" text={state.error} />
+          ) : list.length === 0 && all.length ? (
+            <Empty icon={<SearchX className="h-7 w-7" />} title="No flights match your filters" text="Try removing a filter." action={<button onClick={() => (setStops([]), setAirlines([]), setSlots([]))} className="mt-4 rounded-xl bg-ink px-4 py-2 text-sm font-bold text-white">Clear filters</button>} />
+          ) : list.length === 0 && meta?.directCount ? (
+            <Empty icon={<SearchX className="h-7 w-7" />} title="All of today's flights have left" text="Try tomorrow — this route has flights every day." />
           ) : list.length === 0 ? (
-            <Empty icon={<SearchX className="h-7 w-7" />} title={all.length ? "No flights match your filters" : "No flights on this route"} text={all.length ? "Try removing a filter." : meta?.routeFound ? "Every flight on this date has already left — try tomorrow." : "We couldn't find scheduled flights between these airports. Try a nearby city."} action={anyFilter ? <button onClick={() => (setStops([]), setAirlines([]), setSlots([]))} className="mt-4 rounded-xl bg-ink px-4 py-2 text-sm font-bold text-white">Clear filters</button> : undefined} />
+            <div className="rounded-[26px] border border-dashed border-line bg-white px-6 py-12 text-center">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-50 text-[#0057ff]"><Route className="h-7 w-7" /></span>
+              <h3 className="mt-4 text-lg font-extrabold">No direct flights to {q.toLabel.replace(/\s*\(.*\)$/, "")}</h3>
+              <p className="mx-auto mt-1 max-w-lg text-sm text-muted">
+                No airline flies {q.from} → {q.to} non-stop. Let us look for connecting flights{meta?.gateway ? ` via ${meta.gateway.city}` : ""} — or pick an alternative below.
+              </p>
+              {state?.data?.explored && <p className="mx-auto mt-2 max-w-md rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">We checked {state.data.explored.checked.length ? state.data.explored.checked.map((c) => c.replace("-", "→")).join(", ") : "every route we know"} and found no connection on schedule today.{state.data.explored.error ? ` (${state.data.explored.error})` : ""} Airlines on small routes often fly only a few days a week — try another date or the alternatives below.</p>}
+              {!state?.data?.explored && (
+                <button onClick={explore} disabled={exploring} className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] px-6 py-3 text-sm font-extrabold text-white shadow-[0_14px_30px_-12px_rgba(0,87,255,0.85)] transition hover:-translate-y-0.5 disabled:opacity-60">
+                  {exploring ? <Loader2 className="h-4 w-4 animate-spin" /> : <Route className="h-4 w-4" />} {exploring ? "Finding connections…" : "Find connecting flights"}
+                </button>
+              )}
+              {exploreErr && (
+                <p className="mt-3 text-xs font-semibold text-red-600">
+                  {exploreErr.msg} {exploreErr.login && <a href={`/login?next=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname + window.location.search : "/flights")}`} className="underline">Log in</a>}
+                </p>
+              )}
+              <div className="mx-auto mt-6 max-w-xl text-left">
+                {meta?.gateway && (
+                  <button onClick={() => searchTo(meta.gateway!.iata)} className="mb-2 flex w-full items-center gap-3 rounded-2xl border border-line p-3 text-left transition hover:border-[#0057ff]">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600"><MapPin className="h-5 w-5" /></span>
+                    <span className="min-w-0 flex-1"><span className="block text-sm font-extrabold">Fly to {meta.gateway.city} ({meta.gateway.iata}) instead</span><span className="block text-xs text-muted">Nearest major airport · {meta.gateway.km.toLocaleString("en-IN")} km from {q.toLabel.replace(/\s*\(.*\)$/, "")}</span></span>
+                    <ArrowRight className="h-4 w-4 text-[#0057ff]" />
+                  </button>
+                )}
+                {(meta?.suggestHubs || []).map((h) => (
+                  <button key={h.iata} onClick={() => searchTo(h.iata)} className="mb-2 flex w-full items-center gap-3 rounded-2xl border border-line p-3 text-left transition hover:border-[#0057ff]">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-[#0057ff]"><Plane className="h-5 w-5" /></span>
+                    <span className="min-w-0 flex-1"><span className="block text-sm font-extrabold">{q.from} → {h.city} ({h.iata})</span><span className="block text-xs text-muted">First leg via a hub — book the onward flight separately</span></span>
+                    <ArrowRight className="h-4 w-4 text-[#0057ff]" />
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : (
             <div className="space-y-4">
-              {list.map((o, i) => <FlightCard key={o.id} o={o} cabin={q.cabin} adults={q.adults} index={i} onSelect={(c) => setSheet({ o, cabin: c })} />)}
+              {list.map((o, i) => <FlightCard key={o.id} o={o} cabin={q.cabin} mix={{ adults: q.adults, children: q.children, infants: q.infants }} index={i} onSelect={(c) => setSheet({ o, cabin: c })} />)}
             </div>
           )}
+          {!loading && <div className="mt-6 lg:hidden">{routeCard}</div>}
         </div>
       </div>
 

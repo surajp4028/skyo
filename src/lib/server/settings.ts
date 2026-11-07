@@ -77,6 +77,11 @@ export const SETTING_DEFS = {
   flight_insurance_fee: { label: "Insurance premium per traveller (₹)", default: "99", max: 7, public: true },
   flight_pg_fee_pct: { label: "Payment gateway fee %", default: "2", max: 6, public: true },
   flight_pg_gst_pct: { label: "GST % on gateway fee", default: "18", max: 5, public: true },
+  flight_log_retention_days: { label: "Keep aviationstack responses (days)", default: "30", max: 4, public: false },
+  flight_log_keep_days: { label: "Keep aviationstack request history (days)", default: "365", max: 4, public: false },
+  flight_quota_reset_day: { label: "aviationstack plan renews on day of month", default: "1", max: 2, public: false },
+  flight_child_discount_pct: { label: "Child (2–11) discount on base fare %", default: "10", max: 5, public: true },
+  flight_infant_fee: { label: "Infant (under 2, on lap) fee (₹)", default: "1500", max: 7, public: true },
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFS;
@@ -158,6 +163,8 @@ export async function getPublicSettings() {
     flight_insurance_fee: string;
     flight_pg_fee_pct: string;
     flight_pg_gst_pct: string;
+    flight_child_discount_pct: string;
+    flight_infant_fee: string;
   };
 }
 

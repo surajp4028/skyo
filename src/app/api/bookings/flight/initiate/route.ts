@@ -37,6 +37,16 @@ export const POST = route(async (req: NextRequest) => {
       useGst: z.boolean().default(false),
       notifyEmail: z.union([z.literal(""), z.null(), z.string().trim().toLowerCase().email().max(120)]).optional(),
       couponCode: z.string().trim().max(32).regex(/^[A-Za-z0-9_-]*$/).optional().nullable(),
+      passports: z
+        .record(
+          z.string().regex(/^\d{1,10}$/),
+          z.object({
+            number: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6,9}$/, "Passport number: 6–9 letters / digits"),
+            expiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Passport expiry: YYYY-MM-DD"),
+            nationality: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "Nationality: 2-letter code"),
+          }),
+        )
+        .optional(),
     }),
   );
   const billing = body.billing ? { state: body.billing.state, pincode: body.billing.pincode || null, address: body.billing.address || null } : null;

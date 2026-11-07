@@ -5,13 +5,17 @@ import { Armchair, BadgeCheck, Briefcase, ChevronDown, Clock, Luggage, Plane, Ra
 import { AirlineLogo } from "./airline-logo";
 import { TerminalChip } from "./terminal-chip";
 import { airlineInfo, CABIN_LABEL, type CabinKey } from "@/lib/flight/airlines";
-import { fmtDur, type FlightLeg, type FlightOption } from "@/lib/flight/model";
+import { fmtDur, groupAirfarePaise, type FlightLeg, type FlightOption, type PaxMix } from "@/lib/flight/model";
+import { useSite } from "@/lib/client/providers";
+import { paxText } from "./flight-search-bar";
 import { fmtINR } from "@/lib/train/format";
 import { cn } from "@/lib/utils";
 
 const STATUS: Record<string, string> = { scheduled: "On schedule", active: "In the air", landed: "Landed", cancelled: "Cancelled", diverted: "Diverted", incident: "Incident" };
 
-export function FlightCard({ o, cabin, adults, onSelect, index = 0 }: { o: FlightOption; cabin: CabinKey; adults: number; onSelect: (cabin: CabinKey) => void; index?: number }) {
+export function FlightCard({ o, cabin, mix, onSelect, index = 0 }: { o: FlightOption; cabin: CabinKey; mix: PaxMix; onSelect: (cabin: CabinKey) => void; index?: number }) {
+  const site = useSite();
+  const group = mix.adults + mix.children + mix.infants;
   const [open, setOpen] = useState(false);
   const fare = o.fares[cabin] ?? o.fares.economy!;
   const shownCabin: CabinKey = o.fares[cabin] ? cabin : "economy";
@@ -56,7 +60,8 @@ export function FlightCard({ o, cabin, adults, onSelect, index = 0 }: { o: Fligh
                   <Plane className="h-5 w-5 rotate-0 fill-[#0057ff]" />
                 </motion.span>
               </div>
-              <span className={cn("mt-1.5 text-[11px] font-bold", o.stops ? "text-amber-600" : "text-emerald-600")}>{o.stops ? `1 stop · ${o.legs[0].to.iata} · ${fmtDur(o.layovers[0])}` : "Non-stop"}</span>
+              <span className={cn("mt-1.5 whitespace-nowrap text-[11px] font-bold", o.stops ? "text-amber-600" : "text-emerald-600")}>{o.stops ? `${o.stops} stop${o.stops > 1 ? "s" : ""} · ${o.legs.slice(0, -1).map((l) => l.to.iata).join(", ")}` : "Non-stop"}</span>
+              {o.stops > 0 && <span className="whitespace-nowrap text-[10px] font-semibold text-muted">{o.layovers.map((x) => fmtDur(x)).join(" + ")} layover</span>}
             </div>
             <div className="text-right">
               <div className="text-2xl font-black tabular-nums tracking-tight sm:text-[28px]">{o.arr}{o.dayOffset ? <sup className="ml-0.5 text-[11px] font-bold text-orange-500">+{o.dayOffset}</sup> : null}</div>
@@ -69,7 +74,7 @@ export function FlightCard({ o, cabin, adults, onSelect, index = 0 }: { o: Fligh
           <div className="md:text-right">
             <div className="text-[11px] font-semibold text-muted">{CABIN_LABEL[shownCabin]} · per adult</div>
             <div className="text-[26px] font-black leading-none tracking-tight">{fmtINR(fare.perAdultPaise / 100)}</div>
-            {adults > 1 && <div className="text-[11px] font-semibold text-muted">{fmtINR((fare.perAdultPaise * adults) / 100)} for {adults}</div>}
+            {group > 1 && <div className="text-[11px] font-semibold text-muted">{fmtINR(groupAirfarePaise(site, fare, mix, shownCabin) / 100)} · {paxText(mix.adults, mix.children, mix.infants)}</div>}
             {few && <div className="mt-0.5 text-[11px] font-bold text-orange-600">Only {fare.seatsLeft} seats left</div>}
           </div>
           <button onClick={() => onSelect(shownCabin)} className="group/b relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] px-6 py-3 text-sm font-extrabold text-white shadow-[0_12px_28px_-12px_rgba(0,87,255,0.85)] transition hover:-translate-y-0.5 active:scale-[0.98]">

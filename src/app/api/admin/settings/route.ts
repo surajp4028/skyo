@@ -97,6 +97,11 @@ const schema = z.object({
   flight_insurance_fee: rupees.optional(),
   flight_pg_fee_pct: pct.optional(),
   flight_pg_gst_pct: pct.optional(),
+  flight_child_discount_pct: pct.optional(),
+  flight_log_retention_days: z.string().regex(/^\d{1,4}$/).refine((v) => +v >= 1 && +v <= 3650, "1 – 3650 days").optional(),
+  flight_log_keep_days: z.string().regex(/^\d{1,4}$/).refine((v) => +v >= 35 && +v <= 3650, "35 – 3650 days").optional(),
+  flight_quota_reset_day: z.string().regex(/^\d{1,2}$/).refine((v) => +v >= 1 && +v <= 28, "1 – 28").optional(),
+  flight_infant_fee: rupees.optional(),
 });
 
 export const PUT = route(async (req: NextRequest) => {

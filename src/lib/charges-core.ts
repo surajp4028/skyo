@@ -39,7 +39,7 @@ export function finishCharges(lines: ChargeLine[], count: number, coupon: Coupon
     if (c.minOrder && before < Math.round(c.minOrder * 100)) {
       couponError = `${c.code} needs a minimum booking of ₹${+c.minOrder}.`;
     } else {
-      const target = c.type === "zero_service" ? sum("agent_fee", "agent_gst") : c.applyOn === "base_fare" ? sum("fare") : c.applyOn === "service_fee" ? sum("agent_fee", "agent_gst") : before;
+      const target = c.type === "zero_service" ? sum("agent_fee", "agent_gst") : c.applyOn === "base_fare" ? sum("fare", "child_fare", "infant_fee") : c.applyOn === "service_fee" ? sum("agent_fee", "agent_gst") : before;
       let d = c.type === "zero_service" ? target : c.type === "percent" ? Math.round((target * Math.min(100, Math.max(0, c.value))) / 100) : Math.round(c.value * 100);
       if (c.type === "percent" && c.maxDiscount) d = Math.min(d, Math.round(c.maxDiscount * 100));
       d = Math.max(0, Math.min(d, target, before - 100)); // never below ₹1 payable

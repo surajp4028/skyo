@@ -196,7 +196,7 @@ export async function flightTicketPdf(t: { ref: string; uid: string; details: Fl
     text(c, String(i + 1), cols[0], y, 10);
     text(c, `${a.name} (${GENDER[a.gender]?.[0] ?? a.gender})`, cols[1], y, 10, "bold");
     text(c, String(a.age), cols[2], y, 10);
-    text(c, a.type === "child" ? "Child" : "Adult", cols[3], y, 10);
+    text(c, a.type === "child" ? "Child" : a.type === "infant" ? "Infant" : "Adult", cols[3], y, 10);
     text(c, Object.values(a.seats).join(" / "), cols[4], y, 10, "bold", C.green);
     text(c, a.eticket, cols[5], y, 9.5);
     y -= 20;

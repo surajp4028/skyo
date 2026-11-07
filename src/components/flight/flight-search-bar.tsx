@@ -11,7 +11,10 @@ import { readRecentFlightSearch, saveRecentFlightSearch } from "@/lib/client/rec
 import { useSite } from "@/lib/client/providers";
 import { cn } from "@/lib/utils";
 
-export type FlightQuery = { from: string; to: string; fromLabel: string; toLabel: string; date: string; cabin: "economy" | "business"; adults: number };
+export type FlightQuery = { from: string; to: string; fromLabel: string; toLabel: string; date: string; cabin: "economy" | "business"; adults: number; children: number; infants: number };
+
+export const paxText = (a: number, c: number, i: number) =>
+  [`${a} adult${a > 1 ? "s" : ""}`, c ? `${c} child${c > 1 ? "ren" : ""}` : "", i ? `${i} infant${i > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
 
 const addDays = (n: number) => {
   const d = new Date();
@@ -29,6 +32,9 @@ export function FlightSearchBar({ initial, compact }: { initial?: FlightQuery; c
   const [date, setDate] = useState(initial?.date ?? addDays(3));
   const [cabin, setCabin] = useState<FlightQuery["cabin"]>(initial?.cabin ?? "economy");
   const [adults, setAdults] = useState(initial?.adults ?? 1);
+  const [children, setChildren] = useState(initial?.children ?? 0);
+  const [infants, setInfants] = useState(initial?.infants ?? 0);
+  const total = adults + children + infants;
   const [paxOpen, setPaxOpen] = useState(false);
   const [recent, setRecent] = useState(false);
   const paxBox = useRef<HTMLDivElement>(null);
@@ -43,6 +49,8 @@ export function FlightSearchBar({ initial, compact }: { initial?: FlightQuery; c
     setDate(r.date >= addDays(0) ? r.date : addDays(1));
     setCabin(r.cabin);
     setAdults(Math.min(maxPax, Math.max(1, r.adults || 1)));
+    setChildren(Math.max(0, Math.min(8, r.children || 0)));
+    setInfants(Math.max(0, Math.min(r.adults || 1, r.infants || 0)));
     setRecent(true);
     /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -59,8 +67,8 @@ export function FlightSearchBar({ initial, compact }: { initial?: FlightQuery; c
     const t = parseAirportInput(to);
     if (!f || !t) return toast.error("Pick both airports from the suggestions");
     if (f === t) return toast.error("From and To can't be the same");
-    saveRecentFlightSearch({ fromLabel: from, toLabel: to, date, cabin, adults });
-    router.push(`/flights?${new URLSearchParams({ from: f, to: t, date, cabin, adults: String(adults) })}`);
+    saveRecentFlightSearch({ fromLabel: from, toLabel: to, date, cabin, adults, children, infants });
+    router.push(`/flights?${new URLSearchParams({ from: f, to: t, date, cabin, adults: String(adults), ...(children ? { children: String(children) } : {}), ...(infants ? { infants: String(infants) } : {}) })}`);
   };
 
   return (
@@ -75,17 +83,14 @@ export function FlightSearchBar({ initial, compact }: { initial?: FlightQuery; c
         <div ref={paxBox} className="relative md:max-w-[210px] md:flex-1">
           <button type="button" onClick={() => setPaxOpen((o) => !o)} className="flex h-full min-h-[74px] w-full flex-col justify-center rounded-2xl border border-line bg-white px-4 py-3 text-left transition hover:border-ink/20">
             <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted"><Users className="h-3.5 w-3.5" /> Travellers & class</span>
-            <span className="mt-1 truncate text-[17px] font-bold">{adults} traveller{adults > 1 ? "s" : ""} <span className="text-sm font-semibold text-muted">· {cabin === "business" ? "Business" : "Economy"}</span></span>
+            <span className="mt-1 truncate text-[17px] font-bold">{total} traveller{total > 1 ? "s" : ""} <span className="text-sm font-semibold text-muted">· {cabin === "business" ? "Business" : "Economy"}</span></span>
           </button>
           {paxOpen && (
             <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-2xl border border-line bg-white p-4 shadow-[0_24px_60px_-20px_rgba(10,15,31,0.35)]">
-              <div className="flex items-center justify-between">
-                <span><span className="block text-sm font-bold">Travellers</span><span className="text-[11px] text-muted">Age 2 and above</span></span>
-                <span className="flex items-center gap-2">
-                  <button type="button" onClick={() => setAdults((a) => Math.max(1, a - 1))} className="flex h-8 w-8 items-center justify-center rounded-full bg-surface"><Minus className="h-3.5 w-3.5" /></button>
-                  <span className="w-5 text-center font-extrabold">{adults}</span>
-                  <button type="button" onClick={() => setAdults((a) => Math.min(maxPax, a + 1))} className="flex h-8 w-8 items-center justify-center rounded-full bg-surface"><Plus className="h-3.5 w-3.5" /></button>
-                </span>
+              <div className="space-y-3">
+                <PaxRow label="Adults" sub="12 years +" v={adults} min={1} max={maxPax - children - infants} set={(n) => (setAdults(n), setInfants((i) => Math.min(i, n)))} />
+                <PaxRow label="Children" sub="2 – 11 years · lower fare" v={children} min={0} max={maxPax - adults - infants} set={setChildren} />
+                <PaxRow label="Infants" sub="Under 2 · on lap, no seat" v={infants} min={0} max={Math.min(adults, maxPax - adults - children)} set={setInfants} />
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 {(["economy", "business"] as const).map((c) => (
@@ -122,5 +127,18 @@ export function FlightSearchBar({ initial, compact }: { initial?: FlightQuery; c
         </div>
       )}
     </form>
+  );
+}
+
+function PaxRow({ label, sub, v, min, max, set }: { label: string; sub: string; v: number; min: number; max: number; set: (n: number) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span><span className="block text-sm font-bold">{label}</span><span className="text-[11px] text-muted">{sub}</span></span>
+      <span className="flex items-center gap-2">
+        <button type="button" disabled={v <= min} onClick={() => set(Math.max(min, v - 1))} className="flex h-8 w-8 items-center justify-center rounded-full bg-surface disabled:opacity-30"><Minus className="h-3.5 w-3.5" /></button>
+        <span className="w-5 text-center font-extrabold">{v}</span>
+        <button type="button" disabled={v >= max} onClick={() => set(Math.min(max, v + 1))} className="flex h-8 w-8 items-center justify-center rounded-full bg-surface disabled:opacity-30"><Plus className="h-3.5 w-3.5" /></button>
+      </span>
+    </div>
   );
 }

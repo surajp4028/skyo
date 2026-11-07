@@ -249,6 +249,28 @@ international multipliers, days-to-departure curve, peak-hour premium, ±7 % per
 fees, GST (5 % economy / 12 % business), seat fees, SKYO service fee + GST, insurance, coupon, gateway fee + GST — all
 admin-editable with a live preview. The server always re-prices; the browser only previews.
 
+**Travellers.** Type by age at booking: adult 12+, child 2–11 (base fare − `flight_child_discount_pct`, default 10 %,
+gets a seat), infant under 2 (on an adult's lap: flat `flight_infant_fee`, default ₹1,500, no seat, no airport fee). At least
+one adult per booking and at most one infant per adult. Search carries `adults`, `children`, `infants`.
+
+**Connections.** 1- and 2-stop itineraries are built from EVERY cached route (0 requests; minimum connection 70 min,
+maximum wait 12 h). A route with no direct flight looks for connections automatically on its first search (max 3
+requests, stops at the first hub that works, skips onward legs when the first leg has no flights, never uses the last 10
+requests of the period); travellers can also press "Find connecting flights" (max 4, login, 3/day). Hubs are ranked by
+detour — abroad, big international hubs (PEK, ICN, DXB, IST, FRA…) first. Small airports get a "fly to the nearest major
+airport instead" suggestion (same country first, e.g. Ulaangom → Ulaanbaatar). Routes with no flights are re-checked
+after 24 h (small airports fly only on some days). Airports: ~7,900 worldwide from the open mwgg/Airports dataset (MIT),
+searchable by city, code, airport or country.
+
+**International trips.** When any leg leaves India the booking sheet asks each traveller's passport number, expiry and
+nationality; the server rejects missing / expired passports. Stored only inside the encrypted booking details and shown
+masked to agents without the contact permission.
+
+**Retention.** `runFlightMaintenance()` (every 6 h, piggy-backing on searches; or Admin → Flights usage card → "Clean up
+old data"): aviationstack responses cleared after `flight_log_retention_days` (30), request rows deleted after
+`flight_log_keep_days` (365), live-status cache after 2 days, dead seat holds released, old empty routes dropped.
+The request meter counts from `flight_quota_reset_day` — the day your aviationstack plan renews.
+
 **Seats.** Aircraft layout by airline + distance (A320/A321 3-3, Air India with business 2-2, ATR 2-2, 787/777 wide-body),
 occupancy that rises towards departure, plus seats held on SKYO (`flight_seat_holds`, unique per flight/date/seat, held in
 the same transaction as the booking). Window / aisle / middle / front / extra-legroom prices; unpicked seats are auto-assigned

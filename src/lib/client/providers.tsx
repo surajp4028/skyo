@@ -48,6 +48,8 @@ export type PublicSettings = {
   flight_insurance_fee: string;
   flight_pg_fee_pct: string;
   flight_pg_gst_pct: string;
+  flight_child_discount_pct: string;
+  flight_infant_fee: string;
 };
 export type Me = {
   uid: string;

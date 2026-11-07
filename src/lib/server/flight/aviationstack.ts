@@ -45,14 +45,27 @@ export type AsFlight = {
 
 const inflight = new Map<string, Promise<unknown>>();
 
-/** Start of the current calendar month (UTC) as a MySQL DATETIME. */
-const monthStart = () => {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01 00:00:00`;
-};
+/**
+ * Start of the current aviationstack billing month (UTC). The plan renews on the day you subscribed
+ * (Admin → Settings → Flights → "plan renews on day"), not on the 1st.
+ */
+export async function periodStart() {
+  const day = Math.min(28, Math.max(1, parseInt(await getSetting("flight_quota_reset_day"), 10) || 1));
+  const now = new Date();
+  let y = now.getUTCFullYear();
+  let m = now.getUTCMonth();
+  if (now.getUTCDate() < day) {
+    m -= 1;
+    if (m < 0) {
+      m = 11;
+      y -= 1;
+    }
+  }
+  return `${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")} 00:00:00`;
+}
 
 export async function requestsThisMonth() {
-  const r = await queryOne<{ n: number | null }>("SELECT COUNT(*) n FROM flight_api_calls WHERE billable = 1 AND created_at >= ?", [monthStart()]);
+  const r = await queryOne<{ n: number | null }>("SELECT COUNT(*) n FROM flight_api_calls WHERE billable = 1 AND created_at >= ?", [await periodStart()]);
   return Number(r?.n || 0);
 }
 export async function monthlyCap() {

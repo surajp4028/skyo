@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, BadgeCheck, BadgePercent, Briefcase, ChevronDown, Crown, Download, FileText, Loader2, Lock, Luggage, MapPin, Plane, Plus, ShieldCheck, ShieldPlus, Trash2, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BadgeCheck, BadgePercent, BookUser, Briefcase, ChevronDown, Crown, Download, FileText, Loader2, Lock, Luggage, MapPin, Plane, Plus, ShieldCheck, ShieldPlus, Trash2, Users, X } from "lucide-react";
 import { api, errMsg } from "@/lib/client/api";
 import { openCheckout } from "@/lib/client/razorpay";
 import { useAuth, useSite } from "@/lib/client/providers";
@@ -16,10 +16,10 @@ import { AirlineLogo } from "./airline-logo";
 import { TerminalChip } from "./terminal-chip";
 import { SeatLegend, SeatMap, type SeatLeg } from "./seat-map";
 import { CABIN_LABEL, type CabinKey } from "@/lib/flight/airlines";
-import { flightCharges, flightInsuranceOffered, fmtDur, type FlightOption } from "@/lib/flight/model";
+import { flightCharges, flightInsuranceOffered, fmtDur, needsPassport, paxType, type FlightOption } from "@/lib/flight/model";
 import { couponLabel, pctOf, type CouponRule } from "@/lib/charges-core";
 import { fmtINR, fmtMoney, prettyDate } from "@/lib/train/format";
-import type { FlightQuery } from "./flight-search-bar";
+import { paxText, type FlightQuery } from "./flight-search-bar";
 import { cn } from "@/lib/utils";
 
 type Offer = { code: string; title: string | null; type: CouponRule["type"]; value: number; applyOn: CouponRule["applyOn"]; maxDiscount: number | null; minOrder: number | null; usesLeftForYou: number | null; personal?: boolean };
@@ -58,6 +58,18 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
   const [ref, setRef] = useState<string | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [failMsg, setFailMsg] = useState<string | null>(null);
+  const intl = needsPassport(o.legs);
+  const [passports, setPassports] = useState<Record<string, { number: string; expiry: string; nationality: string }>>({});
+  const ppFor = (id: number) => passports[String(id)] ?? { number: "", expiry: "", nationality: list?.find((x) => x.id === id)?.nationality || "IN" };
+  const ppErr = (id: number) => {
+    const p = ppFor(id);
+    if (!/^[A-Z0-9]{6,9}$/.test(p.number)) return "Passport number: 6–9 letters / digits";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.expiry)) return "Add the expiry date";
+    if (p.expiry <= q.date) return "Passport expires before the journey";
+    if (!/^[A-Z]{2}$/.test(p.nationality)) return "Nationality: 2-letter code (IN)";
+    return null;
+  };
+  const passportsOk = !intl || sel.every((id) => !ppErr(id));
   const emailOk = !ticketEmail || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(ticketEmail);
   const bill: Billing = billing ?? gp?.billing ?? { state: "", pincode: null, address: null };
   const stateOk = billingValid(bill);
@@ -87,14 +99,16 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
       .then((r) => {
         if (!alive) return;
         setList(r.passengers);
-        setSel(r.passengers.filter((p) => p.age >= 2).slice(0, q.adults).map((p) => p.id));
+        // preselect saved travellers matching the search (adults, children, infants)
+        const by = (t: string, n: number) => r.passengers.filter((p) => paxType(p.age) === t).slice(0, n).map((p) => p.id);
+        setSel([...by("adult", q.adults), ...by("child", q.children), ...by("infant", q.infants)]);
       })
       .catch(() => alive && (setList([]), setNeedLogin(true)));
     api<{ coupons: Offer[] }>("/api/coupons?service=flight").then((r) => alive && setOffers(r.coupons)).catch(() => {});
     return () => {
       alive = false;
     };
-  }, [q.adults]);
+  }, [q.adults, q.children, q.infants]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !locked && onClose();
     document.addEventListener("keydown", onKey);
@@ -112,16 +126,22 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
   }, [q.from, q.to, q.date, o.id, cabin]);
 
   // keep seat picks within the number of travellers
-  const seatPicks = useMemo(() => Object.fromEntries(Object.entries(seats).map(([k, v]) => [k, v.slice(0, sel.length)])), [seats, sel.length]);
+  const chosen = (list || []).filter((p) => sel.includes(p.id)).sort((a, b) => sel.indexOf(a.id) - sel.indexOf(b.id));
+  const mix = { adults: chosen.filter((p) => paxType(p.age) === "adult").length, children: chosen.filter((p) => paxType(p.age) === "child").length, infants: chosen.filter((p) => paxType(p.age) === "infant").length };
+  // infants ride on a lap: seats only for adults + children, in selection order
+  const seatPax = chosen.filter((p) => paxType(p.age) !== "infant");
+  const seatCount = seatPax.length;
+  const mixError = !sel.length ? null : mix.adults < 1 ? "Add at least one adult (12+)" : mix.infants > mix.adults ? "One infant per adult — add another adult" : null;
+  const seatPicks = useMemo(() => Object.fromEntries(Object.entries(seats).map(([k, v]) => [k, v.slice(0, seatCount)])), [seats, seatCount]);
   const seatFees = useMemo(() => {
     let sum = 0;
     for (const l of legs || []) for (const id of seatPicks[l.key] || []) sum += l.seats.find((s) => s.id === id)?.feePaise ?? 0;
     return sum;
   }, [legs, seatPicks]);
   const gstPct = cabin === "business" ? site.flight_gst_biz_pct : site.flight_gst_eco_pct;
-  const gstPaise = pctOf(fare.basePaise, gstPct);
+  const gstPaise = pctOf(fare.basePaise, gstPct); // on the adult base fare (taxesPaise = airport + this)
   const charges = flightCharges(site as never, {
-    fare: { basePaise: fare.basePaise, gstPaise, airportPaise: Math.max(0, fare.taxesPaise - gstPaise) }, count: sel.length, cabin, seatFeesPaise: seatFees,
+    fare: { basePaise: fare.basePaise, airportPaise: Math.max(0, fare.taxesPaise - gstPaise) }, pax: mix, cabin, seatFeesPaise: seatFees,
     seatNote: Object.values(seatPicks).flat().join(", ") || undefined, payMode: "upi", insurance: offerInsurance && insurance, coupon: coupon ? { code: coupon.code, type: coupon.type, value: coupon.value, applyOn: coupon.applyOn, maxDiscount: coupon.maxDiscount, minOrder: coupon.minOrder } : null,
   });
   const estimate = charges.totalPaise / 100;
@@ -156,7 +176,7 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
   const toggleSeat = (legKey: string, id: string) =>
     setSeats((s) => {
       const cur = s[legKey] || [];
-      return { ...s, [legKey]: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id].slice(-sel.length) };
+      return { ...s, [legKey]: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id].slice(-seatCount) };
     });
 
   const pollBooking = async (r: string) => {
@@ -176,6 +196,7 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
           optionId: o.id, from: q.from, to: q.to, date: q.date, cabin, passengerIds: sel, seats: seatPicks, payMode: "upi", insurance: offerInsurance && insurance,
           couponCode: charges.coupon?.code ?? null, billing: { state: bill.state, pincode: bill.pincode || null, address: bill.address || null }, useGst: !!gp?.gst && useGst,
           notifyEmail: user?.email ? null : ticketEmail || null,
+          ...(intl ? { passports: Object.fromEntries(sel.map((id) => [String(id), ppFor(id)])) } : {}),
         },
       });
       setRef(r.bookingRef);
@@ -224,6 +245,7 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
   const next = () => {
     if (step === "travellers") {
       if (!sel.length) return toast.error("Select at least one traveller");
+      if (mixError) return toast.error(mixError);
       setStep("seats");
     } else if (step === "seats") setStep("pay");
   };
@@ -232,10 +254,10 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
     <motion.div className="fixed inset-0 z-[95] flex items-end justify-center sm:items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="absolute inset-0 bg-[#050816]/70 backdrop-blur-sm" onClick={() => !locked && onClose()} />
       <motion.div initial={{ y: 40, scale: 0.98 }} animate={{ y: 0, scale: 1 }} exit={{ y: 40, opacity: 0 }} transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="relative grid max-h-[96vh] w-full max-w-6xl overflow-hidden rounded-t-[28px] bg-white shadow-lift sm:rounded-[28px] lg:grid-cols-[400px_minmax(0,1fr)]">
+        className="relative grid max-h-[96vh] w-full max-w-6xl grid-rows-[minmax(0,1fr)] overflow-hidden rounded-t-[28px] bg-white shadow-lift sm:rounded-[28px] lg:h-[92vh] lg:grid-cols-[400px_minmax(0,1fr)]">
         {/* ---- dark side: route map + itinerary ---- */}
-        <aside className="relative hidden overflow-y-auto overscroll-contain bg-[radial-gradient(120%_80%_at_0%_0%,#1e3a8a_0%,#0b1020_55%,#050816_100%)] p-6 text-white lg:block">
-          <div className="pointer-events-none absolute -right-24 top-10 h-72 w-72 rounded-full bg-sky-500/20 blur-3xl" />
+        <aside className="relative hidden min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain bg-[radial-gradient(120%_80%_at_0%_0%,#1e3a8a_0%,#0b1020_55%,#050816_100%)] p-6 text-white lg:block">
+          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden"><div className="absolute -right-24 top-10 h-72 w-72 rounded-full bg-sky-500/20 blur-3xl" /></div>
           <div className="relative">
             <div className="flex items-center gap-3">
               <AirlineLogo iata={first.airline.iata} size={42} />
@@ -247,7 +269,7 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
             <div className="mt-5 rounded-3xl bg-white/[0.04] p-2 ring-1 ring-white/10"><DottedRouteMap theme="dark" codes={[first.from.iata, ...o.legs.slice(1).map((l) => l.from.iata), last.to.iata]} /></div>
             <div className="mt-5 flex items-end justify-between">
               <div><div className="text-3xl font-black">{o.dep}</div><div className="text-xs font-bold text-white/60">{first.from.iata} · {first.from.city}</div><TerminalChip t={first.from.terminal} dark /></div>
-              <div className="pb-1 text-center text-[11px] font-bold text-white/60">{fmtDur(o.durationMin)}<div className={o.stops ? "text-amber-300" : "text-emerald-300"}>{o.stops ? "1 stop" : "Non-stop"}</div></div>
+              <div className="pb-1 text-center text-[11px] font-bold text-white/60">{fmtDur(o.durationMin)}<div className={o.stops ? "text-amber-300" : "text-emerald-300"}>{o.stops ? `${o.stops} stop${o.stops > 1 ? "s" : ""}` : "Non-stop"}</div></div>
               <div className="text-right"><div className="text-3xl font-black">{o.arr}{o.dayOffset ? <sup className="text-xs text-orange-300">+{o.dayOffset}</sup> : null}</div><div className="text-xs font-bold text-white/60">{last.to.city} · {last.to.iata}</div><TerminalChip t={last.to.terminal} dark right /></div>
             </div>
             <div className="mt-2 text-xs text-white/60">{prettyDate(q.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
@@ -283,10 +305,25 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
             )}
           </header>
 
-          <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
             <AnimatePresence mode="wait">
               {step === "travellers" && (
                 <motion.div key="t" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5 p-5">
+                  {/* phones: the dark side panel is hidden, so the trip details live here */}
+                  <details className="group overflow-hidden rounded-2xl border border-line lg:hidden">
+                    <summary className="flex cursor-pointer list-none items-center gap-3 p-3">
+                      <AirlineLogo iata={first.airline.iata} size={32} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-extrabold">{o.dep} {first.from.iata} → {o.arr}{o.dayOffset ? `+${o.dayOffset}` : ""} {last.to.iata}</span>
+                        <span className="block truncate text-[11px] font-semibold text-muted">{fmtDur(o.durationMin)} · {o.stops ? `${o.stops} stop${o.stops > 1 ? "s" : ""} via ${o.legs.slice(0, -1).map((l) => l.to.city).join(", ")}` : "Non-stop"} · {o.baggage[cabin].checkIn} bag</span>
+                      </span>
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted transition group-open:rotate-180" />
+                    </summary>
+                    <div className="space-y-3 border-t border-line p-3">
+                      <DottedRouteMap codes={[first.from.iata, ...o.legs.slice(1).map((l) => l.from.iata), last.to.iata]} />
+                      <Itinerary o={o} />
+                    </div>
+                  </details>
                   {(o.fares.economy && o.fares.business) && (
                     <div className="grid grid-cols-2 gap-2">
                       {(["economy", "business"] as CabinKey[]).map((c) => (
@@ -325,15 +362,15 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
                         <div className="grid gap-2 sm:grid-cols-2">
                           {list.map((p) => {
                             const on = sel.includes(p.id);
-                            const infant = p.age < 2;
-                            const blocked = (!on && sel.length >= maxPax) || infant;
+                            const t = paxType(p.age);
+                            const blocked = !on && (sel.length >= maxPax || (t === "infant" && mix.infants >= mix.adults));
                             return (
                               <div key={p.id} className={cn("flex items-center gap-2 rounded-2xl border-2 pr-2 transition", on ? "border-[#0057ff] bg-sky-50" : "border-line hover:border-ink/25", blocked && "opacity-40")}>
                                 <button disabled={blocked} onClick={() => setSel((s) => (on ? s.filter((x) => x !== p.id) : [...s, p.id]))} className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left">
                                   <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2", on ? "border-[#0057ff] bg-[#0057ff] text-white" : "border-ink/25")}>{on && <BadgeCheck className="h-3.5 w-3.5" />}</span>
                                   <span className="min-w-0 flex-1">
                                     <span className="block truncate text-sm font-bold">{p.name}</span>
-                                    <span className="block text-[11px] text-muted">{p.age} yrs · {genderLabel(p.gender)} · {infant ? "infant (book with airline)" : p.age < 12 ? "child" : "adult"}</span>
+                                    <span className="block text-[11px] text-muted">{p.age} yrs · {genderLabel(p.gender)} · <span className={cn("font-bold", t === "child" ? "text-violet-600" : t === "infant" ? "text-pink-600" : "")}>{t === "infant" ? "infant · on lap" : t === "child" ? `child · ${site.flight_child_discount_pct}% off fare` : "adult"}</span></span>
                                   </span>
                                 </button>
                                 {confirmDel === p.id ? (
@@ -359,15 +396,15 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="text-xl font-extrabold">Choose seats</h3>
-                      <p className="text-xs text-white/60">Pick {sel.length} seat{sel.length > 1 ? "s" : ""}{legs && legs.length > 1 ? " on each flight" : ""} — or skip and we&apos;ll assign free seats.</p>
+                      <p className="text-xs text-white/60">Pick {seatCount} seat{seatCount > 1 ? "s" : ""}{mix.infants ? ` (infants sit on a lap)` : ""}{legs && legs.length > 1 ? " on each flight" : ""} — or skip and we&apos;ll assign free seats.</p>
                     </div>
                     <SeatLegend />
                   </div>
                   {legs && legs.length > 1 && (
-                    <div className="mb-4 flex gap-2">
+                    <div className="no-scrollbar mb-4 flex gap-2 overflow-x-auto">
                       {legs.map((l, i) => (
-                        <button key={l.key} onClick={() => setLegIdx(i)} className={cn("rounded-xl px-3 py-2 text-xs font-bold transition", i === legIdx ? "bg-white text-ink" : "bg-white/10 text-white/70 hover:bg-white/15")}>
-                          {l.from} → {l.to} · {l.flight} <span className="ml-1 opacity-60">{(seatPicks[l.key] || []).length}/{sel.length}</span>
+                        <button key={l.key} onClick={() => setLegIdx(i)} className={cn("shrink-0 rounded-xl px-3 py-2 text-xs font-bold transition", i === legIdx ? "bg-white text-ink" : "bg-white/10 text-white/70 hover:bg-white/15")}>
+                          {l.from} → {l.to} · {l.flight} <span className="ml-1 opacity-60">{(seatPicks[l.key] || []).length}/{seatCount}</span>
                         </button>
                       ))}
                     </div>
@@ -377,7 +414,7 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
                   ) : legs[legIdx] ? (
                     <>
                       <div className="mb-3 text-center text-xs text-white/50">{legs[legIdx].aircraft.name} · {legs[legIdx].flight}</div>
-                      <SeatMap leg={legs[legIdx]} selected={seatPicks[legs[legIdx].key] || []} max={sel.length} onToggle={(id) => toggleSeat(legs[legIdx].key, id)} />
+                      <SeatMap leg={legs[legIdx]} selected={seatPicks[legs[legIdx].key] || []} max={seatCount} onToggle={(id) => toggleSeat(legs[legIdx].key, id)} />
                     </>
                   ) : null}
                 </motion.div>
@@ -388,17 +425,42 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
                   <section className="rounded-2xl border border-line p-3">
                     <h3 className="mb-2 text-sm font-extrabold">Travellers & seats</h3>
                     <ul className="space-y-1.5 text-sm">
-                      {sel.map((id, i) => {
-                        const p = list?.find((x) => x.id === id);
+                      {chosen.map((p) => {
+                        const si = seatPax.indexOf(p);
+                        const t = paxType(p.age);
                         return (
-                          <li key={id} className="flex items-center justify-between gap-2">
-                            <span className="truncate font-semibold">{p?.name} <span className="text-xs text-muted">· {p?.age} yrs</span></span>
-                            <span className="flex gap-1">{o.legs.map((l) => <span key={l.key} className="rounded-md bg-surface px-1.5 py-0.5 font-mono text-[11px] font-bold">{seatPicks[l.key]?.[i] || "Auto"}</span>)}</span>
+                          <li key={p.id} className="flex items-center justify-between gap-2">
+                            <span className="truncate font-semibold">{p.name} <span className="text-xs text-muted">· {p.age} yrs · {t}</span></span>
+                            <span className="flex gap-1">{o.legs.map((l) => <span key={l.key} className={cn("rounded-md px-1.5 py-0.5 font-mono text-[11px] font-bold", t === "infant" ? "bg-pink-50 text-pink-700" : "bg-surface")}>{t === "infant" ? "On lap" : seatPicks[l.key]?.[si] || "Auto"}</span>)}</span>
                           </li>
                         );
                       })}
                     </ul>
                   </section>
+                  {intl && (
+                    <section className="rounded-2xl border border-line p-3">
+                      <h3 className="flex items-center gap-1.5 text-sm font-extrabold"><BookUser className="h-4 w-4 text-[#0057ff]" /> Passport details</h3>
+                      <p className="mb-3 text-[11px] text-muted">This trip leaves India — airlines need each traveller&apos;s passport. Most countries want it valid 6 months beyond travel. Stored encrypted, shared only with the airline.</p>
+                      <div className="space-y-3">
+                        {chosen.map((p) => {
+                          const v = ppFor(p.id);
+                          const err = ppErr(p.id);
+                          const upd = (k: "number" | "expiry" | "nationality", val: string) => setPassports((all) => ({ ...all, [String(p.id)]: { ...v, [k]: val } }));
+                          return (
+                            <div key={p.id} className="rounded-xl bg-surface p-3">
+                              <div className="mb-2 text-xs font-bold">{p.name} <span className="font-semibold text-muted">· {p.age} yrs</span></div>
+                              <div className="grid gap-2 sm:grid-cols-[1fr_150px_80px]">
+                                <input value={v.number} onChange={(e) => upd("number", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 9))} placeholder="Passport no." aria-label={`Passport number for ${p.name}`} className="h-10 rounded-lg border border-line bg-white px-3 font-mono text-sm uppercase outline-none focus:border-[#0057ff]" />
+                                <input type="date" value={v.expiry} min={q.date} onChange={(e) => upd("expiry", e.target.value)} aria-label={`Passport expiry for ${p.name}`} className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#0057ff]" />
+                                <input value={v.nationality} onChange={(e) => upd("nationality", e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2))} placeholder="IN" aria-label={`Nationality for ${p.name}`} className="h-10 rounded-lg border border-line bg-white px-3 text-center font-mono text-sm uppercase outline-none focus:border-[#0057ff]" />
+                              </div>
+                              {err && (v.number || v.expiry) && <p className="mt-1 text-[11px] font-semibold text-red-600">{err}</p>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
                   {offerInsurance && (
                     <label className={cn("flex cursor-pointer items-start gap-3 rounded-2xl border-2 p-3 transition", insurance ? "border-mint bg-mint/5" : "border-line")}>
                       <input type="checkbox" checked={insurance} onChange={(e) => setInsurance(e.target.checked)} className="mt-1 h-4 w-4 accent-[#0057ff]" />
@@ -542,20 +604,20 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
             {(step === "travellers" || step === "seats") && !needLogin && (
               <div className="flex items-center gap-3">
                 <button type="button" disabled={!sel.length} onClick={() => setShowBreakup((v) => !v)} className="min-w-0 flex-1 text-left">
-                  <div className="text-[11px] font-semibold text-muted">{sel.length || "No"} traveller{sel.length === 1 ? "" : "s"}{seatFees ? ` · seats ${fmtINR(seatFees / 100)}` : ""}</div>
+                  <div className={cn("text-[11px] font-semibold", mixError ? "text-red-600" : "text-muted")}>{mixError || (sel.length ? paxText(mix.adults, mix.children, mix.infants) : "No travellers")}{!mixError && seatFees ? ` · seats ${fmtINR(seatFees / 100)}` : ""}</div>
                   <div className="flex items-center gap-1 text-xl font-black">{sel.length ? fmtMoney(estimate) : fmtINR(fare.perAdultPaise / 100)}<span className="text-xs font-semibold text-muted">{sel.length ? " total" : " / adult"}</span>{sel.length > 0 && <ChevronDown className={cn("h-4 w-4 text-[#0057ff] transition", !showBreakup && "rotate-180")} />}</div>
                   {sel.length > 0 && <div className="text-[10px] font-bold text-[#0057ff]">{showBreakup ? "Hide" : "View"} price breakup</div>}
                 </button>
-                {step === "seats" && <button onClick={() => (setSeats({}), setStep("pay"))} className="rounded-2xl px-4 py-3 text-sm font-bold text-muted hover:bg-surface">Skip</button>}
-                <button onClick={next} disabled={!sel.length} className="rounded-2xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] px-6 py-3 text-sm font-extrabold text-white shadow-[0_14px_30px_-12px_rgba(0,87,255,0.85)] transition hover:-translate-y-0.5 disabled:opacity-50">
+                {step === "seats" && <button onClick={() => (setSeats({}), setStep("pay"))} className="shrink-0 rounded-2xl px-2 py-3 text-sm font-bold text-muted hover:bg-surface sm:px-4">Skip</button>}
+                <button onClick={next} disabled={!sel.length || !!mixError} className="shrink-0 rounded-2xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] px-4 py-3 sm:px-6 text-sm font-extrabold text-white shadow-[0_14px_30px_-12px_rgba(0,87,255,0.85)] transition hover:-translate-y-0.5 disabled:opacity-50">
                   {step === "travellers" ? "Choose seats →" : "Continue →"}
                 </button>
               </div>
             )}
             {step === "pay" && (
-              <button onClick={() => (stateOk ? pay() : setOpen("state"))} disabled={busy || !sel.length || !emailOk} className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] py-3.5 text-base font-extrabold text-white shadow-[0_14px_30px_-12px_rgba(0,87,255,0.85)] transition hover:-translate-y-0.5 disabled:opacity-50">
+              <button onClick={() => (stateOk ? pay() : setOpen("state"))} disabled={busy || !sel.length || !emailOk || !passportsOk} className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] py-3.5 text-base font-extrabold text-white shadow-[0_14px_30px_-12px_rgba(0,87,255,0.85)] transition hover:-translate-y-0.5 disabled:opacity-50">
                 {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-4 w-4" />}
-                {!stateOk ? "Select your billing state" : `Pay ${fmtMoney(estimate)} securely`}
+                {!stateOk ? "Select your billing state" : !passportsOk ? "Add passport details" : `Pay ${fmtMoney(estimate)} securely`}
               </button>
             )}
             {step === "done" && booking && (

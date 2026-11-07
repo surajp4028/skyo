@@ -172,7 +172,7 @@ export function TrainResults({ q, initialSlots }: { q: TrainQuery; initialSlots:
         <div ref={resultsTop} className="min-h-[80vh] scroll-mt-24">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-semibold text-muted">{loading ? "Searching live trains…" : `${list.length} of ${all.length} trains`}</p>
-            {!loading && devLimited && <p className="mt-1 inline-flex rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">Dev mode: showing 1 of {devLimited.total} trains · turn off in Admin → Trains (credits card) or Settings → Trains</p>}
+            {!loading && devLimited && <p className="mt-1 inline-flex rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">Test mode · showing 1 of {devLimited.total} trains</p>}
             <div className="flex items-center gap-1 rounded-2xl bg-white p-1 shadow-soft ring-1 ring-line">
               {SORTS.map((s) => (
                 <button key={s.key} onClick={() => setSort(s.key)} className={cn("relative rounded-xl px-3 py-1.5 text-xs font-bold transition", sort === s.key ? "text-white" : "text-ink/60 hover:text-ink")}>

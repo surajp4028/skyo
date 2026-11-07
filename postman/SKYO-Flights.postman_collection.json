@@ -995,7 +995,7 @@
                 }
               ]
             },
-            "description": "Cached route = 0 aviationstack requests; a route nobody searched yet = 1 request. Anonymous visitors may open 2 new routes/day, logged-in users 6. Dev setting can limit results to 1."
+            "description": "Cached route = 0 aviationstack requests; a route nobody searched yet = 1 request. Anonymous visitors may open 2 new routes/day, logged-in users 6. Dev setting can limit results to 1. Routes with no direct flight automatically look for 1–2 stop connections on their first search (max 3 requests). Use children / infants only in the page URL — the API prices from the travellers chosen at booking."
           }
         },
         {
@@ -1029,6 +1029,84 @@
               ]
             },
             "description": "Local directory — 0 requests."
+          }
+        },
+        {
+          "name": "Find connecting flights (login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/flight/explore",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "flight",
+                "explore"
+              ]
+            },
+            "description": "Spends at most 4 aviationstack requests on the likeliest hub legs, stops at the first working connection, then searches the cache. 3 per user per day; never touches the last 10 requests of the period.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"IXL\",\n  \"to\": \"COK\",\n  \"date\": \"{{journey_date}}\",\n  \"cabin\": \"economy\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Route map (dotted region)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/flight/map?codes=IXL,DEL,COK&theme=light&live=",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "flight",
+                "map"
+              ],
+              "query": [
+                {
+                  "key": "codes",
+                  "value": "IXL,DEL,COK",
+                  "description": "2–4 IATA codes in order"
+                },
+                {
+                  "key": "theme",
+                  "value": "light",
+                  "description": "light | dark"
+                },
+                {
+                  "key": "live",
+                  "value": "",
+                  "description": "lat,lon of the aircraft (optional)"
+                }
+              ]
+            },
+            "description": "Server-rendered dotted map for the route's region + pin positions. 0 requests."
           }
         },
         {
@@ -1148,10 +1226,10 @@
                 "initiate"
               ]
             },
-            "description": "Server re-prices from the cached schedule, holds seats (15 min) and returns Razorpay Checkout options. The amount is never taken from the client.",
+            "description": "Server re-prices from the cached schedule, holds seats (15 min) and returns Razorpay Checkout options. The amount is never taken from the client. Option ids can have up to 3 legs (e.g. SG124.CA948.CA955). passports (keyed by saved traveller id) is required when any leg leaves India. Children 2–11 get the child fare; infants under 2 sit on a lap (max one per adult).",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"optionId\": \"6E395\",\n  \"from\": \"DEL\",\n  \"to\": \"BOM\",\n  \"date\": \"2026-11-20\",\n  \"cabin\": \"economy\",\n  \"passengerIds\": [\n    1\n  ],\n  \"seats\": {\n    \"6E395\": [\n      \"12A\"\n    ]\n  },\n  \"payMode\": \"upi\",\n  \"insurance\": true,\n  \"couponCode\": \"SKYOFLY\",\n  \"billing\": {\n    \"state\": \"Delhi\",\n    \"pincode\": \"110001\",\n    \"address\": null\n  },\n  \"useGst\": false,\n  \"notifyEmail\": null\n}",
+              "raw": "{\n  \"optionId\": \"6E395\",\n  \"from\": \"DEL\",\n  \"to\": \"BOM\",\n  \"date\": \"2026-11-20\",\n  \"cabin\": \"economy\",\n  \"passengerIds\": [\n    1\n  ],\n  \"seats\": {\n    \"6E395\": [\n      \"12A\"\n    ]\n  },\n  \"payMode\": \"upi\",\n  \"insurance\": true,\n  \"couponCode\": \"SKYOFLY\",\n  \"billing\": {\n    \"state\": \"Delhi\",\n    \"pincode\": \"110001\",\n    \"address\": null\n  },\n  \"useGst\": false,\n  \"notifyEmail\": null,\n  \"passports\": {\n    \"1\": {\n      \"number\": \"Z1234567\",\n      \"expiry\": \"2031-05-01\",\n      \"nationality\": \"IN\"\n    }\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1481,6 +1559,31 @@
                 }
               }
             }
+          }
+        },
+        {
+          "name": "Run flight data cleanup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/admin/flight-usage/maintenance",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "flight-usage",
+                "maintenance"
+              ]
+            },
+            "description": "Clears aviationstack responses older than flight_log_retention_days, ledger rows older than flight_log_keep_days, stale status cache, dead seat holds and old empty routes. Also runs by itself every 6 h."
           }
         },
         {

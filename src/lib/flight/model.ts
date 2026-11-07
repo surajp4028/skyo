@@ -15,6 +15,9 @@ import { finishCharges, numSetting, pctOf, rupeesToPaise, type ChargeLine, type 
 
 export type FlightPoint = { iata: string; airport: string; city: string; terminal: string | null; gate: string | null; time: string /* HH:MM local */; tz: string; country?: string; lat?: number; lon?: number };
 
+/** Any leg leaving / entering India → passports needed. */
+export const needsPassport = (legs: Pick<FlightLeg, "from" | "to">[]) => legs.some((l) => !isDomesticPair(l.from, l.to));
+
 /** Domestic (both ends in India) — uses the country stored on the leg, else SKYO's airport list. */
 export function isDomesticPair(a: Pick<FlightPoint, "iata" | "country">, b: Pick<FlightPoint, "iata" | "country">) {
   const ca = a.country ?? airportByCode(a.iata)?.country;
@@ -206,20 +209,33 @@ export const seatsLeftFor = (aircraft: AircraftCode, cabin: CabinKey, key: strin
 
 export type FlightChargeSettings = FlightFareSettings & FlightSeatSettings & {
   flight_agent_fee: string; flight_agent_gst_pct: string; flight_insurance: string; flight_insurance_fee: string;
-  flight_pg_fee_pct: string; flight_pg_gst_pct: string;
+  flight_pg_fee_pct: string; flight_pg_gst_pct: string; flight_child_discount_pct: string; flight_infant_fee: string;
 };
 
+export type PaxMix = { adults: number; children: number; infants: number };
 export type FlightChargeBreakdown = {
-  payMode: PayMode; ac: false; count: number; perPassengerFarePaise: number; insurance: boolean; cabin: CabinKey;
+  payMode: PayMode; ac: false; count: number; pax?: PaxMix; perPassengerFarePaise: number; insurance: boolean; cabin: CabinKey;
   lines: ChargeLine[]; totalPaise: number; coupon?: CouponApplied | null; couponError?: string;
 };
 
 export const flightInsuranceOffered = (s: Pick<FlightChargeSettings, "flight_insurance" | "flight_insurance_fee">) => s.flight_insurance === "on" && rupeesToPaise(s.flight_insurance_fee) > 0;
 
+/** Traveller type by age on the day of booking: infant < 2 (on lap), child 2–11, adult 12+. */
+export const paxType = (age: number): "adult" | "child" | "infant" => (age < 2 ? "infant" : age < 12 ? "child" : "adult");
+export const childBasePaise = (s: Pick<FlightChargeSettings, "flight_child_discount_pct">, adultBasePaise: number) => Math.round((adultBasePaise * (100 - numSetting(s.flight_child_discount_pct, 90))) / 100);
+
+/** Airfare for a group (before SKYO fees), for "₹X for 2 adults + 1 child" on result cards. */
+export function groupAirfarePaise(s: Pick<FlightChargeSettings, "flight_child_discount_pct" | "flight_infant_fee" | "flight_gst_eco_pct" | "flight_gst_biz_pct">, q: { basePaise: number; taxesPaise: number }, mix: PaxMix, cabin: CabinKey) {
+  const pct = cabin === "business" ? s.flight_gst_biz_pct : s.flight_gst_eco_pct;
+  const airport = Math.max(0, q.taxesPaise - pctOf(q.basePaise, pct));
+  const air = q.basePaise * mix.adults + childBasePaise(s, q.basePaise) * mix.children + rupeesToPaise(s.flight_infant_fee) * mix.infants;
+  return air + pctOf(air, pct) + airport * (mix.adults + mix.children);
+}
+
 /**
- *   base fare               per adult × travellers
- *   airport fees            UDF / ASF / PSF per traveller (domestic or international)
- *   GST on airfare          5 % economy / 12 % business (admin-set)
+ *   base fare               adult fare × adults, child fare (−child %) × children, infant fee × infants
+ *   airport fees            UDF / ASF / PSF per seated traveller (infants on lap don't pay)
+ *   GST on airfare          5 % economy / 12 % business on all the airfare above
  *   seats                   paid seats picked on the seat map
  *   SKYO service fee        per traveller + GST
  *   travel insurance        per traveller (optional)
@@ -227,22 +243,32 @@ export const flightInsuranceOffered = (s: Pick<FlightChargeSettings, "flight_ins
  */
 export function flightCharges(
   s: FlightChargeSettings,
-  p: { fare: { basePaise: number; airportPaise: number; gstPaise: number }; count: number; cabin: CabinKey; seatFeesPaise: number; seatNote?: string; payMode: PayMode; insurance: boolean; coupon?: CouponRule | null },
+  p: { fare: { basePaise: number; airportPaise: number }; pax: PaxMix; cabin: CabinKey; seatFeesPaise: number; seatNote?: string; payMode: PayMode; insurance: boolean; coupon?: CouponRule | null },
 ): FlightChargeBreakdown {
-  const count = Math.max(0, Math.floor(p.count));
+  const a = Math.max(0, Math.floor(p.pax.adults));
+  const c = Math.max(0, Math.floor(p.pax.children));
+  const i = Math.max(0, Math.floor(p.pax.infants));
+  const count = a + c + i;
+  const seated = a + c;
+  const childBase = childBasePaise(s, p.fare.basePaise);
+  const infantFee = rupeesToPaise(s.flight_infant_fee);
+  const gstPct = p.cabin === "business" ? s.flight_gst_biz_pct : s.flight_gst_eco_pct;
   const lines: ChargeLine[] = [];
   const add = (key: string, label: string, paise: number, note?: string) => paise > 0 && lines.push({ key, label, paise, note });
-  add("fare", "Base fare", p.fare.basePaise * count, `₹${(p.fare.basePaise / 100).toLocaleString("en-IN")} × ${count}`);
-  add("airport_fee", "Airport fees & surcharges", p.fare.airportPaise * count, "UDF · ASF · PSF");
-  add("fare_gst", `GST on airfare (${numSetting(p.cabin === "business" ? s.flight_gst_biz_pct : s.flight_gst_eco_pct, 100)}%)`, p.fare.gstPaise * count);
-  add("seats", "Seat selection", count ? p.seatFeesPaise : 0, p.seatNote);
+  const r = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
+  add("fare", c || i ? "Base fare · adults" : "Base fare", p.fare.basePaise * a, `${r(p.fare.basePaise)} × ${a}`);
+  add("child_fare", `Base fare · children (${numSetting(s.flight_child_discount_pct, 90)}% off)`, childBase * c, `${r(childBase)} × ${c}`);
+  add("infant_fee", "Infant fee (on lap, no seat)", infantFee * i, `${r(infantFee)} × ${i}`);
+  add("airport_fee", "Airport fees & surcharges", p.fare.airportPaise * seated, `UDF · ASF · PSF × ${seated}`);
+  add("fare_gst", `GST on airfare (${numSetting(gstPct, 100)}%)`, pctOf(p.fare.basePaise * a + childBase * c + infantFee * i, gstPct));
+  add("seats", "Seat selection", seated ? p.seatFeesPaise : 0, p.seatNote);
   const agent = rupeesToPaise(s.flight_agent_fee) * count;
   add("agent_fee", "SKYO service fee", agent, `₹${(rupeesToPaise(s.flight_agent_fee) / 100).toFixed(2)} × ${count}`);
   add("agent_gst", `GST on service fee (${numSetting(s.flight_agent_gst_pct, 100)}%)`, pctOf(agent, s.flight_agent_gst_pct));
   const insured = p.insurance && flightInsuranceOffered(s);
   add("insurance", "Travel insurance", insured ? rupeesToPaise(s.flight_insurance_fee) * count : 0, `₹${(rupeesToPaise(s.flight_insurance_fee) / 100).toFixed(2)} × ${count}`);
   const fin = finishCharges(lines, count, p.coupon, { pct: s.flight_pg_fee_pct, gstPct: s.flight_pg_gst_pct });
-  return { payMode: p.payMode, ac: false, count, cabin: p.cabin, perPassengerFarePaise: p.fare.basePaise + p.fare.airportPaise + p.fare.gstPaise, insurance: insured, lines: fin.lines, totalPaise: fin.totalPaise, coupon: fin.coupon, couponError: fin.couponError };
+  return { payMode: p.payMode, ac: false, count, pax: { adults: a, children: c, infants: i }, cabin: p.cabin, perPassengerFarePaise: p.fare.basePaise + p.fare.airportPaise + pctOf(p.fare.basePaise, gstPct), insurance: insured, lines: fin.lines, totalPaise: fin.totalPaise, coupon: fin.coupon, couponError: fin.couponError };
 }
 
 /* --------------------------------- baggage -------------------------------- */

@@ -8,7 +8,7 @@ import { getSetting } from "../settings";
 /** IRCTC-style traveller profile. Stored as one KMS-encrypted JSON blob per row. */
 export const passengerSchema = z.object({
   name: z.string().trim().min(1, "Enter the name").max(16, "Max 16 characters (as IRCTC allows)").regex(/^[A-Za-z][A-Za-z .]*$/, "Use letters, spaces and dots only"),
-  age: z.coerce.number().int("Age must be a whole number").min(1, "Age must be at least 1").max(125, "Enter a valid age"),
+  age: z.coerce.number().int("Age must be a whole number").min(0, "Enter a valid age (0 for babies under 1)").max(125, "Enter a valid age"),
   gender: z.enum(["M", "F", "T"], { message: "Choose Male, Female or Transgender" }),
   berth: z.enum(["LB", "MB", "UB", "SL", "SU"]).nullable().optional(),
   nationality: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "Use a 2-letter country code").default("IN"),

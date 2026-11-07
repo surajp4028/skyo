@@ -2,7 +2,7 @@
 
 /** The traveller's last flight search, kept only in this browser (no personal data). */
 const KEY = "skyo.recent.flight.v1";
-export type RecentFlight = { fromLabel: string; toLabel: string; date: string; cabin: "economy" | "business"; adults: number; at?: number };
+export type RecentFlight = { fromLabel: string; toLabel: string; date: string; cabin: "economy" | "business"; adults: number; children?: number; infants?: number; at?: number };
 
 export function saveRecentFlightSearch(s: RecentFlight) {
   try {

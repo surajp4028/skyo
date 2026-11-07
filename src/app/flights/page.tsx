@@ -19,11 +19,13 @@ export default async function FlightsPage({ searchParams }: { searchParams: Prom
   if (!from || !to || !date) redirect("/?tab=flight#search");
   const cabin = sp.cabin === "business" ? "business" : "economy";
   const adults = Math.min(9, Math.max(1, parseInt(sp.adults || "1", 10) || 1));
+  const children = Math.min(9 - adults, Math.max(0, parseInt(sp.children || "0", 10) || 0));
+  const infants = Math.min(adults, 9 - adults - children, Math.max(0, parseInt(sp.infants || "0", 10) || 0));
   return (
     <div className="relative">
       <Navbar />
       <main className="min-h-screen">
-        <FlightResults q={{ from: from.iata, to: to.iata, fromLabel: airportLabel(from), toLabel: airportLabel(to), date, cabin, adults }} />
+        <FlightResults q={{ from: from.iata, to: to.iata, fromLabel: airportLabel(from), toLabel: airportLabel(to), date, cabin, adults, children, infants }} />
       </main>
       <Footer />
     </div>

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import { toast } from "sonner";
-import { Database, Eye, Loader2, Plane, RefreshCw, Trash2, X } from "lucide-react";
+import { AlertTriangle, Brush, Database, Eye, Loader2, Plane, RefreshCw, Trash2, X } from "lucide-react";
 import { api, errMsg } from "@/lib/client/api";
 import { useFetch } from "./use-fetch";
 import { Card } from "./ui";
@@ -11,12 +11,12 @@ import { useAdmin } from "./admin-context";
 import { cn, fmtDateTime, timeAgo } from "@/lib/utils";
 
 type Usage = {
-  plan: string; configured: boolean; enabled: boolean; devSingle: boolean; cacheHours: number; used: number; cap: number; planQuota: number | null; errors: number; avgMs: number | null;
+  plan: string; configured: boolean; enabled: boolean; devSingle: boolean; cacheHours: number; used: number; cap: number; planQuota: number | null; errors: number; avgMs: number | null; periodStart: string; retentionDays: number;
   byReason: { reason: string | null; calls: number }[];
   recent: { id: number; endpoint: string; params: string; http_status: number; error_code: string | null; billable: number; result_count: number; result_total: number | null; latency_ms: number; reason: string | null; created_at: string }[];
   routes: { dep_iata: string; arr_iata: string; flights: number; upstream_total: number | null; pages: number; source_date: string | null; searches: number; fetched_at: string; last_search_at: string | null }[];
 };
-const REASON: Record<string, string> = { search: "New route searched", connection: "Connection hub", track: "Live tracking", admin_refresh: "Admin refresh", setup_test: "Setup test", booking: "Booking" };
+const REASON: Record<string, string> = { search: "New route searched", connection: "Connection hub", explore: "Connection search", track: "Live tracking", admin_refresh: "Admin refresh", setup_test: "Setup test", booking: "Booking" };
 
 /** aviationstack meter (requests this month vs cap), why each request was spent, cached routes and the call ledger. */
 export function FlightUsage({ compact }: { compact?: boolean }) {
@@ -43,6 +43,21 @@ export function FlightUsage({ compact }: { compact?: boolean }) {
       setBusy(null);
     }
   };
+  const limit = data ? Math.min(data.cap, data.planQuota ?? data.cap) : 0;
+  const warn = data ? data.used >= limit * 0.8 : false;
+  const cleanup = async () => {
+    setBusy("cleanup");
+    try {
+      const r = await api<{ result: { responsesCleared: number; callsDeleted: number; statusCacheDeleted: number; seatHoldsReleased: number; emptyRoutesDropped: number } }>("/api/admin/flight-usage/maintenance", { method: "POST" });
+      const x = r.result;
+      toast.success(`Cleaned: ${x.responsesCleared} old responses, ${x.callsDeleted} old requests, ${x.statusCacheDeleted} status caches, ${x.seatHoldsReleased} seat holds, ${x.emptyRoutesDropped} empty routes`);
+      reload();
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setBusy(null);
+    }
+  };
   const flipDev = async () => {
     if (!data) return;
     try {
@@ -60,7 +75,7 @@ export function FlightUsage({ compact }: { compact?: boolean }) {
       <div className="relative flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2 text-sm font-extrabold"><Plane className="h-4 w-4 text-[#0057ff]" /> aviationstack requests</div>
-          <div className="text-xs text-muted">Flight schedules & live status · {data ? `${data.plan} plan` : "…"} {data && !data.enabled && <span className="font-bold text-red-600">· paused</span>} {data && !data.configured && <span className="font-bold text-red-600">· AVIATION_KEY missing</span>}</div>
+          <div className="text-xs text-muted">Flight schedules & live status · {data ? `${data.plan} plan · since ${new Date(data.periodStart.replace(" ", "T") + "Z").toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : "…"} {data && !data.enabled && <span className="font-bold text-red-600">· paused</span>} {data && !data.configured && <span className="font-bold text-red-600">· AVIATION_KEY missing</span>}</div>
         </div>
         {manage && data && (
           <button onClick={flipDev} title="Dev setting: limit flight search to 1 result" className={cn("flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-bold transition", data.devSingle ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700")}>
@@ -69,6 +84,12 @@ export function FlightUsage({ compact }: { compact?: boolean }) {
           </button>
         )}
       </div>
+      {warn && data && (
+        <div className="relative mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          {data.used >= limit ? "Monthly limit reached — new routes and live tracking are paused; cached routes keep working." : `${data.used} of ${limit} requests used this period. Turn connections/live tracking down, or upgrade the aviationstack plan.`}
+        </div>
+      )}
       <div className="relative mt-4 flex flex-wrap items-center gap-5">
         <div className="relative h-28 w-28 shrink-0">
           <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
@@ -102,7 +123,10 @@ export function FlightUsage({ compact }: { compact?: boolean }) {
       {!compact && data && (
         <div className="relative mt-6 grid gap-5 xl:grid-cols-2">
           <div>
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-muted"><Database className="h-3.5 w-3.5" /> Cached routes · {data.cacheHours} h</div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-muted"><Database className="h-3.5 w-3.5" /> Cached routes · {data.cacheHours} h</span>
+              {manage && <button onClick={cleanup} disabled={!!busy} title={`Clears responses older than ${data.retentionDays} days, stale caches and dead seat holds`} className="flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-[11px] font-bold text-muted hover:bg-surface hover:text-ink">{busy === "cleanup" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Brush className="h-3 w-3" />} Clean up old data</button>}
+            </div>
             <div className="max-h-72 overflow-auto rounded-xl border border-line">
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-surface text-left text-[10px] uppercase tracking-wider text-muted"><tr><th className="px-3 py-2">Route</th><th className="px-3 py-2">Flights</th><th className="px-3 py-2">Searches</th><th className="px-3 py-2">Fetched</th><th className="px-3 py-2" /></tr></thead>

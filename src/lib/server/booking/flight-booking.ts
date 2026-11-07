@@ -13,12 +13,13 @@ import { optionById } from "../flight/search";
 import { holdSeats, seatMapFor } from "../flight/seats";
 import { logProvider } from "../payments/log";
 import { airlineInfo, CABIN_LABEL, type CabinKey } from "@/lib/flight/airlines";
-import { flightCharges, optionFare, todayIST, type FlightChargeBreakdown, type FlightChargeSettings, type FlightLeg, type FlightOption } from "@/lib/flight/model";
+import { flightCharges, needsPassport, optionFare, paxType, todayIST, type FlightChargeBreakdown, type FlightChargeSettings, type FlightLeg, type FlightOption } from "@/lib/flight/model";
 import type { PayMode } from "@/lib/charges-core";
 
 const HOLD_MINUTES = 15;
 
-export type FlightPassenger = { name: string; age: number; gender: "M" | "F" | "T"; nationality: string; type: "adult" | "child"; seats: Record<string, string | null> };
+export type Passport = { number: string; expiry: string; nationality: string };
+export type FlightPassenger = { name: string; age: number; gender: "M" | "F" | "T"; nationality: string; type: "adult" | "child" | "infant"; seats: Record<string, string | null>; passport?: Passport | null };
 
 export type FlightBookingDetails = {
   kind: "flight";
@@ -57,7 +58,7 @@ export const flightLabel = (legs: FlightLeg[]) => legs.map((l) => `${l.airline.i
  */
 export async function initiateFlightBooking(
   user: { id: number; uid: string },
-  p: { optionId: string; from: string; to: string; date: string; cabin: CabinKey; passengerIds: number[]; seats: Record<string, string[]>; payMode: PayMode; insurance: boolean; couponCode?: string | null; billing?: Billing | null; useGst?: boolean; notifyEmail?: string | null },
+  p: { optionId: string; from: string; to: string; date: string; cabin: CabinKey; passengerIds: number[]; seats: Record<string, string[]>; payMode: PayMode; insurance: boolean; couponCode?: string | null; billing?: Billing | null; useGst?: boolean; notifyEmail?: string | null; passports?: Record<string, Passport> },
 ) {
   const maxPax = Math.min(9, Math.max(1, parseInt(await getSetting("max_passengers_per_flight"), 10) || 9));
   const ids = [...new Set(p.passengerIds)];
@@ -65,20 +66,32 @@ export async function initiateFlightBooking(
   if (ids.length > maxPax) throw new ApiError(422, "TOO_MANY_PASSENGERS", `You can book up to ${maxPax} travellers in one booking.`);
   if (p.date < todayIST()) throw new ApiError(422, "PAST_DATE", "Pick today or a later date.");
   const pax = await getPassengersByIds(user.id, ids);
-  const infant = pax.find((x) => x.age < 2);
-  if (infant) throw new ApiError(422, "INFANT", `${infant.name} is under 2 — infant bookings open soon. Please book them with the airline for now.`);
+  const mix = { adults: pax.filter((x) => paxType(x.age) === "adult").length, children: pax.filter((x) => paxType(x.age) === "child").length, infants: pax.filter((x) => paxType(x.age) === "infant").length };
+  if (mix.adults < 1) throw new ApiError(422, "NO_ADULT", "Add at least one adult (12+) — children and infants can't fly alone on this booking.");
+  if (mix.infants > mix.adults) throw new ApiError(422, "TOO_MANY_INFANTS", "Each infant travels on an adult's lap — one infant per adult.");
+  // infants sit on a lap: only adults and children get seats, in the order they were selected
+  const seatPax = pax.filter((x) => paxType(x.age) !== "infant");
 
   const coupon = p.couponCode ? await validateCoupon(p.couponCode, user.uid, "flight") : null;
   const option = await optionById(p.from, p.to, p.date, p.optionId);
   if (!option) throw new ApiError(409, "FLIGHT_GONE", "This flight is no longer in the schedule. Please search again.");
   const quote = option.fares[p.cabin];
   if (!quote) throw new ApiError(409, "CABIN_NA", `${CABIN_LABEL[p.cabin]} isn't available on this flight.`);
-  if (quote.seatsLeft < pax.length) throw new ApiError(409, "SOLD_OUT", `Only ${quote.seatsLeft} seat${quote.seatsLeft === 1 ? "" : "s"} left in ${CABIN_LABEL[p.cabin]}.`);
+  // international: every traveller needs a passport valid beyond the travel date
+  const intl = needsPassport(option.legs);
+  if (intl) {
+    for (const x of pax) {
+      const pp = p.passports?.[String(x.id)];
+      if (!pp) throw new ApiError(422, "PASSPORT_REQUIRED", `Add passport details for ${x.name} — this trip leaves India.`);
+      if (pp.expiry <= p.date) throw new ApiError(422, "PASSPORT_EXPIRED", `${x.name}'s passport expires before the journey.`);
+    }
+  }
+  if (quote.seatsLeft < seatPax.length) throw new ApiError(409, "SOLD_OUT", `Only ${quote.seatsLeft} seat${quote.seatsLeft === 1 ? "" : "s"} left in ${CABIN_LABEL[p.cabin]}.`);
 
   // ---- seats: validated against the live seat map, fees from the server's settings
   const picks: { key: string; seat: string; feePaise: number; pax: number }[] = [];
   for (const leg of option.legs) {
-    const wanted = (p.seats[leg.key] || []).slice(0, pax.length);
+    const wanted = (p.seats[leg.key] || []).slice(0, seatPax.length);
     if (!wanted.length) continue;
     if (new Set(wanted).size !== wanted.length) throw new ApiError(422, "SEAT_DUP", "Each traveller needs a different seat.");
     const map = await seatMapFor(leg.key, p.date, leg.aircraft.code, p.cabin);
@@ -95,7 +108,7 @@ export async function initiateFlightBooking(
   const s = (await getAllSettings()) as unknown as FlightChargeSettings;
   const fare = optionFare(s, option.legs, p.date, p.cabin);
   const charges = flightCharges(s, {
-    fare, count: pax.length, cabin: p.cabin, seatFeesPaise: seatFees, seatNote: picks.length ? picks.map((x) => x.seat).join(", ") : undefined,
+    fare, pax: mix, cabin: p.cabin, seatFeesPaise: seatFees, seatNote: picks.length ? picks.map((x) => x.seat).join(", ") : undefined,
     payMode: p.payMode, insurance: p.insurance, coupon: coupon?.rule ?? null,
   });
   if (coupon && !charges.coupon) throw new ApiError(409, "COUPON_NOT_APPLICABLE", charges.couponError || "This coupon can't be applied to this booking.");
@@ -112,10 +125,14 @@ export async function initiateFlightBooking(
     train: { number: label, name: option.legs.length > 1 ? `${airlineInfo(first.airline.iata).name} · 1 stop` : airlineInfo(first.airline.iata).name },
     flight: { id: option.id, legs: option.legs, layovers: option.layovers, stops: option.stops, durationMin: option.durationMin, dep: option.dep, arr: option.arr, dayOffset: option.dayOffset, baggage: option.baggage, refundable: option.refundable, cabin: p.cabin },
     from: p.from, to: p.to, date: p.date, cls: CABIN_LABEL[p.cabin], quota: "GN", food: false,
-    passengers: pax.map((x, i) => ({
-      name: x.name, age: x.age, gender: x.gender, nationality: x.nationality, type: x.age < 12 ? "child" : "adult",
-      seats: Object.fromEntries(option.legs.map((l) => [l.key, picks.find((k) => k.key === l.key && k.pax === i)?.seat ?? null])),
-    })),
+    passengers: pax.map((x) => {
+      const si = seatPax.indexOf(x);
+      return {
+        name: x.name, age: x.age, gender: x.gender, nationality: intl ? (p.passports![String(x.id)].nationality || x.nationality) : x.nationality, type: paxType(x.age),
+        passport: intl ? p.passports![String(x.id)] : null,
+        seats: Object.fromEntries(option.legs.map((l) => [l.key, si < 0 ? null : picks.find((k) => k.key === l.key && k.pax === si)?.seat ?? null])),
+      };
+    }),
     pricing: { baseFare: fare.basePaise / 100, catering: 0, perPassenger: fare.perAdultPaise / 100, count: pax.length, total: total / 100, currency: "INR" },
     charges,
     // no payMode: flight charges don't differ by method, so Checkout offers every method

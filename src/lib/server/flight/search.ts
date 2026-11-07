@@ -5,7 +5,8 @@ import { ApiError } from "../http";
 import { getAllSettings, getSetting } from "../settings";
 import { aviation, type AsFlight } from "./aviationstack";
 import { distanceKm, HUBS } from "@/lib/flight/airports";
-import { worldAirport as airportByCode } from "./world-airports";
+import { nearbyAirports, worldAirport as airportByCode } from "./world-airports";
+import { runFlightMaintenance } from "./maintenance";
 import { aircraftFor, airlineInfo, cabinsOf, AIRCRAFT, type CabinKey } from "@/lib/flight/airlines";
 import { baggageFor, isDomesticPair, optionFare, seatsLeftFor, todayIST, toMin, tzOffsetMin, type FlightChargeSettings, type FlightLeg, type FlightOption } from "@/lib/flight/model";
 
@@ -81,6 +82,8 @@ export function normalizeRoute(rows: AsFlight[], dep: string, arr: string): Flig
   return [...legs.values()].sort((a, b) => toMin(a.from.time) - toMin(b.from.time));
 }
 
+/** Routes with no flights today are re-checked after a day (small airports fly only on some days). */
+const freshHours = (hours: number, flights: number) => (flights ? hours : Math.min(hours, 24));
 const cacheHours = async () => Math.max(1, parseInt(await getSetting("flight_cache_hours"), 10) || 168);
 
 async function readRoute(dep: string, arr: string) {
@@ -123,7 +126,7 @@ export async function refreshRoute(dep: string, arr: string, meta: { reason: str
  */
 export async function getRoute(dep: string, arr: string, opts: { allowFetch: boolean; reason: string; userId?: number | null }): Promise<RouteCache | null> {
   const cached = await readRoute(dep, arr);
-  const fresh = cached && Date.now() - Date.parse(cached.fetchedAt) < (await cacheHours()) * 3600_000;
+  const fresh = cached && Date.now() - Date.parse(cached.fetchedAt) < freshHours(await cacheHours(), cached.legs.length) * 3600_000;
   if (cached && (fresh || !opts.allowFetch)) return { ...cached, stale: !fresh };
   if (!opts.allowFetch) return null;
   try {
@@ -136,23 +139,136 @@ export async function getRoute(dep: string, arr: string, opts: { allowFetch: boo
 
 /* ------------------------------- itineraries ------------------------------ */
 
-const MIN_LAYOVER = 75;
-const MAX_LAYOVER = 6 * 60;
+/** International hubs used for 1-stop trips abroad (Indian hubs come from HUBS). */
+const MEGA_HUBS = new Set(["DXB", "DOH", "AUH", "IST", "SIN", "BKK", "KUL", "HKG", "ICN", "PEK", "PVG", "NRT", "FRA", "LHR", "CDG", "AMS"]);
+const INTL_HUBS = ["DXB", "DOH", "AUH", "IST", "SIN", "BKK", "KUL", "HKG", "ICN", "PEK", "PVG", "CAN", "NRT", "FRA", "LHR", "CDG", "AMS", "JFK", "CMB", "KTM"];
 
-function connections(first: FlightLeg[], second: FlightLeg[]) {
-  const out: { legs: [FlightLeg, FlightLeg]; layover: number }[] = [];
-  for (const a of first) {
-    // both times are local to the hub airport, counted from the first leg's departure day
+/**
+ * Hubs worth connecting through, best first: the detour (via hub ÷ direct distance) must stay small,
+ * so DEL → UBN tries Beijing / Seoul, not Dubai.
+ */
+export function hubCandidates(from: string, to: string, limit = 8) {
+  const a = airportByCode(from);
+  const b = airportByCode(to);
+  if (!a || !b) return [];
+  const direct = Math.max(1, distanceKm(a, b));
+  const abroad = a.country !== "IN" || b.country !== "IN";
+  return [...new Set([...HUBS, ...INTL_HUBS])]
+    .filter((h) => h !== from && h !== to)
+    .map((h) => ({ h, ap: airportByCode(h) }))
+    .filter((x) => x.ap)
+    .map(({ h, ap }) => {
+      const detour = (distanceKm(a, ap!) + distanceKm(ap!, b)) / direct;
+      // abroad, big carriers' hubs are where real connections happen — prefer them over a nearby small airport
+      return { iata: h, city: ap!.city, detour, score: detour - (abroad && MEGA_HUBS.has(h) ? 0.45 : 0) };
+    })
+    .filter((x) => x.detour <= (abroad ? 2.2 : 1.45))
+    .sort((x, y) => x.score - y.score)
+    .slice(0, limit);
+}
+
+const MIN_LAYOVER = 70;
+const MAX_LAYOVER = 12 * 60; // international self-transfers can need a long wait
+
+/**
+ * Layovers for a chain of legs (each leg must leave the hub after the previous one lands),
+ * or null if any connection is too tight / too long. Times are local to the hub airport.
+ */
+function chain(legs: FlightLeg[]): number[] | null {
+  const lays: number[] = [];
+  for (let i = 1; i < legs.length; i++) {
+    const a = legs[i - 1];
+    const b = legs[i];
     const arrLocal = toMin(a.to.time) + a.dayOffset * 1440;
-    for (const b of second) {
-      // the second leg can leave the same local day or the next
-      for (const shift of [0, 1440]) {
-        const lay = toMin(b.from.time) + shift - arrLocal;
-        if (lay >= MIN_LAYOVER && lay <= MAX_LAYOVER) out.push({ legs: [a, b], layover: lay });
+    let best: number | null = null;
+    for (const shift of [0, 1440, 2880]) {
+      const lay = toMin(b.from.time) + shift - arrLocal;
+      if (lay >= MIN_LAYOVER && lay <= MAX_LAYOVER) {
+        best = lay;
+        break;
       }
     }
+    if (best === null) return null;
+    lays.push(best);
   }
-  return out;
+  return lays;
+}
+
+/** Adjacency of every cached route that has flights: dep → [arr]. 0 requests. */
+async function cachedGraph() {
+  const rows = await query<{ dep_iata: string; arr_iata: string }>("SELECT dep_iata, arr_iata FROM flight_routes WHERE flights > 0");
+  const adj = new Map<string, string[]>();
+  for (const r of rows) adj.set(r.dep_iata, [...(adj.get(r.dep_iata) || []), r.arr_iata]);
+  return adj;
+}
+
+/** Airport paths from → … → to with up to `maxStops` stops over cached routes, shortest detour first. */
+function routePaths(adj: Map<string, string[]>, from: string, to: string, maxStops = 2) {
+  const a = airportByCode(from);
+  const b = airportByCode(to);
+  const direct = a && b ? Math.max(1, distanceKm(a, b)) : 0;
+  const len = (path: string[]) => path.slice(1).reduce((acc, c, i) => {
+    const x = airportByCode(path[i]);
+    const y = airportByCode(c);
+    return acc + (x && y ? distanceKm(x, y) : 0);
+  }, 0);
+  const out: string[][] = [];
+  for (const h1 of adj.get(from) || []) {
+    if (h1 === to) continue;
+    if ((adj.get(h1) || []).includes(to)) out.push([from, h1, to]);
+    if (maxStops < 2) continue;
+    for (const h2 of adj.get(h1) || []) if (h2 !== from && h2 !== to && h2 !== h1 && (adj.get(h2) || []).includes(to)) out.push([from, h1, h2, to]);
+  }
+  return out
+    .map((p) => ({ p, ratio: direct ? len(p) / direct : 1 }))
+    .filter((x) => x.ratio <= 2.6)
+    .sort((x, y) => x.p.length - y.p.length || x.ratio - y.ratio)
+    .slice(0, 12)
+    .map((x) => x.p);
+}
+
+/** Best itineraries along one airport path (greedy: for each first leg, the tightest valid onward legs). */
+async function itinerariesFor(path: string[], load: (dep: string, arr: string) => Promise<FlightLeg[]>) {
+  const legsBy = await Promise.all(path.slice(1).map((arr, i) => load(path[i], arr)));
+  if (legsBy.some((l) => !l.length)) return [];
+  const out: { legs: FlightLeg[]; layovers: number[] }[] = [];
+  const extend = (sofar: FlightLeg[]) => {
+    if (sofar.length === legsBy.length) {
+      const lays = chain(sofar);
+      if (lays) out.push({ legs: sofar, layovers: lays });
+      return;
+    }
+    const next = legsBy[sofar.length]
+      .map((l) => ({ l, lays: chain([...sofar.slice(-1), l]) }))
+      .filter((x) => x.lays)
+      .sort((x, y) => x.lays![0] - y.lays![0])
+      .slice(0, sofar.length === legsBy.length - 1 ? 2 : 1);
+    for (const n of next) extend([...sofar, n.l]);
+  };
+  for (const first of legsBy[0]) extend([first]);
+  const total = (x: { legs: FlightLeg[]; layovers: number[] }) => x.legs.reduce((a, l) => a + l.durationMin, 0) + x.layovers.reduce((a, l) => a + l, 0);
+  return out.sort((x, y) => total(x) - total(y)).slice(0, 8);
+}
+
+/** Route loader with a per-search memo (each route is decrypted once). */
+function routeLoader() {
+  const memo = new Map<string, Promise<FlightLeg[]>>();
+  return (dep: string, arr: string) => {
+    const k = `${dep}-${arr}`;
+    if (!memo.has(k)) memo.set(k, readRoute(dep, arr).then((r) => r?.legs ?? []));
+    return memo.get(k)!;
+  };
+}
+
+/** Big airport travellers would fly to instead of a small regional field (ULO → UBN). */
+export function gatewayFor(code: string) {
+  const ap = airportByCode(code);
+  if (!ap) return null;
+  if (MEGA_HUBS.has(code) || HUBS.includes(code) || /international/i.test(ap.name)) return null;
+  const big = nearbyAirports(code, 1600).filter((x) => MEGA_HUBS.has(x.iata) || HUBS.includes(x.iata) || /international/i.test(x.name));
+  // same country first (Ulaangom → Ulaanbaatar, not Urumqi), then the nearest anywhere
+  const near = big.find((x) => x.country === ap.country) ?? big[0];
+  return near ? { iata: near.iata, city: near.city, km: near.km } : null;
 }
 
 function toOption(legs: FlightLeg[], layovers: number[], date: string, s: FlightChargeSettings, today: string): FlightOption {
@@ -179,7 +295,7 @@ function toOption(legs: FlightLeg[], layovers: number[], date: string, s: Flight
 
 export type SearchResult = {
   options: FlightOption[];
-  meta: { source: "aviationstack"; fetchedAt: string | null; sourceDate: string | null; stale: boolean; devSingle: boolean; totalBeforeLimit: number; connections: boolean; routeFound: boolean };
+  meta: { source: "aviationstack"; fetchedAt: string | null; sourceDate: string | null; stale: boolean; devSingle: boolean; totalBeforeLimit: number; connections: boolean; routeFound: boolean; directCount: number; suggestHubs: { iata: string; city: string }[]; gateway: { iata: string; city: string; km: number } | null };
 };
 
 /**
@@ -191,23 +307,30 @@ export async function searchFlights(p: { from: string; to: string; date: string;
   const s = (await getAllSettings()) as unknown as FlightChargeSettings & Record<string, string>;
   const today = todayIST();
   const allowFetch = p.allowFetch ?? true;
+  void runFlightMaintenance().catch((e) => console.error("[flight] maintenance", (e as Error).message));
   const direct = await getRoute(p.from, p.to, { allowFetch, reason: "search", userId: p.userId });
   const options: FlightOption[] = (direct?.legs || []).map((l) => toOption([l], [], p.date, s, today));
 
   const connOn = s.flight_connections === "on";
   if (connOn) {
+    // optional: let the admin spend a few requests on the best hubs (Settings → Flights)
     const liveHubs = Math.min(3, Math.max(0, parseInt(s.flight_connection_fetch, 10) || 0));
-    let fetched = 0;
-    for (const hub of HUBS) {
-      if (hub === p.from || hub === p.to) continue;
-      const canFetch = allowFetch && fetched < liveHubs;
-      const a = await getRoute(p.from, hub, { allowFetch: canFetch, reason: "connection", userId: p.userId }).catch(() => null);
-      if (!a?.legs.length) continue;
-      const b = await getRoute(hub, p.to, { allowFetch: canFetch, reason: "connection", userId: p.userId }).catch(() => null);
-      if (canFetch) fetched++;
-      if (!b?.legs.length) continue;
-      const pairs = connections(a.legs, b.legs).sort((x, y) => x.layover - y.layover).slice(0, 8);
-      for (const c of pairs) options.push(toOption(c.legs, [c.layover], p.date, s, today));
+    if (allowFetch && liveHubs && !(direct?.legs.length)) {
+      for (const { iata: hub } of hubCandidates(p.from, p.to, liveHubs)) {
+        const a = await getRoute(p.from, hub, { allowFetch: true, reason: "connection", userId: p.userId }).catch(() => null);
+        if (a?.legs.length) await getRoute(hub, p.to, { allowFetch: true, reason: "connection", userId: p.userId }).catch(() => null);
+      }
+    }
+    // 1- and 2-stop itineraries over EVERY cached route (0 requests)
+    const load = routeLoader();
+    const seen = new Set(options.map((o) => o.id));
+    for (const path of routePaths(await cachedGraph(), p.from, p.to)) {
+      for (const it of await itinerariesFor(path, load)) {
+        const o = toOption(it.legs, it.layovers, p.date, s, today);
+        if (seen.has(o.id)) continue;
+        seen.add(o.id);
+        options.push(o);
+      }
     }
   }
 
@@ -226,32 +349,80 @@ export async function searchFlights(p: { from: string; to: string; date: string;
   if (direct) await exec("UPDATE flight_routes SET searches = searches + 1, last_search_at = UTC_TIMESTAMP() WHERE dep_iata = ? AND arr_iata = ?", [p.from, p.to]).catch(() => {});
   return {
     options: list,
-    meta: { source: "aviationstack", fetchedAt: direct?.fetchedAt ?? null, sourceDate: direct?.sourceDate ?? null, stale: !!direct?.stale, devSingle, totalBeforeLimit: total, connections: connOn, routeFound: !!direct },
+    meta: { source: "aviationstack", fetchedAt: direct?.fetchedAt ?? null, sourceDate: direct?.sourceDate ?? null, stale: !!direct?.stale, devSingle, totalBeforeLimit: total, connections: connOn, routeFound: !!direct,
+      directCount: direct?.legs.length ?? 0, suggestHubs: total ? [] : hubCandidates(p.from, gatewayFor(p.to)?.iata ?? p.to, 3).map(({ iata, city }) => ({ iata, city })), gateway: gatewayFor(p.to) },
   };
 }
 
-/** Re-build ONE option from the cache (booking time — never spends a request). */
+/** Re-build ONE option from the cache (booking time — never spends a request). Walks the cached routes leg by leg. */
 export async function optionById(from: string, to: string, date: string, id: string): Promise<FlightOption | null> {
   const keys = id.split(".");
-  if (keys.length < 1 || keys.length > 2 || !keys.every((k) => /^[A-Z0-9]{2}\d{1,4}[A-Z]?$/.test(k))) return null;
+  if (keys.length < 1 || keys.length > 3 || !keys.every((k) => /^[A-Z0-9]{2}\d{1,4}[A-Z]?$/.test(k))) return null;
   const s = (await getAllSettings()) as unknown as FlightChargeSettings;
   const today = todayIST();
-  if (keys.length === 1) {
-    const r = await getRoute(from, to, { allowFetch: false, reason: "booking" });
-    const leg = r?.legs.find((l) => l.key === keys[0]);
-    return leg ? toOption([leg], [], date, s, today) : null;
+  const adj = await cachedGraph();
+  const load = routeLoader();
+  const legs: FlightLeg[] = [];
+  let cur = from;
+  for (const [i, key] of keys.entries()) {
+    const targets = i === keys.length - 1 ? [to] : (adj.get(cur) || []).filter((x) => x !== to);
+    let hit: FlightLeg | undefined;
+    for (const arr of targets) {
+      hit = (await load(cur, arr)).find((l) => l.key === key);
+      if (hit) {
+        cur = arr;
+        break;
+      }
+    }
+    if (!hit) return null;
+    legs.push(hit);
   }
-  for (const hub of HUBS) {
-    const a = await getRoute(from, hub, { allowFetch: false, reason: "booking" });
-    const l1 = a?.legs.find((l) => l.key === keys[0]);
-    if (!l1) continue;
-    const b = await getRoute(hub, to, { allowFetch: false, reason: "booking" });
-    const l2 = b?.legs.find((l) => l.key === keys[1]);
-    if (!l2) continue;
-    const c = connections([l1], [l2])[0];
-    if (c) return toOption([l1, l2], [c.layover], date, s, today);
+  const lays = chain(legs);
+  return lays ? toOption(legs, lays, date, s, today) : null;
+}
+
+/**
+ * Traveller asked for connections on a route with no direct flight: spend a SMALL, fixed number of
+ * aviationstack requests on the most likely legs (origin → hub → gateway → destination), cache them,
+ * then search again over the cache. Routes already cached cost nothing.
+ */
+export async function exploreConnections(p: { from: string; to: string; date: string; cabin: CabinKey; userId: number | null; budget: number }) {
+  const gw = gatewayFor(p.to);
+  const target = gw?.iata ?? p.to;
+  // hub chains, most likely first: [from → gateway → to], then [from → hub → target (→ to)]
+  const chains: [string, string][][] = [];
+  if (gw) chains.push([[p.from, gw.iata], [gw.iata, p.to]]);
+  for (const h of hubCandidates(p.from, target, 3).map((x) => x.iata)) chains.push([[p.from, h], [h, target], ...(gw ? ([[gw.iata, p.to]] as [string, string][]) : [])]);
+  let spent = 0;
+  let error: string | null = null;
+  const checked: string[] = [];
+  const hours = await cacheHours();
+  const fresh = async (d: string, a: string) => {
+    const c = await readRoute(d, a);
+    return c && Date.now() - Date.parse(c.fetchedAt) < freshHours(hours, c.legs.length) * 3600_000 ? c : null;
+  };
+  const found = async () => (await searchFlights({ from: p.from, to: p.to, date: p.date, cabin: p.cabin, userId: p.userId, allowFetch: false })).meta.totalBeforeLimit > 0;
+
+  outer: for (const legs of chains) {
+    for (const [d, a] of legs) {
+      let legs2 = (await fresh(d, a))?.legs;
+      if (!legs2) {
+        if (spent >= p.budget) break outer;
+        try {
+          legs2 = (await refreshRoute(d, a, { reason: "explore", userId: p.userId }, 1)).legs;
+          spent++;
+        } catch (e) {
+          error = (e as Error).message;
+          break outer; // monthly cap / provider error — use what we have
+        }
+      }
+      checked.push(`${d}-${a}`);
+      if (!legs2.length) continue outer; // no flights on this leg today — try the next hub, don't buy the onward leg
+    }
+    if (await found()) break; // stop as soon as one hub gives a real connection
   }
-  return null;
+  const r = await searchFlights({ from: p.from, to: p.to, date: p.date, cabin: p.cabin, userId: p.userId, allowFetch: false });
+  return { ...r, explored: { spent, checked, error } };
 }
 
 /** Admin: every cached route with its age. */
