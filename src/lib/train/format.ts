@@ -71,6 +71,9 @@ export function slotOf(hhmm: string): "early" | "morning" | "afternoon" | "night
 }
 
 export const fmtINR = (n?: number | null) => (n || n === 0 ? `₹${Math.round(n).toLocaleString("en-IN")}` : "—");
+/** Exact money: whole rupees stay clean (₹1,310), otherwise two decimals (₹1,410.21). */
+export const fmtMoney = (n?: number | null) =>
+  n || n === 0 ? `₹${n.toLocaleString("en-IN", { minimumFractionDigits: Number.isInteger(Math.round(n * 100) / 100) ? 0 : 2, maximumFractionDigits: 2 })}` : "—";
 
 export function fmtClock(iso?: string | null) {
   if (!iso) return "—";

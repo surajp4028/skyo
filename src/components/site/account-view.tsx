@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import {
-  AtSign, BadgeCheck, BusFront, Building2, Copy, Download, Globe, LayoutGrid, LogOut, Monitor, Palmtree, Pencil, Phone, Plane, Radio,
+  AtSign, BadgeCheck, BusFront, Building2, Camera, Copy, Download, Globe, LayoutGrid, Loader2, LogOut, Monitor, Palmtree, Pencil, Phone, Plane, Radio, Receipt,
   ShieldCheck, Smartphone, Sparkles, TrainFront, Trash2, UserRound, Users, X,
 } from "lucide-react";
 import { useAuth, useSite, type Me } from "@/lib/client/providers";
@@ -16,10 +16,11 @@ import { isServiceOn, isTrainLiveOn, type ServiceKey } from "@/lib/services";
 import { useSearchParams } from "next/navigation";
 import { PassengersManager } from "@/components/booking/passengers-manager";
 import { MyTrips } from "@/components/booking/my-trips";
+import { MyTransactions } from "@/components/booking/my-transactions";
 import { cn, timeAgo } from "@/lib/utils";
 
 type Sess = { id: number; device: string; location: string | null; ip: string; client: string; created_at: string; last_seen_at: string; current: boolean };
-type Section = "overview" | "profile" | "contact" | "travellers" | "trips" | "devices" | "privacy";
+type Section = "overview" | "profile" | "contact" | "travellers" | "trips" | "transactions" | "devices" | "privacy";
 
 const NAV: { key: Section; label: string; icon: typeof UserRound }[] = [
   { key: "overview", label: "Overview", icon: LayoutGrid },
@@ -27,6 +28,7 @@ const NAV: { key: Section; label: string; icon: typeof UserRound }[] = [
   { key: "contact", label: "Contact & login", icon: AtSign },
   { key: "travellers", label: "Travellers", icon: Users },
   { key: "trips", label: "My trips", icon: Plane },
+  { key: "transactions", label: "Transactions", icon: Receipt },
   { key: "devices", label: "Devices & security", icon: ShieldCheck },
   { key: "privacy", label: "Privacy & data", icon: Download },
 ];
@@ -72,7 +74,7 @@ export function AccountView() {
           <div className="flex items-center gap-4">
             <div className="relative">
               <Ring pct={pct} />
-              <div className="absolute inset-[7px] flex items-center justify-center rounded-full bg-gradient-to-br from-brand to-iris text-2xl font-extrabold">{(user.name || "T")[0].toUpperCase()}</div>
+              <AvatarButton user={user} onChange={setUser} />
             </div>
             <div>
               <h1 className="text-2xl font-extrabold md:text-3xl">{user.name || "Traveller"}</h1>
@@ -142,6 +144,11 @@ export function AccountView() {
             {section === "trips" && (
               <Panel title="My trips" sub="Every booking linked to your SKYO ID — with PNR, berths and e-tickets.">
                 <MyTrips />
+              </Panel>
+            )}
+            {section === "transactions" && (
+              <Panel title="Transactions" sub="Every payment you tried — successful, failed or pending. Quote the payment ID when you contact support.">
+                <MyTransactions />
               </Panel>
             )}
             {section === "devices" && <Devices />}
@@ -229,11 +236,102 @@ function TripsGrid({ services, big }: { services: typeof SVCS; big?: boolean }) 
   );
 }
 
+/** Uploads a profile photo (jpg/png/webp ≤ 2 MB) → stored privately in S3 under the SKYO ID folder. */
+async function uploadAvatar(file: File): Promise<string> {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error("Use a JPG, PNG or WebP image.");
+  if (file.size > 2 * 1024 * 1024) throw new Error("Photo must be 2 MB or smaller.");
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/account/avatar", { method: "POST", body: fd, headers: { "X-Requested-With": "skyo" }, credentials: "same-origin" });
+  const j = (await res.json().catch(() => ({}))) as { avatar?: string; error?: { message?: string } };
+  if (!res.ok || !j.avatar) throw new Error(j.error?.message || "Upload failed. Please try again.");
+  return j.avatar;
+}
+
+function useAvatarUpload(user: Me, onChange: (u: Me) => void) {
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const pick = () => input.current?.click();
+  const el = (
+    <input
+      ref={input}
+      type="file"
+      accept="image/jpeg,image/png,image/webp"
+      className="hidden"
+      onChange={async (e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (!f) return;
+        setBusy(true);
+        try {
+          const avatar = await uploadAvatar(f);
+          onChange({ ...user, avatar });
+          toast.success("Profile photo updated");
+        } catch (err) {
+          toast.error((err as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    />
+  );
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await api("/api/account/avatar", { method: "DELETE" });
+      onChange({ ...user, avatar: null });
+      toast.success("Profile photo removed");
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { pick, remove, busy, el };
+}
+
+function AvatarImg({ user, className }: { user: Me; className?: string }) {
+  return user.avatar ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={user.avatar} alt="Profile photo" className={cn("rounded-full object-cover", className)} />
+  ) : (
+    <div className={cn("flex items-center justify-center rounded-full bg-gradient-to-br from-brand to-iris font-extrabold text-white", className)}>{(user.name || "T")[0].toUpperCase()}</div>
+  );
+}
+
+function AvatarButton({ user, onChange }: { user: Me; onChange: (u: Me) => void }) {
+  const up = useAvatarUpload(user, onChange);
+  return (
+    <>
+      {up.el}
+      <button onClick={up.pick} title="Change profile photo" className="group absolute inset-[7px] overflow-hidden rounded-full">
+        <AvatarImg user={user} className="h-full w-full text-2xl" />
+        <span className={cn("absolute inset-0 flex items-center justify-center bg-black/45 transition", up.busy ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
+          {up.busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+        </span>
+      </button>
+    </>
+  );
+}
+
 function ProfileForm({ user, onSaved }: { user: Me; onSaved: (u: Me) => void }) {
   const [name, setName] = useState(user.name || "");
   const [saving, setSaving] = useState(false);
+  const up = useAvatarUpload(user, onSaved);
   return (
     <Panel title="Profile" sub="Use your name exactly as on your government ID — it's printed on tickets.">
+      {up.el}
+      <div className="mb-6 flex items-center gap-4 rounded-2xl bg-surface p-4">
+        <AvatarImg user={user} className="h-16 w-16 text-xl" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold">Profile photo</div>
+          <div className="text-xs text-muted">JPG, PNG or WebP · up to 2 MB · stored privately</div>
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" loading={up.busy} onClick={up.pick}><Camera className="h-4 w-4" /> {user.avatar ? "Change" : "Upload"}</Button>
+          {user.avatar && <Button type="button" variant="outline" disabled={up.busy} onClick={up.remove}><Trash2 className="h-4 w-4" /></Button>}
+        </div>
+      </div>
       <form
         className="max-w-md space-y-4"
         onSubmit={async (e) => {

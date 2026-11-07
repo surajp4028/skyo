@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { AlertTriangle, BadgeCheck, CheckCircle2, Download, Loader2, Lock, Plus, ShieldCheck, TrainFront, Utensils, UtensilsCrossed, X } from "lucide-react";
-import { CLASS_NAMES, fmtINR, prettyDate, quotaLabel, statusTone } from "@/lib/train/format";
+import { AlertTriangle, BadgeCheck, CheckCircle2, CreditCard, Download, Loader2, Lock, Plus, ShieldCheck, ShieldPlus, Smartphone, Trash2, TrainFront, Utensils, UtensilsCrossed, X } from "lucide-react";
+import { CLASS_NAMES, fmtINR, fmtMoney, prettyDate, quotaLabel, statusTone } from "@/lib/train/format";
 import { api, errMsg } from "@/lib/client/api";
 import { openCheckout } from "@/lib/client/razorpay";
 import { useSite } from "@/lib/client/providers";
 import { PassengerForm, berthLabel, genderLabel, type SavedPassenger } from "@/components/booking/passenger-form";
 import { cn } from "@/lib/utils";
+import { insuranceOffered, trainCharges, type PayMode } from "@/lib/train/charges";
 
 export type BookingIntent = {
   train: string; name?: string; from: string; to: string; date: string; cls: string; quota: string;
@@ -36,6 +37,10 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [failMsg, setFailMsg] = useState<string | null>(null);
   const [ref, setRef] = useState<string | null>(null);
+  const [payMode, setPayMode] = useState<PayMode>("upi");
+  const offerInsurance = insuranceOffered(site);
+  const [insurance, setInsurance] = useState(true);
+  const [confirmDel, setConfirmDel] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -53,7 +58,23 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
   const base = b.baseFare ?? b.fare ?? 0;
   const withFood = b.totalFare ?? base + (b.catering ?? 0);
   const perPax = hasFood && food ? withFood : base;
-  const estimate = perPax * sel.length;
+  const charges = trainCharges(site, { perPassengerFare: perPax, count: sel.length, cls: b.cls, payMode, insurance: offerInsurance && insurance });
+  const estimate = charges.totalPaise / 100;
+  const upiCharges = trainCharges(site, { perPassengerFare: perPax, count: Math.max(1, sel.length), cls: b.cls, payMode: "upi", insurance: offerInsurance && insurance }).totalPaise;
+  const cardCharges = trainCharges(site, { perPassengerFare: perPax, count: Math.max(1, sel.length), cls: b.cls, payMode: "card", insurance: offerInsurance && insurance }).totalPaise;
+
+  const removePassenger = async (id: number) => {
+    try {
+      await api(`/api/account/passengers/${id}`, { method: "DELETE" });
+      setList((l) => (l || []).filter((x) => x.id !== id));
+      setSel((s) => s.filter((x) => x !== id));
+      toast.success("Traveller removed");
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setConfirmDel(null);
+    }
+  };
   const tone = statusTone(b.status);
 
   const pollBooking = async (r: string) => {
@@ -97,11 +118,11 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
   const pay = async () => {
     setBusy(true);
     try {
-      const r = await api<{ bookingRef: string; pricing: { total: number }; checkout: Record<string, unknown> }>("/api/bookings/train/initiate", {
-        body: { train: b.train, trainName: b.name || b.train, from: b.from, to: b.to, date: b.date, cls: b.cls, quota: b.quota, passengerIds: sel, food: hasFood && food },
+      const r = await api<{ bookingRef: string; pricing: { total: number }; charges: { totalPaise: number }; checkout: Record<string, unknown> }>("/api/bookings/train/initiate", {
+        body: { train: b.train, trainName: b.name || b.train, from: b.from, to: b.to, date: b.date, cls: b.cls, quota: b.quota, passengerIds: sel, food: hasFood && food, payMode, insurance: offerInsurance && insurance },
       });
       setRef(r.bookingRef);
-      if (Math.abs(r.pricing.total - estimate) >= 1) toast.info(`Fare updated to ${fmtINR(r.pricing.total)} from live availability`);
+      if (Math.abs(r.charges.totalPaise / 100 - estimate) >= 1) toast.info(`Total updated to ${fmtMoney(r.charges.totalPaise / 100)} from live availability`);
       await startPayment(r.checkout, r.bookingRef);
     } catch (e) {
       toast.error(errMsg(e));
@@ -151,13 +172,23 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
                         const blocked = !on && sel.length >= maxPax;
                         const young = p.age < 5;
                         return (
-                          <button key={p.id} disabled={blocked || young} onClick={() => setSel((s) => (on ? s.filter((x) => x !== p.id) : [...s, p.id]))} className={cn("flex w-full items-center gap-3 rounded-2xl border-2 p-3 text-left transition disabled:opacity-40", on ? "border-[#0057ff] bg-sky-50" : "border-line hover:border-ink/25")}>
-                            <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2", on ? "border-[#0057ff] bg-[#0057ff] text-white" : "border-ink/25")}>{on && <BadgeCheck className="h-3.5 w-3.5" />}</span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-bold">{p.name}</span>
-                              <span className="block text-[11px] text-muted">{p.age} yrs · {genderLabel(p.gender)} · {berthLabel(p.berth)}{young ? " · under 5 travels free" : ""}</span>
-                            </span>
-                          </button>
+                          <div key={p.id} className={cn("flex items-center gap-2 rounded-2xl border-2 pr-2 transition", on ? "border-[#0057ff] bg-sky-50" : "border-line hover:border-ink/25", (blocked || young) && "opacity-40")}>
+                            <button disabled={blocked || young} onClick={() => setSel((s) => (on ? s.filter((x) => x !== p.id) : [...s, p.id]))} className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left">
+                              <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2", on ? "border-[#0057ff] bg-[#0057ff] text-white" : "border-ink/25")}>{on && <BadgeCheck className="h-3.5 w-3.5" />}</span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-bold">{p.name}</span>
+                                <span className="block text-[11px] text-muted">{p.age} yrs · {genderLabel(p.gender)} · {berthLabel(p.berth)}{young ? " · under 5 travels free" : ""}</span>
+                              </span>
+                            </button>
+                            {confirmDel === p.id ? (
+                              <span className="flex shrink-0 items-center gap-1">
+                                <button onClick={() => removePassenger(p.id)} className="rounded-lg bg-red-600 px-2 py-1 text-[11px] font-bold text-white">Delete</button>
+                                <button onClick={() => setConfirmDel(null)} className="rounded-lg px-2 py-1 text-[11px] font-bold text-muted hover:bg-surface">Keep</button>
+                              </span>
+                            ) : (
+                              <button onClick={() => setConfirmDel(p.id)} aria-label={`Delete ${p.name}`} title="Delete traveller" className="shrink-0 rounded-lg p-2 text-muted transition hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -183,11 +214,52 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
                   </section>
                 )}
 
+                <section>
+                  <h3 className="mb-2 font-extrabold">How will you pay?</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { v: "upi" as const, t: "UPI", d: "GPay, PhonePe, Paytm…", icon: Smartphone, total: upiCharges },
+                      { v: "card" as const, t: "Card / NetBanking", d: "Debit, credit, net banking", icon: CreditCard, total: cardCharges },
+                    ]).map((o) => (
+                      <button key={o.v} onClick={() => setPayMode(o.v)} className={cn("rounded-2xl border-2 p-3 text-left transition", payMode === o.v ? "border-[#0057ff] bg-sky-50" : "border-line hover:border-ink/25")}>
+                        <o.icon className={cn("h-4 w-4", payMode === o.v ? "text-[#0057ff]" : "text-muted")} />
+                        <div className="mt-1 text-sm font-bold">{o.t}</div>
+                        <div className="text-[11px] text-muted">{o.d}</div>
+                        {sel.length > 0 && <div className="mt-1 text-xs font-bold">{fmtMoney(o.total / 100)}</div>}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-muted">IRCTC&apos;s convenience fee is lower for UPI. Only the method you pick is shown in the payment window.</p>
+                </section>
+
+                {offerInsurance && (
+                  <section>
+                    <label className={cn("flex cursor-pointer items-start gap-3 rounded-2xl border-2 p-3 transition", insurance ? "border-mint bg-mint/5" : "border-line")}>
+                      <input type="checkbox" checked={insurance} onChange={(e) => setInsurance(e.target.checked)} className="mt-1 h-4 w-4 accent-[#0057ff]" />
+                      <span className="flex-1">
+                        <span className="flex items-center gap-1.5 text-sm font-bold"><ShieldPlus className="h-4 w-4 text-mint" /> Travel insurance</span>
+                        <span className="block text-[11px] text-muted">{fmtINR(Number(site.train_insurance_fee))} per traveller · covers accidents during the journey. Policy details are shared after booking.</span>
+                      </span>
+                    </label>
+                  </section>
+                )}
+
                 <section className="rounded-2xl bg-surface p-4">
-                  <div className="flex justify-between text-sm"><span className="text-muted">Fare × travellers</span><span className="font-semibold">{fmtINR(perPax)} × {sel.length}</span></div>
-                  <div className="mt-1 flex justify-between text-sm"><span className="text-muted">Convenience fee</span><span className="font-semibold text-mint">₹0</span></div>
-                  <div className="mt-2 flex items-end justify-between border-t border-line pt-2"><span className="font-bold">Total</span><span className="text-2xl font-extrabold">{fmtINR(estimate)}</span></div>
-                  <p className="mt-1 text-[11px] text-muted">Final amount is confirmed by our server from live availability before payment.</p>
+                  <h3 className="mb-2 text-sm font-extrabold">Price details</h3>
+                  {sel.length === 0 ? (
+                    <p className="text-xs text-muted">Select travellers to see the full price.</p>
+                  ) : (
+                    <ul className="space-y-1.5 text-sm">
+                      {charges.lines.map((l) => (
+                        <li key={l.key} className="flex justify-between gap-3">
+                          <span className="text-muted">{l.label}{l.note && l.key === "fare" ? <span className="block text-[10px]">{l.note}</span> : null}</span>
+                          <span className="font-semibold tabular-nums">{fmtMoney(l.paise / 100)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="mt-2 flex items-end justify-between border-t border-line pt-2"><span className="font-bold">Total</span><span className="text-2xl font-extrabold">{fmtMoney(estimate)}</span></div>
+                  <p className="mt-1 text-[11px] text-muted">The final amount is calculated by our server from live availability before payment — it can&apos;t be changed in the browser.</p>
                 </section>
               </motion.div>
             )}
@@ -214,7 +286,7 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
                     </div>
                   ))}
                 </div>
-                <p className="mt-3 text-xs text-muted">Booking {booking.ref} · Paid {fmtINR(booking.amount)}</p>
+                <p className="mt-3 text-xs text-muted">Booking {booking.ref} · Paid {fmtMoney(booking.amount)}</p>
               </motion.div>
             )}
 
@@ -234,7 +306,7 @@ export function BookingSheet({ b, onClose }: { b: BookingIntent; onClose: () => 
             <button onClick={pay} disabled={busy || sel.length === 0} className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#0057ff] to-[#2f94ff] py-3.5 text-base font-extrabold text-white shadow-[0_14px_30px_-12px_rgba(0,87,255,0.85)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50">
               <span className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 -skew-x-12 bg-white/35 opacity-0 transition-all duration-700 group-hover:left-[120%] group-hover:opacity-100" />
               {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-4 w-4" />}
-              {sel.length ? `Pay ${fmtINR(estimate)} securely` : "Select travellers to continue"}
+              {sel.length ? `Pay ${fmtMoney(estimate)} securely` : "Select travellers to continue"}
             </button>
           )}
           {stage === "done" && booking && (

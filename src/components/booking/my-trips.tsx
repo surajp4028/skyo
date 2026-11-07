@@ -3,17 +3,36 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
-import { CreditCard, Download, Loader2, TrainFront, Utensils } from "lucide-react";
+import { BusFront, Building2, ChevronDown, CreditCard, Download, Loader2, Palmtree, Plane, ShieldPlus, TrainFront, Utensils } from "lucide-react";
 import { api, errMsg } from "@/lib/client/api";
 import { openCheckout } from "@/lib/client/razorpay";
-import { CLASS_NAMES, fmtINR, prettyDate } from "@/lib/train/format";
+import { CLASS_NAMES, fmtMoney as fmtINR, prettyDate } from "@/lib/train/format";
 import { cn } from "@/lib/utils";
+import { useSite } from "@/lib/client/providers";
+import { isServiceOn, type ServiceKey } from "@/lib/services";
+
+const SERVICE_TABS: { key: ServiceKey | ""; label: string; icon?: typeof Plane }[] = [
+  { key: "", label: "All" },
+  { key: "train", label: "Trains", icon: TrainFront },
+  { key: "flight", label: "Flights", icon: Plane },
+  { key: "bus", label: "Buses", icon: BusFront },
+  { key: "hotel", label: "Hotels", icon: Building2 },
+  { key: "package", label: "Packages", icon: Palmtree },
+];
+const PERIODS = [
+  { key: "all", label: "All time" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "90", label: "Last 90 days" },
+  { key: "180", label: "Last 6 months" },
+] as const;
 
 type Trip = {
   ref: string; service: string; status: string; paymentStatus: string; ticketStatus: string; amount: number; createdAt: string; holdExpiresAt: string | null; pnr: string | null;
   train: { number: string; name: string }; from: string; to: string; date: string; cls: string; quota: string; food: boolean;
   passengers: { name: string; age: number; gender: string }[];
   ticket: { pnr: string; allocations: { name: string; status: string; coach?: string; berth?: number; berthType?: string }[] } | null;
+  charges: { lines: { key: string; label: string; paise: number; note?: string }[]; totalPaise: number; payMode: string } | null;
+  insurance: { opted: boolean; total: number } | null;
 };
 
 const STATUS: Record<string, [string, string]> = {
@@ -25,13 +44,17 @@ const STATUS: Record<string, [string, string]> = {
 };
 
 export function MyTrips() {
+  const site = useSite();
+  const [service, setService] = useState<ServiceKey | "">("");
+  const [period, setPeriod] = useState<(typeof PERIODS)[number]["key"]>("all");
+  const [open, setOpen] = useState<string | null>(null);
   const [trips, setTrips] = useState<Trip[] | null>(null);
   const [tick, setTick] = useState(0);
   const [resuming, setResuming] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     let alive = true;
-    api<{ bookings: Trip[] }>("/api/account/bookings")
+    api<{ bookings: Trip[] }>(`/api/account/bookings${service ? `?service=${service}` : ""}`)
       .then((r) => {
         if (!alive) return;
         setTrips(r.bookings);
@@ -41,7 +64,7 @@ export function MyTrips() {
     return () => {
       alive = false;
     };
-  }, [tick]);
+  }, [tick, service]);
 
   const resume = async (t: Trip) => {
     setResuming(t.ref);
@@ -68,20 +91,47 @@ export function MyTrips() {
     }
   };
 
-  if (!trips) return <div className="h-40 animate-shimmer rounded-3xl bg-[linear-gradient(90deg,#eef0f6_0%,#f8f9fc_40%,#eef0f6_80%)] bg-[length:200%_100%]" />;
-  if (trips.length === 0)
+  const today = new Date(now).toISOString().slice(0, 10);
+  const shown = (trips || []).filter((t) => {
+    if (period === "upcoming") return t.date >= today;
+    if (period === "90" || period === "180") return now - new Date(t.createdAt).getTime() <= Number(period) * 86400_000;
+    return true;
+  });
+  const tabs = SERVICE_TABS.filter((x) => !x.key || isServiceOn(site, x.key));
+
+  const filters = (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
+        {tabs.map((x) => (
+          <button key={x.key || "all"} onClick={() => setService(x.key)} className={cn("flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition", service === x.key ? "border-ink bg-ink text-white" : "border-line text-ink/70 hover:border-ink/30")}>
+            {x.icon && <x.icon className="h-3.5 w-3.5" />} {x.label}
+          </button>
+        ))}
+      </div>
+      <select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} className="rounded-xl border border-line bg-white px-3 py-1.5 text-xs font-bold">
+        {PERIODS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+      </select>
+    </div>
+  );
+
+  if (!trips) return <div className="space-y-4">{filters}<div className="h-40 animate-shimmer rounded-3xl bg-[linear-gradient(90deg,#eef0f6_0%,#f8f9fc_40%,#eef0f6_80%)] bg-[length:200%_100%]" /></div>;
+  if (shown.length === 0)
     return (
-      <div className="rounded-3xl border border-line bg-white p-10 text-center shadow-soft">
-        <div className="text-4xl">🧳</div>
-        <p className="mt-2 font-bold">No trips yet</p>
-        <p className="text-sm text-muted">Your bookings appear here with live status and e-tickets.</p>
-        <Link href="/#search" className="mt-4 inline-flex rounded-xl bg-ink px-5 py-2.5 text-sm font-bold text-white">Plan a trip</Link>
+      <div className="space-y-4">
+        {filters}
+        <div className="rounded-3xl border border-line bg-white p-10 text-center shadow-soft">
+          <div className="text-4xl">🧳</div>
+          <p className="mt-2 font-bold">{trips.length ? "No trips match these filters" : "No trips yet"}</p>
+          <p className="text-sm text-muted">Your bookings appear here with live status and e-tickets.</p>
+          <Link href="/#search" className="mt-4 inline-flex rounded-xl bg-ink px-5 py-2.5 text-sm font-bold text-white">Plan a trip</Link>
+        </div>
       </div>
     );
 
   return (
     <div className="space-y-4">
-      {trips.map((t, i) => {
+      {filters}
+      {shown.map((t, i) => {
         const [label, tone] = STATUS[t.status] || [t.status, "bg-surface text-ink ring-line"];
         const holdLeft = t.holdExpiresAt ? new Date(t.holdExpiresAt).getTime() - now : 0;
         return (
@@ -122,6 +172,22 @@ export function MyTrips() {
                 {t.status === "pending" && holdLeft <= 0 && <span className="text-xs font-semibold text-muted">Hold expired</span>}
               </div>
             </div>
+            {t.charges && (
+              <div className="border-t border-line">
+                <button onClick={() => setOpen(open === t.ref ? null : t.ref)} className="flex w-full items-center justify-between px-5 py-2.5 text-xs font-bold text-ink/70 hover:bg-surface/60">
+                  <span className="flex items-center gap-2">Price details{t.insurance?.opted && <span className="flex items-center gap-1 rounded-full bg-mint/10 px-2 py-0.5 text-[10px] text-mint"><ShieldPlus className="h-3 w-3" /> Insured</span>}</span>
+                  <ChevronDown className={cn("h-4 w-4 transition", open === t.ref && "rotate-180")} />
+                </button>
+                {open === t.ref && (
+                  <ul className="space-y-1 px-5 pb-4 text-sm">
+                    {t.charges.lines.map((l) => (
+                      <li key={l.key} className="flex justify-between"><span className="text-muted">{l.label}</span><span className="font-semibold tabular-nums">{fmtINR(l.paise / 100)}</span></li>
+                    ))}
+                    <li className="flex justify-between border-t border-line pt-1.5 font-extrabold"><span>Total ({t.charges.payMode === "upi" ? "UPI" : "Card / NetBanking"})</span><span>{fmtINR(t.charges.totalPaise / 100)}</span></li>
+                  </ul>
+                )}
+              </div>
+            )}
           </motion.article>
         );
       })}

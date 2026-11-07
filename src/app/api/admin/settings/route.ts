@@ -25,6 +25,10 @@ export const GET = route(async () => {
 });
 
 const onOff = z.enum(["on", "off"]);
+/** ₹ amount with up to 2 decimals, 0 – 9999. */
+const rupees = z.string().trim().regex(/^\d{1,4}(\.\d{1,2})?$/, "Amount in ₹ (e.g. 20 or 12.50)");
+/** Percentage 0 – 100 with up to 2 decimals. */
+const pct = z.string().trim().regex(/^\d{1,3}(\.\d{1,2})?$/, "Percent (e.g. 2 or 1.75)").refine((v) => +v <= 100, "0 – 100");
 const schema = z.object({
   site_name: z.string().trim().min(2).max(40).regex(/^[\p{L}\p{N} .&'-]+$/u, "Use letters, numbers, spaces, . & ' -").optional(),
   site_tagline: z.string().trim().max(120).optional(),
@@ -45,6 +49,18 @@ const schema = z.object({
   max_saved_passengers: z.string().regex(/^\d{1,2}$/).refine((v) => +v >= 1 && +v <= 50, "1–50").optional(),
   max_passengers_per_booking: z.string().regex(/^[1-6]$/, "1–6 (IRCTC allows up to 6)").optional(),
   train_daily_credit_cap: z.string().regex(/^\d{1,6}$/, "Whole number").optional(),
+  train_dev_single_result: onOff.optional(),
+  train_pg_fee_pct: pct.optional(),
+  train_pg_gst_pct: pct.optional(),
+  train_irctc_fee_nonac_upi: rupees.optional(),
+  train_irctc_fee_nonac_card: rupees.optional(),
+  train_irctc_fee_ac_upi: rupees.optional(),
+  train_irctc_fee_ac_card: rupees.optional(),
+  train_irctc_gst_pct: pct.optional(),
+  train_agent_fee: rupees.optional(),
+  train_agent_gst_pct: pct.optional(),
+  train_insurance: onOff.optional(),
+  train_insurance_fee: rupees.optional(),
 });
 
 export const PUT = route(async (req: NextRequest) => {

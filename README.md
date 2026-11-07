@@ -128,6 +128,35 @@ Book → POST /api/bookings/train/initiate   (browser sends WHAT to book — nev
 | Saved travellers (max from Admin → Settings, default 20) | `/account?tab=travellers` · `src/lib/server/booking/passengers.ts` |
 | Sample PDF e-ticket | `GET /api/bookings/[ref]/ticket` · `src/lib/server/booking/ticket-pdf.ts` |
 
+### Charges (Admin → Settings → Trains)
+
+`src/lib/train/charges.ts` is the single formula used by the server (Razorpay order) and the booking sheet (preview):
+ticket fare × passengers + IRCTC convenience fee per ticket (AC / non-AC × UPI / Card-NetBanking) + GST + SKYO service fee
+per passenger + GST + optional travel insurance per passenger + payment-gateway % of all of that + GST on the gateway fee.
+The customer picks UPI or Card/NetBanking before paying; Razorpay Checkout then shows only those methods.
+
+### Files on S3 (private, served only through SKYO APIs)
+
+```
+<SKYO_S3_PREFIX><SKYO ID>/profile_<4 digits>.<jpg|png|webp>     profile photo (POST/GET/DELETE /api/account/avatar)
+<SKYO_S3_PREFIX><SKYO ID>/train/<booking ref>_<YYYYMMDD>.pdf    e-ticket (uploaded right after issue)
+```
+`SKYO_S3_PREFIX` defaults to `AWS_BUCKET_FOLDER + "skyo/"`. Objects use SSE-KMS (`AWS_KMS_KEY_ID`), falling back to SSE-S3.
+
+### Double validation & reconciliation
+
+- Webhook: signature check **and** a fresh `GET /v1/payments/{id}` — only Razorpay's own record confirms a booking.
+- Checkout: signature over our stored order id, then the same API fetch.
+- Admin → Train bookings → open a booking → **Re-check with Razorpay** (`GET /v1/orders/{id}/payments`) syncs every attempt
+  and confirms a captured payment SKYO missed.
+- Every attempt is stored in `payment_attempts` (customer sees it in My account → Transactions; admin sees the full payload).
+
+### Notifications after ticketing
+
+SMS via Fast2SMS (`FAST2SMS_BOOKING_TEMPLATE_ID` for DLT, otherwise Quick SMS text) and email via Resend
+(`RESEND_API_KEY`, `RESEND_FROM`) with the PDF attached. Both are logged in Transactions as `notify.sms` / `notify.email`.
+`OTP_DRY_RUN=true` (dev) logs them without sending.
+
 **Env (`.env.local`)**: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `TRIPGIC_MODE`, `TRIPGIC_BASE_URL`, `TRIPGIC_API_KEY`.
 
 **Razorpay Dashboard → Webhooks**: URL `https://<your-domain>/api/payments/razorpay/webhook`, secret = `RAZORPAY_WEBHOOK_SECRET`,

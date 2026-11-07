@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "About us" };
 export default function AboutPage() {
   return (
     <div className="relative">
-      <Navbar />
+      <Navbar overHero={false} />
       <main>
         <AboutView />
       </main>

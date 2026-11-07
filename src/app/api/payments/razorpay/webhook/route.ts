@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { verifyWebhookSignature, type RzpPayment } from "@/lib/server/payments/razorpay";
+import { fetchPayment, verifyWebhookSignature, type RzpPayment } from "@/lib/server/payments/razorpay";
+import { recordAttempt } from "@/lib/server/payments/attempts";
+import { queryOne } from "@/lib/server/db";
 import { logProvider } from "@/lib/server/payments/log";
 import { confirmPayment } from "@/lib/server/booking/train-booking";
 
@@ -9,7 +11,11 @@ import { confirmPayment } from "@/lib/server/booking/train-booking";
  *   URL:    https://<your-domain>/api/payments/razorpay/webhook
  *   Secret: RAZORPAY_WEBHOOK_SECRET
  *   Events: payment.captured, payment.failed, order.paid (payment.authorized only if manual capture)
- * Verifies X-Razorpay-Signature over the RAW body, de-duplicates by x-razorpay-event-id, answers 2xx fast.
+ * Double validation:
+ *   1. X-Razorpay-Signature (HMAC-SHA256 of the RAW body with the webhook secret) must match.
+ *   2. The payment is then re-fetched from Razorpay's API (GET /v1/payments/{id}) and only THAT record
+ *      (status, order, amount) is trusted — the webhook body alone never confirms a booking.
+ * De-duplicated by x-razorpay-event-id; answers 2xx fast; 5xx makes Razorpay retry (up to 24 h).
  */
 export async function POST(req: NextRequest) {
   const raw = await req.text();
@@ -32,8 +38,15 @@ export async function POST(req: NextRequest) {
   if (!fresh) return NextResponse.json({ ok: true, duplicate: true }); // already processed
 
   try {
-    if ((payload.event === "payment.captured" || payload.event === "order.paid" || payload.event === "payment.authorized" || payload.event === "payment.failed") && pay?.order_id) {
-      await confirmPayment(pay.order_id, pay, "webhook");
+    const handled = ["payment.captured", "order.paid", "payment.authorized", "payment.failed"];
+    if (payload.event && handled.includes(payload.event) && pay?.id && pay.order_id) {
+      const booking = await queryOne<{ booking_ref: string; user_uid: string }>("SELECT booking_ref, user_uid FROM bookings WHERE pay_order_id = ?", [pay.order_id]);
+      if (booking) {
+        const fresh = await fetchPayment(pay.id, booking.booking_ref); // second, independent check
+        if (fresh.order_id !== pay.order_id) throw new Error("order mismatch between webhook and API");
+        if (fresh.status === "failed") await recordAttempt({ bookingRef: booking.booking_ref, userUid: booking.user_uid, payment: fresh, source: "webhook", verified: true });
+        await confirmPayment(pay.order_id, fresh, "webhook");
+      }
     }
   } catch (e) {
     console.error("[razorpay-webhook] processing error", (e as Error).message);

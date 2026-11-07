@@ -30,14 +30,23 @@ const bookingCols: [string, string][] = [
   ["pnr_enc", "TEXT NULL AFTER ticket_status"],
   ["issued_at", "DATETIME NULL AFTER pnr_enc"],
   ["hold_expires_at", "DATETIME NULL AFTER issued_at"],
+  ["ticket_key_enc", "TEXT NULL AFTER hold_expires_at"],
+  ["charges_enc", "TEXT NULL AFTER ticket_key_enc"],
 ];
-for (const [col, def] of bookingCols) {
-  const [rows] = await c.query("SHOW COLUMNS FROM bookings LIKE ?", [col]);
-  if ((rows as unknown[]).length === 0) {
-    await c.query(`ALTER TABLE bookings ADD COLUMN ${col} ${def}`);
-    console.log(`✓ bookings.${col} added`);
+const addCols = async (table: string, cols: [string, string][]) => {
+  for (const [col, def] of cols) {
+    const [rows] = await c.query(`SHOW COLUMNS FROM ${table} LIKE ?`, [col]);
+    if ((rows as unknown[]).length === 0) {
+      await c.query(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+      console.log(`✓ ${table}.${col} added`);
+    }
   }
-}
+};
+await addCols("bookings", bookingCols);
+await addCols("users", [
+  ["avatar_key_enc", "TEXT NULL"],
+  ["avatar_updated_at", "DATETIME NULL"],
+]);
 const [idx] = await c.query("SHOW INDEX FROM bookings WHERE Key_name = 'uq_booking_pay_order'");
 if ((idx as unknown[]).length === 0) await c.query("ALTER TABLE bookings ADD UNIQUE KEY uq_booking_pay_order (pay_order_id)");
 console.log(`✓ schema v2 applied to ${dbName}`);

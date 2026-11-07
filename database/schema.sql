@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS users (
   last_login_ip_bidx  CHAR(64)     NULL,
   last_location_enc   TEXT         NULL,
   last_device_enc     TEXT         NULL,
+  avatar_key_enc      TEXT         NULL,
+  avatar_updated_at   DATETIME     NULL,
   created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_uid (uid),
@@ -200,6 +202,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   pnr_enc            TEXT          NULL,
   issued_at          DATETIME      NULL,
   hold_expires_at    DATETIME      NULL,
+  ticket_key_enc     TEXT          NULL,
+  charges_enc        TEXT          NULL,
   created_at         TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at         TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_booking_ref (booking_ref),
@@ -307,4 +311,27 @@ CREATE TABLE IF NOT EXISTS payment_logs (
   UNIQUE KEY uq_payment_logs_event (event_id),
   KEY idx_payment_logs_booking (booking_ref),
   KEY idx_payment_logs_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Every Razorpay payment attempt for a booking (success or failure), latest provider payload KMS-encrypted.
+CREATE TABLE IF NOT EXISTS payment_attempts (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  booking_ref   VARCHAR(20)   NOT NULL,
+  user_uid      VARCHAR(16)   NOT NULL,
+  provider      VARCHAR(16)   NOT NULL DEFAULT 'razorpay',
+  order_id      VARCHAR(64)   NULL,
+  payment_id    VARCHAR(64)   NULL,
+  status        VARCHAR(16)   NOT NULL,
+  method        VARCHAR(24)   NULL,
+  amount_paise  BIGINT UNSIGNED NULL,
+  error_code    VARCHAR(64)   NULL,
+  error_desc    VARCHAR(300)  NULL,
+  verified      TINYINT(1)    NOT NULL DEFAULT 0,
+  source        VARCHAR(24)   NOT NULL,
+  data_enc      MEDIUMTEXT    NULL,
+  created_at    TIMESTAMP(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    TIMESTAMP(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_payment_attempt (payment_id),
+  KEY idx_attempt_booking (booking_ref),
+  KEY idx_attempt_user (user_uid, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

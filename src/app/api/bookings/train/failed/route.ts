@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/server/session";
 import { rateLimit } from "@/lib/server/ratelimit";
 import { bookingForUser } from "@/lib/server/booking/train-booking";
 import { logProvider } from "@/lib/server/payments/log";
+import { recordAttempt } from "@/lib/server/payments/attempts";
 
 /**
  * Razorpay Checkout "payment.failed" callback, reported by the browser.
@@ -43,5 +44,11 @@ export const POST = route(async (req: NextRequest) => {
     request: { client_reported: true, ...body.error },
     response: { booking_status: b.status, payment_status: b.payment_status, note: "Logged only — status changes come from the signed webhook / Razorpay payment record." },
   });
+  if (paymentId && /^pay_[A-Za-z0-9]+$/.test(paymentId)) {
+    await recordAttempt({
+      bookingRef: b.booking_ref, userUid: b.user_uid, source: "client", verified: false,
+      payment: { id: paymentId, order_id: b.pay_order_id ?? undefined, status: "failed", error_code: body.error.code ?? null, error_description: body.error.description ?? null },
+    });
+  }
   return ok({});
 });

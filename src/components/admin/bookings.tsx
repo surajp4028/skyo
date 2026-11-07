@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
-import { BusFront, Building2, CheckCircle2, Clock, IndianRupee, Palmtree, Plane, TrainFront, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BusFront, Building2, CheckCircle2, Clock, Eye, EyeOff, IndianRupee, Palmtree, Plane, TrainFront, XCircle } from "lucide-react";
+import { BookingDrawer } from "./booking-drawer";
 import { useFetch } from "./use-fetch";
 import { Badge, Card, PageHeader, Pager, SearchBox, Select, StatCard, Table, Td, Toolbar, usePage } from "./ui";
 import { useDebounced } from "./users";
@@ -25,31 +26,60 @@ export function BookingsView({ service }: { service: ServiceKey }) {
   const [status, setStatus] = useState("");
   const dq = useDebounced(q);
   const [page, setPage] = usePage(`${service}|${dq}|${status}`);
-  const { data, loading } = useFetch<{ bookings: B[]; total: number; page: number; size: number; summary: { confirmed: number; pending: number; cancelled: number; revenuePaise: number } }>(
+  const [openRef, setOpenRef] = useState<string | null>(null);
+  // Stats visibility is remembered per browser (admins asked to hide numbers on shared screens).
+  const [showStats, setShowStats] = useState(true);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- read a per-browser preference once
+      if (localStorage.getItem("skyo.admin.stats") === "hidden") setShowStats(false);
+    } catch {}
+  }, []);
+  const flipStats = () =>
+    setShowStats((v) => {
+      try {
+        localStorage.setItem("skyo.admin.stats", v ? "hidden" : "shown");
+      } catch {}
+      return !v;
+    });
+  const { data, loading, reload } = useFetch<{ bookings: B[]; total: number; page: number; size: number; summary: { confirmed: number; pending: number; cancelled: number; revenuePaise: number } }>(
     `/api/admin/bookings/${service}?${new URLSearchParams({ q: dq, status, page: String(page) })}`,
   );
   return (
     <>
-      <PageHeader icon={<m.icon />} title={m.title} sub={m.sub} />
-      {service === "train" && <div className="mb-4"><RailUsage compact /></div>}
-      <div className="mb-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Confirmed" value={data?.summary.confirmed ?? "—"} icon={<CheckCircle2 />} tone="mint" />
-        <StatCard label="Pending" value={data?.summary.pending ?? "—"} icon={<Clock />} tone="sky" />
-        <StatCard label="Cancelled / refunded" value={data?.summary.cancelled ?? "—"} icon={<XCircle />} tone="iris" />
-        <StatCard label="Revenue" value={data ? formatINR(data.summary.revenuePaise) : "—"} icon={<IndianRupee />} />
-      </div>
+      <PageHeader
+        icon={<m.icon />}
+        title={m.title}
+        sub={m.sub}
+        actions={
+          <button onClick={flipStats} title={showStats ? "Hide stats" : "Show stats"} className="flex items-center gap-1.5 rounded-xl border border-line bg-white px-3 py-2 text-xs font-bold text-ink/70 transition hover:text-ink">
+            {showStats ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />} {showStats ? "Hide stats" : "Show stats"}
+          </button>
+        }
+      />
+      {showStats && (
+        <>
+          {service === "train" && <div className="mb-4"><RailUsage compact /></div>}
+          <div className="mb-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Confirmed" value={data?.summary.confirmed ?? "—"} icon={<CheckCircle2 />} tone="mint" />
+            <StatCard label="Pending" value={data?.summary.pending ?? "—"} icon={<Clock />} tone="sky" />
+            <StatCard label="Cancelled / refunded" value={data?.summary.cancelled ?? "—"} icon={<XCircle />} tone="iris" />
+            <StatCard label="Revenue" value={data ? formatINR(data.summary.revenuePaise) : "—"} icon={<IndianRupee />} />
+          </div>
+        </>
+      )}
       <Card>
         <Toolbar>
           <SearchBox value={q} onChange={setQ} placeholder="Booking ref, PNR / provider ref, or SKYO ID" />
           <Select value={status} onChange={setStatus} options={[["", "All statuses"], ["confirmed", "Confirmed"], ["pending", "Pending"], ["cancelled", "Cancelled"], ["failed", "Failed"], ["refunded", "Refunded"]]} />
-          {service === "train" && <span className="ml-auto rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-700">Live IRCTC integration: coming next</span>}
+          <span className="ml-auto text-[11px] text-muted">Click a booking for full details</span>
         </Toolbar>
         <Table head={["Ref", m.trip, "SKYO ID", "Travel date", "Pax", "Amount", "Payment", "Status", "Booked", ""]} loading={loading} empty={!data?.bookings.length}>
           {data?.bookings.map((b) => (
-            <tr key={b.id} className="hover:bg-neutral-50/70">
+            <tr key={b.id} onClick={() => setOpenRef(b.booking_ref)} className="cursor-pointer hover:bg-neutral-50/70">
               <td className="px-4 py-3 font-mono text-xs font-bold">{b.booking_ref}</td>
               <td className="px-4 py-3 text-xs"><div className="font-semibold">{b.title}</div><div className="text-muted">{[b.origin, b.destination].filter(Boolean).join(" → ")}</div></td>
-              <Td><Link href={`/admin/users/${b.user_id}`} className="hover:underline"><div className="font-mono text-xs">{b.user_uid}</div><div className="text-[11px] text-neutral-500">{b.user_name}</div></Link></Td>
+              <Td><Link href={`/admin/users/${b.user_id}`} onClick={(e) => e.stopPropagation()} className="hover:underline"><div className="font-mono text-xs">{b.user_uid}</div><div className="text-[11px] text-neutral-500">{b.user_name}</div></Link></Td>
               <td className="px-4 py-3 text-xs">{b.travel_date ? new Date(b.travel_date).toLocaleDateString("en-IN") : "—"}</td>
               <td className="px-4 py-3 text-center text-xs">{b.travellers}</td>
               <td className="px-4 py-3 text-xs font-bold">{formatINR(b.amount_paise)}</td>
@@ -57,14 +87,14 @@ export function BookingsView({ service }: { service: ServiceKey }) {
               <td className="px-5 py-3"><Badge>{b.status}</Badge></td>
               <td className="px-4 py-3 text-xs text-muted">{timeAgo(b.created_at)}</td>
               <td className="px-4 py-3 text-right text-xs">
-                {b.ticket_status === "issued" && <a href={`/api/bookings/${b.booking_ref}/ticket`} className="font-bold text-brand hover:underline">Ticket</a>}
-                <a href={`/admin/transactions?q=${b.booking_ref}`} className="ml-3 font-bold text-ink/60 hover:underline">Logs</a>
+                <span className="font-bold text-brand">Details →</span>
               </td>
             </tr>
           ))}
         </Table>
         {data && <Pager page={data.page} size={data.size} total={data.total} onPage={setPage} />}
       </Card>
+      <BookingDrawer service={service} bookingRef={openRef} onClose={() => setOpenRef(null)} onChanged={reload} />
     </>
   );
 }

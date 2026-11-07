@@ -57,10 +57,18 @@ export async function ticketPdf(t: { ref: string; uid: string; details: TrainBoo
   y -= 22;
   text("Fare details", 36, y, 11, bold);
   y -= 18;
-  text(`Fare per passenger: Rs. ${d.pricing.perPassenger.toFixed(2)}${d.food ? `  (incl. catering Rs. ${d.pricing.catering.toFixed(2)})` : ""}`, 36, y, 10);
-  y -= 16;
-  text(`Passengers: ${d.pricing.count}`, 36, y, 10);
-  y -= 18;
+  text(`Fare per passenger: Rs. ${d.pricing.perPassenger.toFixed(2)}${d.food ? `  (incl. catering Rs. ${d.pricing.catering.toFixed(2)})` : ""}   Passengers: ${d.pricing.count}`, 36, y, 10);
+  y -= 6;
+  for (const l of d.charges?.lines ?? []) {
+    y -= 14;
+    text(l.label, 36, y, 9.5, reg, muted);
+    text(`Rs. ${(l.paise / 100).toFixed(2)}`, 300, y, 9.5);
+  }
+  if (d.insurance?.opted) {
+    y -= 14;
+    text(`Travel insurance: opted for ${d.pricing.count} passenger(s) - policy details will be shared separately.`, 36, y, 9, reg, muted);
+  }
+  y -= 20;
   text(`Total paid: Rs. ${t.amount.toFixed(2)}`, 36, y, 12, bold);
   y -= 26;
   text(`Payment ID: ${t.paymentId ?? "-"}   Paid at: ${t.paidAt ? new Date(t.paidAt).toISOString().replace("T", " ").slice(0, 19) + " UTC" : "-"}`, 36, y, 9, reg, muted);

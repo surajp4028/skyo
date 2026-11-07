@@ -62,7 +62,7 @@ export function Navbar({ overHero = true }: { overHero?: boolean }) {
               <Headphones className="h-4 w-4" /> Support
             </a>
             {user ? (
-              <UserMenu dark={dark} name={user.name || user.email || user.phone || "Traveller"} onLogout={logout} />
+              <UserMenu dark={dark} name={user.name || user.email || user.phone || "Traveller"} avatar={user.avatar ?? null} onLogout={logout} />
             ) : (
               <Link href="/login" className="rounded-full bg-gradient-to-r from-brand to-brand-2 px-5 py-2.5 text-sm font-bold text-white shadow-[0_8px_24px_-8px_rgba(255,90,31,0.8)] transition hover:brightness-110">
                 Log in / Sign up
@@ -89,12 +89,17 @@ export function Navbar({ overHero = true }: { overHero?: boolean }) {
   );
 }
 
-function UserMenu({ name, onLogout, dark }: { name: string; onLogout: () => Promise<void>; dark: boolean }) {
+function UserMenu({ name, avatar, onLogout, dark }: { name: string; avatar: string | null; onLogout: () => Promise<void>; dark: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative" onMouseLeave={() => setOpen(false)}>
       <button onClick={() => setOpen((v) => !v)} className={cn("flex items-center gap-2 rounded-full border py-1.5 pl-1.5 pr-3 text-sm font-semibold", dark ? "border-white/20 text-white" : "border-line bg-white text-ink")}>
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-brand to-iris text-xs font-bold text-white">{name[0]?.toUpperCase()}</span>
+        {avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatar} alt="" className="h-7 w-7 rounded-full object-cover" />
+        ) : (
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-brand to-iris text-xs font-bold text-white">{name[0]?.toUpperCase()}</span>
+        )}
         <span className="hidden max-w-[120px] truncate sm:inline">{name}</span>
         <ChevronDown className="hidden h-4 w-4 opacity-60 sm:block" />
       </button>

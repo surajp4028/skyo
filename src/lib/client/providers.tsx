@@ -18,6 +18,17 @@ export type PublicSettings = {
   train_live: string;
   max_saved_passengers: string;
   max_passengers_per_booking: string;
+  train_pg_fee_pct: string;
+  train_pg_gst_pct: string;
+  train_irctc_fee_nonac_upi: string;
+  train_irctc_fee_nonac_card: string;
+  train_irctc_fee_ac_upi: string;
+  train_irctc_fee_ac_card: string;
+  train_irctc_gst_pct: string;
+  train_agent_fee: string;
+  train_agent_gst_pct: string;
+  train_insurance: string;
+  train_insurance_fee: string;
 };
 export type Me = {
   uid: string;
@@ -27,6 +38,7 @@ export type Me = {
   emailVerified: boolean;
   phoneVerified: boolean;
   memberSince: string;
+  avatar?: string | null;
 };
 
 const SiteCtx = createContext<PublicSettings | null>(null);

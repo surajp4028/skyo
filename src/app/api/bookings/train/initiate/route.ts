@@ -30,10 +30,12 @@ export const POST = route(async (req: NextRequest) => {
       quota,
       passengerIds: z.array(z.number().int().positive()).min(1).max(6),
       food: z.boolean().default(true),
+      payMode: z.enum(["upi", "card"]).default("upi"),
+      insurance: z.boolean().default(true),
     }),
   );
   const r = await initiateTrainBooking({ id: u.id, uid: u.uid }, body);
   await audit({ actorType: "user", actorId: u.id, action: "booking.initiated", targetType: "booking", targetId: r.bookingRef, ip: getClientIp(req.headers), meta: { amount: r.order.amount, pax: r.details.pricing.count } });
   const site = await getPublicSettings();
-  return ok({ bookingRef: r.bookingRef, pricing: r.details.pricing, checkout: checkoutOptions(r.bookingRef, r.order.id, r.order.amount, r.details, site.site_name) });
+  return ok({ bookingRef: r.bookingRef, pricing: r.details.pricing, charges: r.details.charges, checkout: checkoutOptions(r.bookingRef, r.order.id, r.order.amount, r.details, site.site_name) });
 });

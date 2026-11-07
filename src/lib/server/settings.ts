@@ -26,6 +26,19 @@ export const SETTING_DEFS = {
   max_saved_passengers: { label: "Max saved passengers per account", default: "20", max: 3, public: true },
   max_passengers_per_booking: { label: "Max passengers per train booking", default: "6", max: 1, public: true },
   train_daily_credit_cap: { label: "RailCore daily credit cap", default: process.env.RK_DAILY_CREDIT_CAP || "80", max: 6, public: false },
+  train_dev_single_result: { label: "Dev: show only 1 train in search results", default: "on", max: 3, public: false },
+  // ---- Train charges (amounts in rupees, percentages as numbers) ----
+  train_pg_fee_pct: { label: "Payment gateway fee %", default: "2", max: 6, public: true },
+  train_pg_gst_pct: { label: "GST % on gateway fee", default: "18", max: 5, public: true },
+  train_irctc_fee_nonac_upi: { label: "IRCTC fee · non-AC · UPI (per ticket)", default: "10", max: 7, public: true },
+  train_irctc_fee_nonac_card: { label: "IRCTC fee · non-AC · Card/NetBanking (per ticket)", default: "15", max: 7, public: true },
+  train_irctc_fee_ac_upi: { label: "IRCTC fee · AC · UPI (per ticket)", default: "20", max: 7, public: true },
+  train_irctc_fee_ac_card: { label: "IRCTC fee · AC · Card/NetBanking (per ticket)", default: "30", max: 7, public: true },
+  train_irctc_gst_pct: { label: "GST % on IRCTC fee", default: "18", max: 5, public: true },
+  train_agent_fee: { label: "SKYO agent service fee (per passenger)", default: "20", max: 7, public: true },
+  train_agent_gst_pct: { label: "GST % on agent fee", default: "0", max: 5, public: true },
+  train_insurance: { label: "Travel insurance", default: "on", max: 3, public: true },
+  train_insurance_fee: { label: "Insurance premium (per passenger)", default: "5", max: 7, public: true },
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFS;
@@ -77,6 +90,17 @@ export async function getPublicSettings() {
     train_live: string;
     max_saved_passengers: string;
     max_passengers_per_booking: string;
+    train_pg_fee_pct: string;
+    train_pg_gst_pct: string;
+    train_irctc_fee_nonac_upi: string;
+    train_irctc_fee_nonac_card: string;
+    train_irctc_fee_ac_upi: string;
+    train_irctc_fee_ac_card: string;
+    train_irctc_gst_pct: string;
+    train_agent_fee: string;
+    train_agent_gst_pct: string;
+    train_insurance: string;
+    train_insurance_fee: string;
   };
 }
 

@@ -15,12 +15,12 @@ type Log = {
   external_id: string | null; event_id: string | null; amount_paise: number | null; latency_ms: number | null; request: string | null; response: string | null; created_at: string;
 };
 
-const PROVIDER_TONE: Record<string, string> = { razorpay: "bg-[#0c2451] text-white", tripgic: "bg-violet-600 text-white", skyo: "bg-brand text-white" };
-const fmtTs = (d: string) => {
+export const PROVIDER_TONE: Record<string, string> = { razorpay: "bg-[#0c2451] text-white", tripgic: "bg-violet-600 text-white", skyo: "bg-brand text-white" };
+export const fmtTs = (d: string) => {
   const x = new Date(d);
   return x.toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) + "." + String(x.getMilliseconds()).padStart(3, "0");
 };
-const pretty = (s: string | null) => {
+export const pretty = (s: string | null) => {
   if (!s) return "—";
   try {
     return JSON.stringify(JSON.parse(s), null, 2);
@@ -103,7 +103,7 @@ export function TransactionsLog() {
   );
 }
 
-function Json({ title, body }: { title: string; body: string }) {
+export function Json({ title, body }: { title: string; body: string }) {
   return (
     <div className="min-w-0 overflow-hidden rounded-xl border border-line bg-white">
       <div className="flex items-center justify-between border-b border-line px-3 py-2 text-xs font-bold">

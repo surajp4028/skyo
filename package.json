@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1163.0",
+    "@aws-sdk/client-s3": "^3.1164.0",
     "clsx": "^2.1.1",
     "dotted-map": "^3.1.0",
     "lucide-react": "^1.70.0",

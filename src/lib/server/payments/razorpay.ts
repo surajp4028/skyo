@@ -71,6 +71,10 @@ export function createOrder(p: { amountPaise: number; receipt: string; notes: Re
 
 export const fetchPayment = (id: string, bookingRef?: string) => call<RzpPayment>("GET", `/payments/${encodeURIComponent(id)}`, undefined, { action: "payment.fetch", bookingRef });
 
+/** All payments made against an order (every checkout attempt). */
+export const fetchOrderPayments = (orderId: string, bookingRef?: string) =>
+  call<{ entity: "collection"; count: number; items: RzpPayment[] }>("GET", `/orders/${encodeURIComponent(orderId)}/payments`, undefined, { action: "order.payments", bookingRef });
+
 export const capturePayment = (id: string, amountPaise: number, bookingRef?: string) =>
   call<RzpPayment>("POST", `/payments/${encodeURIComponent(id)}/capture`, { amount: amountPaise, currency: "INR" }, { action: "payment.capture", bookingRef, amountPaise });
 

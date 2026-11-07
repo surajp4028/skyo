@@ -73,3 +73,56 @@ export async function sendOtpSms(phone10: string, otp: string): Promise<boolean>
     return false;
   }
 }
+
+/* ------------------------- Booking notifications ------------------------- */
+
+const resendCfg = () => ({ key: (process.env.RESEND_API_KEY || "").trim(), from: (process.env.RESEND_FROM || "SKYO <onboarding@resend.dev>").trim() });
+
+export type SendResult = { ok: boolean; status: number | null; response: unknown; request: unknown };
+
+/** Transactional email through Resend (https://resend.com/docs/api-reference/emails/send-email). */
+export async function sendResendEmail(p: { to: string; subject: string; html: string; text: string; attachments?: { filename: string; content: Uint8Array }[] }): Promise<SendResult> {
+  const { key, from } = resendCfg();
+  const request = { from, to: [p.to], subject: p.subject, attachments: p.attachments?.map((a) => ({ filename: a.filename, bytes: a.content.length })) };
+  if (!key) return { ok: false, status: null, response: { skipped: "RESEND_API_KEY not set" }, request };
+  if (env.otpDryRun) return { ok: true, status: null, response: { dryRun: true }, request };
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from, to: [p.to], subject: p.subject, html: p.html, text: p.text,
+        attachments: p.attachments?.map((a) => ({ filename: a.filename, content: Buffer.from(a.content).toString("base64") })),
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    return { ok: res.ok, status: res.status, response: await res.json().catch(() => null), request };
+  } catch (e) {
+    return { ok: false, status: null, response: { error: (e as Error).name }, request };
+  }
+}
+
+/**
+ * Booking SMS via Fast2SMS. With FAST2SMS_BOOKING_TEMPLATE_ID → DLT route (variables "ref|pnr|amount");
+ * without it → Quick SMS route with plain text (temporary until a DLT template is approved).
+ */
+export async function sendBookingSms(phone10: string, v: { ref: string; pnr: string; amount: string; text: string }): Promise<SendResult> {
+  const tpl = (process.env.FAST2SMS_BOOKING_TEMPLATE_ID || "").trim();
+  const payload = tpl
+    ? { route: "dlt", sender_id: env.sms.senderId, message: tpl, variables_values: `${v.ref}|${v.pnr}|${v.amount}`, numbers: phone10 }
+    : { route: "q", message: v.text, numbers: phone10, flash: 0 };
+  if (!env.sms.apiKey) return { ok: false, status: null, response: { skipped: "FAST2SMS not set" }, request: payload };
+  if (env.otpDryRun) return { ok: true, status: null, response: { dryRun: true }, request: payload };
+  try {
+    const res = await fetch(env.sms.url, {
+      method: "POST",
+      headers: { authorization: env.sms.apiKey, "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10_000),
+    });
+    const j = (await res.json().catch(() => ({}))) as { return?: boolean };
+    return { ok: Boolean(j.return), status: res.status, response: j, request: payload };
+  } catch (e) {
+    return { ok: false, status: null, response: { error: (e as Error).name }, request: payload };
+  }
+}
