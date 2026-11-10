@@ -60,7 +60,13 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
   const [failMsg, setFailMsg] = useState<string | null>(null);
   const intl = needsPassport(o.legs);
   const [passports, setPassports] = useState<Record<string, { number: string; expiry: string; nationality: string }>>({});
-  const ppFor = (id: number) => passports[String(id)] ?? { number: "", expiry: "", nationality: list?.find((x) => x.id === id)?.nationality || "IN" };
+  const ppLater = site.flight_passport_mode !== "booking";
+  const [savePp, setSavePp] = useState(true);
+  const ppFor = (id: number) => {
+    const t = list?.find((x) => x.id === id);
+    return passports[String(id)] ?? { number: t?.passport?.number ?? "", expiry: t?.passport?.expiry ?? "", nationality: t?.nationality || "IN" };
+  };
+  const ppBlank = (id: number) => !ppFor(id).number && !ppFor(id).expiry;
   const ppErr = (id: number) => {
     const p = ppFor(id);
     if (!/^[A-Z0-9]{6,9}$/.test(p.number)) return "Passport number: 6–9 letters / digits";
@@ -69,7 +75,8 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
     if (!/^[A-Z]{2}$/.test(p.nationality)) return "Nationality: 2-letter code (IN)";
     return null;
   };
-  const passportsOk = !intl || sel.every((id) => !ppErr(id));
+  // "add later" mode: blank is fine, but anything typed must be valid
+  const passportsOk = !intl || sel.every((id) => !ppErr(id) || (ppLater && ppBlank(id)));
   const emailOk = !ticketEmail || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(ticketEmail);
   const bill: Billing = billing ?? gp?.billing ?? { state: "", pincode: null, address: null };
   const stateOk = billingValid(bill);
@@ -196,7 +203,7 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
           optionId: o.id, from: q.from, to: q.to, date: q.date, cabin, passengerIds: sel, seats: seatPicks, payMode: "upi", insurance: offerInsurance && insurance,
           couponCode: charges.coupon?.code ?? null, billing: { state: bill.state, pincode: bill.pincode || null, address: bill.address || null }, useGst: !!gp?.gst && useGst,
           notifyEmail: user?.email ? null : ticketEmail || null,
-          ...(intl ? { passports: Object.fromEntries(sel.map((id) => [String(id), ppFor(id)])) } : {}),
+          ...(intl ? { passports: Object.fromEntries(sel.filter((id) => !ppErr(id)).map((id) => [String(id), ppFor(id)])), savePassports: savePp } : {}),
         },
       });
       setRef(r.bookingRef);
@@ -440,7 +447,9 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
                   {intl && (
                     <section className="rounded-2xl border border-line p-3">
                       <h3 className="flex items-center gap-1.5 text-sm font-extrabold"><BookUser className="h-4 w-4 text-[#0057ff]" /> Passport details</h3>
-                      <p className="mb-3 text-[11px] text-muted">This trip leaves India — airlines need each traveller&apos;s passport. Most countries want it valid 6 months beyond travel. Stored encrypted, shared only with the airline.</p>
+                      <p className="mb-3 text-[11px] text-muted">
+                        This trip leaves India — airlines need each traveller&apos;s passport (most countries want it valid 6 months beyond travel). {ppLater ? <b className="text-ink">Optional now — you can add it later from My trips before check-in.</b> : null} Stored encrypted, shared only with the airline.
+                      </p>
                       <div className="space-y-3">
                         {chosen.map((p) => {
                           const v = ppFor(p.id);
@@ -455,10 +464,12 @@ export function FlightSheet({ o, initialCabin, q, onClose }: { o: FlightOption; 
                                 <input value={v.nationality} onChange={(e) => upd("nationality", e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2))} placeholder="IN" aria-label={`Nationality for ${p.name}`} className="h-10 rounded-lg border border-line bg-white px-3 text-center font-mono text-sm uppercase outline-none focus:border-[#0057ff]" />
                               </div>
                               {err && (v.number || v.expiry) && <p className="mt-1 text-[11px] font-semibold text-red-600">{err}</p>}
+                              {p.passport && passports[String(p.id)] === undefined && <p className="mt-1 text-[11px] font-semibold text-emerald-700">Filled from your saved traveller</p>}
                             </div>
                           );
                         })}
                       </div>
+                      <label className="mt-3 flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={savePp} onChange={(e) => setSavePp(e.target.checked)} className="h-4 w-4 accent-[#0057ff]" /> Save passports to my traveller profiles</label>
                     </section>
                   )}
                   {offerInsurance && (

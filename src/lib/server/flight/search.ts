@@ -137,6 +137,22 @@ export async function getRoute(dep: string, arr: string, opts: { allowFetch: boo
   }
 }
 
+/** On-time performance of a route on the day its schedule was fetched (flights with a known status only). */
+function onTimeStats(r: RouteCache | null) {
+  if (!r?.sourceDate) return null;
+  const known = r.legs.filter((l) => l.status && (l.status.delayMin !== null || l.status.state === "active" || l.status.state === "landed" || l.status.state === "cancelled"));
+  if (known.length < 3) return null;
+  const cancelled = known.filter((l) => l.status!.state === "cancelled").length;
+  const flying = known.filter((l) => l.status!.state !== "cancelled");
+  const delays = flying.map((l) => Math.max(0, l.status!.delayMin ?? 0));
+  const onTime = delays.filter((d) => d < 15).length;
+  return {
+    date: r.sourceDate, flights: known.length, cancelled,
+    onTimePct: Math.round((onTime / Math.max(1, known.length)) * 100),
+    avgDelayMin: Math.round(delays.reduce((a, d) => a + d, 0) / Math.max(1, delays.length)),
+  };
+}
+
 /* ------------------------------- itineraries ------------------------------ */
 
 /** International hubs used for 1-stop trips abroad (Indian hubs come from HUBS). */
@@ -295,7 +311,9 @@ function toOption(legs: FlightLeg[], layovers: number[], date: string, s: Flight
 
 export type SearchResult = {
   options: FlightOption[];
-  meta: { source: "aviationstack"; fetchedAt: string | null; sourceDate: string | null; stale: boolean; devSingle: boolean; totalBeforeLimit: number; connections: boolean; routeFound: boolean; directCount: number; suggestHubs: { iata: string; city: string }[]; gateway: { iata: string; city: string; km: number } | null };
+  meta: { source: "aviationstack"; fetchedAt: string | null; sourceDate: string | null; stale: boolean; devSingle: boolean; totalBeforeLimit: number; connections: boolean; routeFound: boolean; directCount: number; suggestHubs: { iata: string; city: string }[]; gateway: { iata: string; city: string; km: number } | null;
+    /** How the route's flights did on the day aviationstack data was fetched (0 requests — from the route cache). */
+    onTime: { date: string; flights: number; onTimePct: number; avgDelayMin: number; cancelled: number } | null };
 };
 
 /**
@@ -350,6 +368,7 @@ export async function searchFlights(p: { from: string; to: string; date: string;
   return {
     options: list,
     meta: { source: "aviationstack", fetchedAt: direct?.fetchedAt ?? null, sourceDate: direct?.sourceDate ?? null, stale: !!direct?.stale, devSingle, totalBeforeLimit: total, connections: connOn, routeFound: !!direct,
+      onTime: onTimeStats(direct),
       directCount: direct?.legs.length ?? 0, suggestHubs: total ? [] : hubCandidates(p.from, gatewayFor(p.to)?.iata ?? p.to, 3).map(({ iata, city }) => ({ iata, city })), gateway: gatewayFor(p.to) },
   };
 }

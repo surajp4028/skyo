@@ -9,7 +9,7 @@ export function LegalPage({ title, updated, children }: { title: string; updated
       <Navbar />
       <main>
         <section className="relative -mt-20 overflow-hidden pb-28 pt-32">
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,#0057ff_0%,#1a82ff_55%,#7cc4ff_85%,#f6f7fb_100%)]" />
+          <div className="absolute inset-0 sky-fade" />
           <div className="absolute right-0 top-0 h-80 w-80 -translate-y-1/4 translate-x-1/4 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.8),transparent_65%)]" />
           <div className="relative mx-auto max-w-3xl px-5 text-white">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/15 px-3 py-1 text-xs font-bold backdrop-blur"><ShieldCheck className="h-3.5 w-3.5" /> Legal</span>

@@ -35,7 +35,7 @@ export function Navbar({ overHero = true }: { overHero?: boolean }) {
         <div className="relative z-[60] bg-gradient-to-r from-brand to-brand-2 px-4 py-2 text-center text-xs font-semibold text-white">{site.maintenance_message}</div>
       )}
       <motion.header
-        initial={{ y: -20, opacity: 0 }}
+        initial={false}
         animate={{ y: 0, opacity: 1 }}
         className={cn("sticky top-0 z-50 transition-[padding] duration-300", scrolled ? "px-3 pt-3" : "px-0 pt-0")}
       >

@@ -17,6 +17,7 @@ function createPool(): Pool {
     user: env.db.user,
     password: env.db.password,
     database: env.db.database,
+    ssl: env.db.ssl ? (env.db.sslCa ? { ca: env.db.sslCa } : { rejectUnauthorized: false }) : undefined,
     connectionLimit: 10,
     waitForConnections: true,
     charset: "utf8mb4",

@@ -22,6 +22,8 @@ export const env = {
     user: str("DB_USER", "root"),
     password: str("DB_PASS"),
     database: str("DB_NAME", "skyo"),
+    ssl: str("DB_SSL") === "true",
+    sslCa: str("DB_SSL_CA"),
   },
 
   hmacSecret: str("APP_HMAC_SECRET"),

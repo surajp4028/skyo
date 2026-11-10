@@ -131,7 +131,7 @@ export function TrainResults({ q, initialSlots }: { q: TrainQuery; initialSlots:
     <div>
       {/* Sky header */}
       <section className="relative -mt-20 overflow-hidden pb-10 pt-28">
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,#0b72f5_0%,#2f8fff_45%,#7cc4ff_100%)]" />
+        <div className="absolute inset-0 sky-band" />
         <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.75),transparent_65%)]" />
         <div className="relative mx-auto max-w-7xl px-5">
           <div className="mb-4 flex flex-wrap items-center gap-3 text-white">

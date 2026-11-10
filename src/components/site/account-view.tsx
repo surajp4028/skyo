@@ -71,7 +71,7 @@ export function AccountView() {
       {/* sky header */}
       <section className="relative -mt-20 overflow-hidden pb-20 pt-24 sm:pb-24 sm:pt-28">
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden [contain:paint]">
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,#0057ff_0%,#1a82ff_55%,#6cbcff_100%)]" />
+          <div className="absolute inset-0 sky-band" />
           <div className="absolute right-0 top-0 h-72 w-72 -translate-y-1/4 translate-x-1/4 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.85),transparent_65%)]" />
         </div>
         <div className="relative mx-auto flex max-w-6xl flex-col justify-between gap-4 px-4 text-white sm:px-5 md:flex-row md:items-end md:gap-6">

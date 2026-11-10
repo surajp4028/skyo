@@ -12,6 +12,14 @@ export const passengerSchema = z.object({
   gender: z.enum(["M", "F", "T"], { message: "Choose Male, Female or Transgender" }),
   berth: z.enum(["LB", "MB", "UB", "SL", "SU"]).nullable().optional(),
   nationality: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "Use a 2-letter country code").default("IN"),
+  /** Optional — needed only for international flights. Stored inside the encrypted traveller blob. */
+  passport: z
+    .object({
+      number: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6,9}$/, "Passport number: 6–9 letters / digits"),
+      expiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Passport expiry: pick a date"),
+    })
+    .nullable()
+    .optional(),
 });
 export type PassengerInput = z.infer<typeof passengerSchema>;
 export type Passenger = PassengerInput & { id: number };

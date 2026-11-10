@@ -481,3 +481,55 @@ CREATE TABLE IF NOT EXISTS flight_seat_holds (
   UNIQUE KEY uq_flight_seat (flight_key, flight_date, seat),
   KEY idx_flight_seat_booking (booking_ref)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Airport live board (departures / arrivals) per airport, cached so a refresh doesn't spend a request.
+CREATE TABLE IF NOT EXISTS flight_board_cache (
+  airport_iata  CHAR(3)       NOT NULL,
+  board_type    ENUM('departure','arrival') NOT NULL,
+  data_enc      MEDIUMTEXT    NOT NULL,
+  fetched_at    DATETIME      NOT NULL,
+  PRIMARY KEY (airport_iata, board_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- RailKit PNR lookups: one row per upstream call (the PNR itself is stored only as a keyed hash + last 4 digits).
+CREATE TABLE IF NOT EXISTS pnr_api_calls (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  pnr_hash      CHAR(64)      NOT NULL,
+  pnr_last4     CHAR(4)       NOT NULL,
+  http_status   SMALLINT      NULL,
+  error_code    VARCHAR(64)   NULL,
+  billable      TINYINT(1)    NOT NULL DEFAULT 0,
+  latency_ms    INT UNSIGNED  NULL,
+  user_id       INT UNSIGNED  NULL,
+  ip_hash       CHAR(64)      NULL,
+  response_enc  MEDIUMTEXT    NULL,
+  created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_pnr_calls_created (created_at),
+  KEY idx_pnr_calls_user (user_id, created_at),
+  KEY idx_pnr_calls_ip (ip_hash, created_at),
+  KEY idx_pnr_calls_hash (pnr_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Last PNR status per PNR (encrypted), so a refresh within the cache window doesn't spend a request.
+CREATE TABLE IF NOT EXISTS pnr_cache (
+  pnr_hash      CHAR(64)      NOT NULL PRIMARY KEY,
+  data_enc      MEDIUMTEXT    NOT NULL,
+  journey_at    DATETIME      NULL,
+  fetched_at    DATETIME      NOT NULL,
+  KEY idx_pnr_cache_fetched (fetched_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- PNRs a logged-in traveller has checked, shown as "Your PNRs" on the home page (max 10 per user).
+CREATE TABLE IF NOT EXISTS user_pnrs (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id         INT UNSIGNED  NOT NULL,
+  pnr_hash        CHAR(64)      NOT NULL,
+  pnr_enc         TEXT          NOT NULL,
+  snapshot_enc    MEDIUMTEXT    NULL,
+  fetched_at      DATETIME      NULL,
+  journey_at      DATETIME      NULL,
+  updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_user_pnr (user_id, pnr_hash),
+  KEY idx_user_pnrs_user (user_id, updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

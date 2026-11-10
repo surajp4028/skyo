@@ -113,7 +113,7 @@ export async function encOpt(v: string | null | undefined): Promise<string | nul
   return v === null || v === undefined || v === "" ? null : encrypt(String(v));
 }
 
-export type BidxKind = "email" | "phone" | "name" | "ip" | "ref";
+export type BidxKind = "email" | "phone" | "name" | "ip" | "ref" | "pnr";
 
 export function normalizeForIndex(kind: BidxKind, value: string): string {
   const v = value.trim();

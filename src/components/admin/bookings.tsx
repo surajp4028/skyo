@@ -9,6 +9,7 @@ import { useFetch } from "./use-fetch";
 import { Badge, Card, PageHeader, Pager, SearchBox, Select, StatCard, Table, Td, Toolbar, usePage } from "./ui";
 import { useDebounced } from "./users";
 import { FlightUsage } from "./flight-usage";
+import { PnrUsage } from "./pnr-usage";
 import { RailUsage } from "./rail-usage";
 import { fmtDate, formatINR, timeAgo } from "@/lib/utils";
 import type { ServiceKey } from "@/lib/permissions";
@@ -73,7 +74,7 @@ export function BookingsView({ service }: { service: ServiceKey }) {
       />
       {showStats && (
         <>
-          {service === "train" && <div className="mb-4"><RailUsage compact /></div>}
+          {service === "train" && <div className="mb-4 grid gap-4 xl:grid-cols-2"><RailUsage compact /><PnrUsage compact /></div>}
           {service === "flight" && <div className="mb-4"><FlightUsage compact /></div>}
           <div className="mb-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Confirmed" value={data?.summary.confirmed ?? "—"} icon={<CheckCircle2 />} tone="mint" />

@@ -16,7 +16,7 @@ type Usage = {
   recent: { id: number; endpoint: string; params: string; http_status: number; error_code: string | null; billable: number; result_count: number; result_total: number | null; latency_ms: number; reason: string | null; created_at: string }[];
   routes: { dep_iata: string; arr_iata: string; flights: number; upstream_total: number | null; pages: number; source_date: string | null; searches: number; fetched_at: string; last_search_at: string | null }[];
 };
-const REASON: Record<string, string> = { search: "New route searched", connection: "Connection hub", explore: "Connection search", track: "Live tracking", admin_refresh: "Admin refresh", setup_test: "Setup test", booking: "Booking" };
+const REASON: Record<string, string> = { search: "New route searched", connection: "Connection hub", explore: "Connection search", board: "Airport board", track: "Live tracking", admin_refresh: "Admin refresh", setup_test: "Setup test", booking: "Booking" };
 
 /** aviationstack meter (requests this month vs cap), why each request was spent, cached routes and the call ledger. */
 export function FlightUsage({ compact }: { compact?: boolean }) {

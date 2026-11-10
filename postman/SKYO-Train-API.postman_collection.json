@@ -1,9 +1,9 @@
 {
   "info": {
     "_postman_id": "fc5f698b-6e84-4532-8491-f4cabbdb01b7",
-    "name": "SKYO \u00b7 Train API (RailCore)",
+    "name": "SKYO · Train API (RailCore)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Two folders:\n\n1. **SKYO backend** \u2014 `/api/train/*` on your Next.js app (validated, rate-limited, credit-guarded). Use this from the website / future mobile app.\n2. **RailCore direct** \u2014 every RailCore v1 endpoint, for debugging only. Set `railcore_key` in a Postman *environment* (never commit it).\n\n\u26a0\ufe0f Free plan = 2,500 credits/month, 20 req/min, 300 req/day. The credit cost is in every request name. Failed (4xx/5xx) calls are free.\n\nLogin-required SKYO endpoints: run `0 \u00b7 Auth` first (Postman stores the cookie). POST requests need header `X-Requested-With: skyo`."
+    "description": "Two folders:\n\n1. **SKYO backend** — `/api/train/*` on your Next.js app (validated, rate-limited, credit-guarded). Use this from the website / future mobile app.\n2. **RailCore direct** — every RailCore v1 endpoint, for debugging only. Set `railcore_key` in a Postman *environment* (never commit it).\n\n⚠️ Free plan = 2,500 credits/month, 20 req/min, 300 req/day. The credit cost is in every request name. Failed (4xx/5xx) calls are free.\n\nLogin-required SKYO endpoints: run `0 · Auth` first (Postman stores the cookie). POST requests need header `X-Requested-With: skyo`."
   },
   "variable": [
     {
@@ -17,7 +17,7 @@
     {
       "key": "railcore_key",
       "value": "",
-      "description": "Paste rk_live_\u2026 in a Postman environment, not here."
+      "description": "Paste rk_live_… in a Postman environment, not here."
     },
     {
       "key": "login_identifier",
@@ -56,6 +56,10 @@
       "key": "live_date",
       "value": "2026-11-07",
       "description": "Day the train left its origin (for live / charts)"
+    },
+    {
+      "key": "pnr",
+      "value": "1234567890"
     }
   ],
   "item": [
@@ -63,7 +67,7 @@
       "name": "SKYO backend (/api/train)",
       "item": [
         {
-          "name": "0 \u00b7 Auth (gets the session cookie)",
+          "name": "0 · Auth (gets the session cookie)",
           "item": [
             {
               "name": "Send login OTP",
@@ -170,10 +174,10 @@
           ]
         },
         {
-          "name": "1 \u00b7 Stations",
+          "name": "1 · Stations",
           "item": [
             {
-              "name": "Station autocomplete (local first, 0\u20131 credit)",
+              "name": "Station autocomplete (local first, 0–1 credit)",
               "request": {
                 "method": "GET",
                 "header": [],
@@ -220,7 +224,7 @@
               }
             },
             {
-              "name": "Live station board (4 credits \u00b7 login)",
+              "name": "Live station board (4 credits · login)",
               "request": {
                 "method": "GET",
                 "header": [],
@@ -249,7 +253,7 @@
           ]
         },
         {
-          "name": "2 \u00b7 Trains",
+          "name": "2 · Trains",
           "item": [
             {
               "name": "Search trains by name/number (1 credit)",
@@ -326,7 +330,7 @@
               }
             },
             {
-              "name": "Live running status (5 credits \u00b7 login)",
+              "name": "Live running status (5 credits · login)",
               "request": {
                 "method": "GET",
                 "header": [],
@@ -377,7 +381,7 @@
           ]
         },
         {
-          "name": "3 \u00b7 Journeys",
+          "name": "3 · Journeys",
           "item": [
             {
               "name": "Trains between stations (5 credits)",
@@ -413,16 +417,16 @@
                     }
                   ]
                 },
-                "description": "Includes class-wise availability_summary + fares \u2014 no extra calls needed for the results list."
+                "description": "Includes class-wise availability_summary + fares — no extra calls needed for the results list."
               }
             }
           ]
         },
         {
-          "name": "4 \u00b7 Availability",
+          "name": "4 · Availability",
           "item": [
             {
-              "name": "Seat availability (5 credits \u00b7 login)",
+              "name": "Seat availability (5 credits · login)",
               "request": {
                 "method": "GET",
                 "header": [],
@@ -467,7 +471,7 @@
               }
             },
             {
-              "name": "7-day availability calendar (4 credits \u00b7 login)",
+              "name": "7-day availability calendar (4 credits · login)",
               "request": {
                 "method": "GET",
                 "header": [],
@@ -557,7 +561,7 @@
           ]
         },
         {
-          "name": "5 \u00b7 Fares",
+          "name": "5 · Fares",
           "item": [
             {
               "name": "Fare estimate (3 credits)",
@@ -691,7 +695,7 @@
           ]
         },
         {
-          "name": "6 \u00b7 Charts (RailCore Scale plan only)",
+          "name": "6 · Charts (RailCore Scale plan only)",
           "description": "On the Free plan these answer 403 PLAN_REQUIRED without calling RailCore (0 credits).",
           "item": [
             {
@@ -807,7 +811,7 @@
           ]
         },
         {
-          "name": "7 \u00b7 Admin",
+          "name": "7 · Admin",
           "item": [
             {
               "name": "Agent login",
@@ -875,7 +879,7 @@
       ]
     },
     {
-      "name": "RailCore direct (v1) \u2014 debugging",
+      "name": "RailCore direct (v1) — debugging",
       "item": [
         {
           "name": "Stations",
@@ -911,7 +915,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 1 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 1 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -936,7 +940,7 @@
                   ],
                   "query": []
                 },
-                "description": "Credits: 1 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 1 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -967,7 +971,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 4 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 4 · Plans: All plans. Every 2xx response is billed."
               }
             }
           ]
@@ -1006,7 +1010,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 1 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 1 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -1031,7 +1035,7 @@
                   ],
                   "query": []
                 },
-                "description": "Credits: 1 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 1 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -1062,7 +1066,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 2 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 2 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -1088,7 +1092,7 @@
                   ],
                   "query": []
                 },
-                "description": "Credits: 2 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 2 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -1114,7 +1118,7 @@
                   ],
                   "query": []
                 },
-                "description": "Credits: 2 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 2 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -1140,7 +1144,7 @@
                   ],
                   "query": []
                 },
-                "description": "Credits: 2 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 2 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -1175,7 +1179,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 5 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 5 · Plans: All plans. Every 2xx response is billed."
               }
             }
           ]
@@ -1222,7 +1226,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 5 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 5 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -1260,7 +1264,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 5 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 5 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -1290,7 +1294,7 @@
                   ],
                   "query": []
                 },
-                "description": "Credits: 5 \u00b7 Plans: All plans. Every 2xx response is billed.",
+                "description": "Credits: 5 · Plans: All plans. Every 2xx response is billed.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"journeys\": [\n    {\n      \"from\": \"{{from}}\",\n      \"to\": \"{{to}}\",\n      \"date\": \"{{date}}\",\n      \"quota\": \"GN\"\n    }\n  ]\n}",
@@ -1354,11 +1358,11 @@
                     }
                   ]
                 },
-                "description": "Credits: 5 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 5 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
-              "name": "Seat availability batch (max(5, 2\u00d7class combos) cr)",
+              "name": "Seat availability batch (max(5, 2×class combos) cr)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1385,7 +1389,7 @@
                   ],
                   "query": []
                 },
-                "description": "Credits: max(5, 2\u00d7class combos) \u00b7 Plans: All plans. Every 2xx response is billed.",
+                "description": "Credits: max(5, 2×class combos) · Plans: All plans. Every 2xx response is billed.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"items\": [\n    {\n      \"train_number\": \"{{train}}\",\n      \"from\": \"{{from}}\",\n      \"to\": \"{{to}}\",\n      \"date\": \"{{date}}\",\n      \"classes\": [\n        \"3A\"\n      ],\n      \"quota\": \"GN\"\n    }\n  ]\n}",
@@ -1448,7 +1452,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 4 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 4 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -1490,7 +1494,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 3 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 3 · Plans: All plans. Every 2xx response is billed."
               }
             }
           ]
@@ -1541,7 +1545,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 3 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 3 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -1583,7 +1587,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 3 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 3 · Plans: All plans. Every 2xx response is billed."
               }
             },
             {
@@ -1637,7 +1641,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 3 \u00b7 Plans: All plans. Every 2xx response is billed."
+                "description": "Credits: 3 · Plans: All plans. Every 2xx response is billed."
               }
             }
           ]
@@ -1680,7 +1684,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 4 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed."
+                "description": "Credits: 4 · Plans: Scale, Enterprise. Every 2xx response is billed."
               }
             },
             {
@@ -1722,7 +1726,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 8 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed."
+                "description": "Credits: 8 · Plans: Scale, Enterprise. Every 2xx response is billed."
               }
             },
             {
@@ -1769,7 +1773,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 10 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed."
+                "description": "Credits: 10 · Plans: Scale, Enterprise. Every 2xx response is billed."
               }
             },
             {
@@ -1812,7 +1816,7 @@
                     }
                   ]
                 },
-                "description": "Credits: 25 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed."
+                "description": "Credits: 25 · Plans: Scale, Enterprise. Every 2xx response is billed."
               }
             },
             {
@@ -1842,7 +1846,7 @@
                   ],
                   "query": []
                 },
-                "description": "Credits: 25 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed.",
+                "description": "Credits: 25 · Plans: Scale, Enterprise. Every 2xx response is billed.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"from\": \"{{from}}\",\n  \"to\": \"{{to}}\",\n  \"date\": \"{{live_date}}\",\n  \"max_trains\": 10\n}",
@@ -1881,7 +1885,7 @@
                   ],
                   "query": []
                 },
-                "description": "Credits: 10 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed.",
+                "description": "Credits: 10 · Plans: Scale, Enterprise. Every 2xx response is billed.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"train_number\": \"{{train}}\",\n  \"from\": \"{{from}}\",\n  \"to\": \"{{to}}\",\n  \"date\": \"{{live_date}}\"\n}",
@@ -1915,7 +1919,7 @@
                   ],
                   "query": []
                 },
-                "description": "Credits: 0 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed."
+                "description": "Credits: 0 · Plans: Scale, Enterprise. Every 2xx response is billed."
               }
             },
             {
@@ -1944,10 +1948,70 @@
                     }
                   ]
                 },
-                "description": "Credits: 0 \u00b7 Plans: Scale, Enterprise. Every 2xx response is billed."
+                "description": "Credits: 0 · Plans: Scale, Enterprise. Every 2xx response is billed."
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "PNR status (RailKit)",
+      "item": [
+        {
+          "name": "PNR status · POST /api/train/pnr",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Origin",
+                "value": "{{baseUrl}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "skyo"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pnr\": \"{{pnr}}\",\n  \"refresh\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/train/pnr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "train",
+                "pnr"
+              ]
+            },
+            "description": "10-digit PNR in the body (never in the URL). A saved status is returned free while it's fresh (pnr_cache_min before charting, ≥2 h after, a day after travel). Fresh lookups: pnr_user_daily per logged-in user, pnr_guest_daily per visitor IP. Each fresh lookup = 1 RailKit request.\n\nErrors: 422 VALIDATION · 404 PNR_NOT_FOUND · 401 LOGIN_REQUIRED · 429 LOGIN_FOR_MORE / PNR_DAILY_LIMIT / PNR_BUDGET / PNR_QUOTA / RATE_LIMITED · 503 PNR_DISABLED / PNR_UNAVAILABLE"
+          }
+        },
+        {
+          "name": "Admin · PNR usage · GET /api/admin/pnr-usage",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/pnr-usage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "pnr-usage"
+              ]
+            },
+            "description": "Agent session with bookings.train permission. Requests this RailKit period vs cap, today, errors, last 30 calls (PNR as last 4 digits)."
+          }
         }
       ]
     }

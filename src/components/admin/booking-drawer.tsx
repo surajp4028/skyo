@@ -473,7 +473,7 @@ function FlightBlocks({ d, x }: { d: Detail["details"] & { flight: NonNullable<D
                     <td className="px-3 py-2">{p.age}</td>
                     <td className="px-3 py-2">{p.type === "child" ? "Child" : p.type === "infant" ? "Infant (lap)" : "Adult"}</td>
                     <td className="px-3 py-2 font-mono font-bold text-[#0057ff]">{seats}</td>
-                    <td className="px-3 py-2 font-mono text-[11px]">{p.passport ? `${x.contact.masked ? `••••${p.passport.number.slice(-3)}` : p.passport.number} · ${p.passport.nationality} · exp ${fmtDate(p.passport.expiry)}` : "—"}</td>
+                    <td className="px-3 py-2 font-mono text-[11px]">{p.passport ? `${x.contact.masked ? `••••${p.passport.number.slice(-3)}` : p.passport.number} · ${p.passport.nationality} · exp ${fmtDate(p.passport.expiry)}` : f.legs.some((l) => (l.from as { country?: string }).country !== "IN" || (l.to as { country?: string }).country !== "IN") ? <span className="font-sans font-bold text-amber-600">Missing</span> : "—"}</td>
                     <td className="px-3 py-2 font-mono">{a?.eticket || "—"}</td>
                   </tr>
                 );

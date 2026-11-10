@@ -23,7 +23,7 @@ export default async function TrainToolsPage() {
       <Navbar />
       <main className="min-h-screen">
         <section className="relative -mt-20 overflow-hidden pb-14 pt-32">
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,#0057ff_0%,#1a82ff_40%,#7cc4ff_80%,#f6f7fb_100%)]" />
+          <div className="absolute inset-0 sky-fade" />
           <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.8),transparent_65%)]" />
           <div className="relative mx-auto max-w-7xl px-5">
             <h1 className="text-center text-4xl font-extrabold tracking-tight text-white md:text-5xl">Train tools</h1>

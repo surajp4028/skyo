@@ -23,6 +23,15 @@ export const SETTING_DEFS = {
   service_package: { label: "Packages service", default: "on", max: 3, public: true },
   train_live: { label: "Train live running status", default: "on", max: 3, public: true },
   train_api: { label: "Live train data (RailCore)", default: "on", max: 3, public: false },
+  // ---- PNR status (RailKit) ----
+  pnr_status: { label: "PNR status page", default: "on", max: 3, public: true },
+  pnr_api: { label: "Live PNR data (RailKit)", default: "on", max: 3, public: false },
+  pnr_monthly_cap: { label: "RailKit monthly request cap", default: "100", max: 6, public: false },
+  pnr_quota_reset_day: { label: "RailKit plan renews on day", default: "1", max: 2, public: false },
+  pnr_cache_min: { label: "PNR cache before chart (minutes)", default: "30", max: 4, public: false },
+  pnr_user_daily: { label: "Fresh PNR lookups per user per day", default: "10", max: 3, public: false },
+  pnr_guest_daily: { label: "Fresh PNR lookups per visitor (not logged in) per day", default: "2", max: 3, public: false },
+  pnr_log_retention_days: { label: "Keep PNR responses for (days)", default: "30", max: 3, public: false },
   max_saved_passengers: { label: "Max saved passengers per account", default: "20", max: 3, public: true },
   max_passengers_per_booking: { label: "Max passengers per train booking", default: "6", max: 1, public: true },
   train_daily_credit_cap: { label: "RailCore daily credit cap", default: process.env.RK_DAILY_CREDIT_CAP || "80", max: 6, public: false },
@@ -80,6 +89,9 @@ export const SETTING_DEFS = {
   flight_log_retention_days: { label: "Keep aviationstack responses (days)", default: "30", max: 4, public: false },
   flight_log_keep_days: { label: "Keep aviationstack request history (days)", default: "365", max: 4, public: false },
   flight_quota_reset_day: { label: "aviationstack plan renews on day of month", default: "1", max: 2, public: false },
+  flight_airport_board: { label: "Airport live board", default: "on", max: 3, public: true },
+  flight_board_cache_min: { label: "Airport board cache (minutes)", default: "30", max: 4, public: false },
+  flight_passport_mode: { label: "International passports: at booking or add later", default: "later", max: 7, public: true },
   flight_child_discount_pct: { label: "Child (2–11) discount on base fare %", default: "10", max: 5, public: true },
   flight_infant_fee: { label: "Infant (under 2, on lap) fee (₹)", default: "1500", max: 7, public: true },
 } as const;
@@ -131,6 +143,7 @@ export async function getPublicSettings() {
     service_hotel: string;
     service_package: string;
     train_live: string;
+    pnr_status: string;
     max_saved_passengers: string;
     max_passengers_per_booking: string;
     gst_input_mode: string;
@@ -165,6 +178,8 @@ export async function getPublicSettings() {
     flight_pg_gst_pct: string;
     flight_child_discount_pct: string;
     flight_infant_fee: string;
+    flight_passport_mode: string;
+    flight_airport_board: string;
   };
 }
 

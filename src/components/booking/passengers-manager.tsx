@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2, UserRound, Users, X } from "lucide-react";
 import { api, errMsg } from "@/lib/client/api";
-import { PassengerForm, berthLabel, genderLabel, type SavedPassenger } from "./passenger-form";
+import { PassengerForm, berthLabel, genderLabel, maskPassport, type SavedPassenger } from "./passenger-form";
 import { cn } from "@/lib/utils";
 
 /** Saved travellers (account page). Limit comes from Admin → Settings. */
@@ -46,7 +46,7 @@ export function PassengersManager() {
             <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold text-white", p.gender === "F" ? "bg-gradient-to-br from-pink-500 to-rose-400" : p.gender === "T" ? "bg-gradient-to-br from-violet-500 to-fuchsia-400" : "bg-gradient-to-br from-sky-500 to-indigo-500")}>{p.name[0]}</span>
             <div className="min-w-0 flex-1">
               <div className="truncate font-bold">{p.name}</div>
-              <div className="text-xs text-muted">{p.age} yrs · {genderLabel(p.gender)} · {berthLabel(p.berth)} · {p.nationality}</div>
+              <div className="text-xs text-muted">{p.age} yrs · {genderLabel(p.gender)} · {berthLabel(p.berth)} · {p.nationality}{p.passport ? <span className="ml-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">Passport {maskPassport(p.passport.number)}</span> : null}</div>
             </div>
             <button onClick={() => setEditing(p)} aria-label="Edit" className="rounded-lg p-2 text-muted opacity-60 hover:bg-surface hover:text-ink group-hover:opacity-100"><Pencil className="h-4 w-4" /></button>
             <button

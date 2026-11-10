@@ -3,14 +3,14 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
-import { BusFront, Building2, ChevronDown, CreditCard, Download, FileText, Loader2, Ticket, Palmtree, Plane, Radar, ShieldPlus, TrainFront, Utensils } from "lucide-react";
+import { BookUser, BusFront, Building2, ChevronDown, CreditCard, Download, FileText, Loader2, Ticket, Palmtree, Plane, Radar, ShieldPlus, TrainFront, Utensils } from "lucide-react";
 import { AirlineLogo } from "@/components/flight/airline-logo";
 import { api, errMsg } from "@/lib/client/api";
 import { openCheckout } from "@/lib/client/razorpay";
 import { CLASS_NAMES, fmtMoney as fmtINR, prettyDate } from "@/lib/train/format";
 import { cn } from "@/lib/utils";
 import { useSite } from "@/lib/client/providers";
-import { isServiceOn, type ServiceKey } from "@/lib/services";
+import { isPnrOn, isServiceOn, type ServiceKey } from "@/lib/services";
 
 const SERVICE_TABS: { key: ServiceKey | ""; label: string; icon?: typeof Plane }[] = [
   { key: "", label: "All" },
@@ -40,7 +40,8 @@ type Trip = {
   flight?: {
     legs: { key: string; airline: { iata: string; name: string }; number: string; from: { iata: string; city: string; time: string; terminal: string | null }; to: { iata: string; city: string; time: string; terminal: string | null }; durationMin: number }[];
     dep: string; arr: string; dayOffset: number; stops: number; durationMin: number; cabin: string;
-    passengers: { name: string; seats: Record<string, string | null> }[];
+    intl?: boolean;
+    passengers: { name: string; age?: number; type?: string; nationality?: string; seats: Record<string, string | null>; passport?: { last3: string; expiry: string; nationality: string } | null }[];
     allocations: { name: string; seats: Record<string, string>; eticket: string }[] | null;
   } | null;
 };
@@ -201,6 +202,9 @@ export function MyTrips() {
                     {t.flight && t.date === todayIST() && site.flight_live === "on" && (
                       <Link href={`/flights/status?flight=${t.flight.legs[0].airline.iata}${t.flight.legs[0].number}`} className="flex items-center gap-1.5 rounded-xl bg-sky-50 px-3.5 py-2 text-xs font-extrabold text-sky-700 transition hover:-translate-y-0.5"><Radar className="h-3.5 w-3.5" /> Track live</Link>
                     )}
+                    {t.service === "train" && t.pnr && /^\d{10}$/.test(t.pnr) && isPnrOn(site) && (
+                      <Link href={`/trains/pnr#${t.pnr}`} className="flex items-center gap-1.5 rounded-xl bg-violet-50 px-3.5 py-2 text-xs font-extrabold text-violet-700 transition hover:-translate-y-0.5"><Ticket className="h-3.5 w-3.5" /> PNR status</Link>
+                    )}
                     {t.ticket?.hasProviderPdf && (
                       <a href={`/api/bookings/${t.ref}/ticket?kind=irctc`} className="flex items-center gap-1.5 rounded-xl bg-ink px-3.5 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5"><Ticket className="h-3.5 w-3.5" /> IRCTC ticket</a>
                     )}
@@ -215,6 +219,9 @@ export function MyTrips() {
                 {(expired || (t.status === "cancelled" && t.paymentStatus !== "paid")) && <span className="text-xs font-semibold text-muted">Not paid in time — search again to book</span>}
               </div>
             </div>
+            {t.flight?.intl && (t.status === "confirmed" || t.status === "pending") && t.date >= todayIST() && (
+              <PassportStrip trip={t} onSaved={() => setTick((x) => x + 1)} />
+            )}
             {(t.refund || t.failure) && (
               <div className={cn("border-t px-5 py-3 text-xs font-semibold", t.refund && !t.refund.pending ? "border-emerald-100 bg-emerald-50 text-emerald-800" : "border-amber-100 bg-amber-50 text-amber-800")}>
                 {t.failure && !t.refund && <>{t.failure} A full refund will be started automatically.</>}
@@ -240,6 +247,61 @@ export function MyTrips() {
           </motion.article>
         );
       })}
+    </div>
+  );
+}
+
+/** International trip: passports still missing → add them here (and optionally on the traveller profiles). */
+function PassportStrip({ trip, onSaved }: { trip: Trip; onSaved: () => void }) {
+  const pax = trip.flight!.passengers;
+  const missing = pax.filter((p) => !p.passport).length;
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [save, setSave] = useState(true);
+  const [form, setForm] = useState<Record<number, { number: string; expiry: string; nationality: string }>>({});
+  const v = (i: number) => form[i] ?? { number: "", expiry: pax[i].passport?.expiry ?? "", nationality: pax[i].passport?.nationality ?? pax[i].nationality ?? "IN" };
+  const valid = (i: number) => /^[A-Z0-9]{6,9}$/.test(v(i).number) && v(i).expiry > trip.date && /^[A-Z]{2}$/.test(v(i).nationality);
+  const filled = Object.keys(form).map(Number).filter((i) => form[i].number || form[i].expiry);
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const r = await api<{ missing: number }>(`/api/bookings/${trip.ref}/passports`, { body: { passports: Object.fromEntries(filled.map((i) => [String(i), v(i)])), save } });
+      toast.success(r.missing ? `Saved — ${r.missing} traveller${r.missing > 1 ? "s" : ""} still need a passport` : "Passports added for everyone");
+      setOpen(false);
+      setForm({});
+      onSaved();
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={cn("border-t px-5 py-3 text-xs", missing ? "border-amber-100 bg-amber-50" : "border-emerald-100 bg-emerald-50")}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className={cn("flex items-center gap-1.5 font-semibold", missing ? "text-amber-800" : "text-emerald-800")}>
+          <BookUser className="h-4 w-4" />
+          {missing ? `Passport details needed for ${missing} traveller${missing > 1 ? "s" : ""} — add them before check-in.` : `Passports added for all travellers (${pax.map((p) => `•••${p.passport!.last3}`).join(", ")}).`}
+        </span>
+        <button onClick={() => setOpen((o) => !o)} className={cn("rounded-lg px-3 py-1.5 font-extrabold", missing ? "bg-amber-600 text-white" : "border border-emerald-200 bg-white text-emerald-700")}>{open ? "Close" : missing ? "Add passport details" : "Update"}</button>
+      </div>
+      {open && (
+        <div className="mt-3 space-y-2">
+          {pax.map((p, i) => (
+            <div key={i} className="rounded-xl bg-white p-3">
+              <div className="mb-2 font-bold text-ink">{p.name} {p.passport && <span className="font-semibold text-muted">· saved •••{p.passport.last3}, valid till {p.passport.expiry}</span>}</div>
+              <div className="grid gap-2 sm:grid-cols-[1fr_150px_70px]">
+                <input value={v(i).number} onChange={(e) => setForm((f) => ({ ...f, [i]: { ...v(i), number: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 9) } }))} placeholder={p.passport ? "New passport no." : "Passport no."} className="h-10 rounded-lg border border-line px-3 font-mono text-sm uppercase outline-none focus:border-[#0057ff]" />
+                <input type="date" value={v(i).expiry} min={trip.date} onChange={(e) => setForm((f) => ({ ...f, [i]: { ...v(i), expiry: e.target.value } }))} className="h-10 rounded-lg border border-line px-3 text-sm outline-none focus:border-[#0057ff]" />
+                <input value={v(i).nationality} onChange={(e) => setForm((f) => ({ ...f, [i]: { ...v(i), nationality: e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2) } }))} className="h-10 rounded-lg border border-line px-2 text-center font-mono text-sm uppercase outline-none focus:border-[#0057ff]" />
+              </div>
+              {form[i] && (form[i].number || form[i].expiry) && !valid(i) && <p className="mt-1 text-[11px] font-semibold text-red-600">Passport no. 6–9 letters/digits, valid after {trip.date}</p>}
+            </div>
+          ))}
+          <label className="flex items-center gap-2 font-semibold text-ink"><input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} className="h-4 w-4 accent-[#0057ff]" /> Also save to my traveller profiles</label>
+          <button onClick={submit} disabled={busy || !filled.length || !filled.every(valid)} className="flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2 font-extrabold text-white disabled:opacity-40">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Save passports</button>
+        </div>
+      )}
     </div>
   );
 }

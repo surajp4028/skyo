@@ -6,3 +6,4 @@ export const serviceSetting = (k: ServiceKey) => `service_${k}` as const;
 type SiteLike = Partial<Record<string, string>>;
 export const isServiceOn = (site: SiteLike, k: ServiceKey) => (site[serviceSetting(k)] ?? "on") === "on";
 export const isTrainLiveOn = (site: SiteLike) => isServiceOn(site, "train") && (site.train_live ?? "on") === "on";
+export const isPnrOn = (site: SiteLike) => isServiceOn(site, "train") && (site.pnr_status ?? "on") === "on";

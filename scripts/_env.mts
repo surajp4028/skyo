@@ -18,6 +18,9 @@ export async function adminConnection(withDb = true) {
     port: Number(process.env.DB_PORT || 3306),
     user: process.env.DB_USER || "root",
     password: process.env.DB_PASS || "",
+    ssl: process.env.DB_SSL === "true"
+      ? (process.env.DB_SSL_CA ? { ca: process.env.DB_SSL_CA } : { rejectUnauthorized: false })
+      : undefined,
     multipleStatements: true,
     timezone: "Z",
     ...(withDb ? { database: dbName } : {}),

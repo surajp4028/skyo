@@ -28,14 +28,14 @@ export function Hero() {
     <section className="relative -mt-20 overflow-hidden pb-44 pt-32 md:pb-52 md:pt-40">
       {/* bluish sky */}
       {/* clear, saturated daytime sky */}
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,#0057ff_0%,#0a74ff_28%,#2f94ff_55%,#6cbcff_78%,#cfe9ff_92%,#f6f7fb_100%)]" />
+      <div className="absolute inset-0 sky-fade" />
       <div className="absolute -right-16 -top-20 h-[360px] w-[360px] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.95)_0%,rgba(255,246,214,0.55)_22%,transparent_60%)]" />
       <Clouds />
       <FlightPath />
       <Spotlight className="-top-40 left-0 md:-top-20 md:left-60" fill="white" />
 
       <div className="relative z-10 mx-auto max-w-7xl px-5">
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-white/30 bg-white/15 px-4 py-1.5 text-xs font-semibold text-white shadow-[0_8px_30px_-12px_rgba(0,30,90,0.5)] backdrop-blur-md">
+        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-white/30 bg-white/15 px-4 py-1.5 text-xs font-semibold text-white shadow-[0_8px_30px_-12px_rgba(0,30,90,0.5)] backdrop-blur-md">
           <Sparkles className="h-3.5 w-3.5 text-amber-300" /> India&apos;s smartest way to travel · {site.site_name}
         </motion.div>
         <h1 className="mx-auto max-w-4xl text-center text-4xl font-extrabold leading-[1.06] tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,40,120,0.35)] md:text-7xl">
@@ -43,7 +43,7 @@ export function Hero() {
           <FlipWords words={["flights", "trains", "buses", "hotels", "holidays"]} className="font-display font-normal italic text-gradient-sun" />
           <br className="hidden md:block" /> <span className="relative">without the chaos.</span>
         </h1>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mx-auto mt-6 max-w-2xl text-center text-base font-medium text-white/90 [text-shadow:0_1px_12px_rgba(0,40,120,0.45)] md:text-lg">
+        <motion.p initial={false} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mx-auto mt-6 max-w-2xl text-center text-base font-medium text-white/90 [text-shadow:0_1px_12px_rgba(0,40,120,0.45)] md:text-lg">
           {site.site_tagline} Confirmed-seat predictions, instant refunds and zero hidden fees.
         </motion.p>
         <div className="mx-auto mt-8 flex max-w-xl flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-white/80 [text-shadow:0_1px_10px_rgba(0,40,120,0.45)]">

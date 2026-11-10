@@ -35,7 +35,7 @@ export function ContactView() {
   return (
     <>
       <section className="relative -mt-20 overflow-hidden pb-32 pt-36">
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,#0057ff_0%,#0a74ff_40%,#6cbcff_85%,#f6f7fb_100%)]" />
+        <div className="absolute inset-0 sky-fade" />
         <div className="absolute -right-16 -top-20 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.9),transparent_62%)]" />
         <Spotlight className="-top-40 left-0 md:left-60" fill="white" />
         <div className="relative mx-auto max-w-4xl px-5 text-center text-white">

@@ -23,7 +23,7 @@ export function FlipWords({ words, duration = 2600, className }: { words: string
     <AnimatePresence onExitComplete={() => setAnimating(false)}>
       <motion.span
         key={current}
-        initial={{ opacity: 0, y: 10 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 100, damping: 10 }}
         exit={{ opacity: 0, y: -40, x: 40, filter: "blur(8px)", scale: 2, position: "absolute" }}
@@ -32,7 +32,7 @@ export function FlipWords({ words, duration = 2600, className }: { words: string
         {current.split("").map((ch, i) => (
           <motion.span
             key={current + i}
-            initial={{ opacity: 0, y: 10, filter: "blur(8px)" }}
+            initial={false}
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             transition={{ delay: i * 0.04, duration: 0.3 }}
             className="inline-block"

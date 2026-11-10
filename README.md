@@ -263,8 +263,11 @@ after 24 h (small airports fly only on some days). Airports: ~7,900 worldwide fr
 searchable by city, code, airport or country.
 
 **International trips.** When any leg leaves India the booking sheet asks each traveller's passport number, expiry and
-nationality; the server rejects missing / expired passports. Stored only inside the encrypted booking details and shown
-masked to agents without the contact permission.
+nationality. `flight_passport_mode`: `later` (default, like most travel sites — optional at booking, added afterwards from
+My trips → "Add passport details", `POST /api/bookings/{ref}/passports`) or `booking` (required before paying). Saved
+travellers (Account → Travellers) can hold a passport; it pre-fills bookings and new ones can be saved back. Expired-before-
+travel passports are always rejected. Stored only inside the encrypted traveller / booking blobs, never in logs, shown
+masked to agents without the contact permission and flagged "Missing" in the admin drawer.
 
 **Retention.** `runFlightMaintenance()` (every 6 h, piggy-backing on searches; or Admin → Flights usage card → "Clean up
 old data"): aviationstack responses cleared after `flight_log_retention_days` (30), request rows deleted after
@@ -279,6 +282,18 @@ free at ticketing.
 **Booking.** `POST /api/bookings/flight/initiate` → Razorpay order (same verify / webhook / refund / disputes pipeline as trains,
 refs `SKT…`) → `issueFlightForBooking()` (Tripgic **mock**: PNR, airline PNR per segment, e-ticket numbers, seats) → flight
 e-ticket PDF to S3 `<SKYO ID>/flight/<ref>_<date>.pdf`, SMS + email. Coupons can target `flight`; seeded `SKYOFLY` (₹300 off).
+
+**Airport live board.** `/flights/airport?code=DEL&type=departure|arrival` — today's departures / arrivals from
+`/v1/flights?dep_iata|arr_iata` (free plan): time (estimated / actual vs scheduled), airline logo, codeshares, city,
+terminal, gate / baggage belt, status, delay; filter by text or "delayed only"; tap to track. 1 request per airport +
+direction, cached `flight_board_cache_min` (30) for everyone; fresh boards need login (6/user/day).
+
+**On-time today.** The results route card shows how the route's flights did on the day the schedule was fetched
+(on-time %, average delay, cancellations) — computed from the route cache, 0 requests.
+
+**Not used (free plan limits).** `/airlines`, `/airplanes`, `/aircraft_types`, `/cities`, `/countries`, `/taxes` and
+`/airports` have no filters on the free plan (search is Basic+) — only 100-row page dumps, so SKYO uses its own airport
+list instead. Historical flights, `/timetable`, `/flightsFuture` (exact future schedules) and `/routes` need Basic.
 
 **Pages.** `/flights` results (filters, sort, date strip, flight details) → booking sheet (travellers → dark seat map →
 review & pay) · `/flights/status` live tracking with route map · My trips flight cards with seats, e-ticket, invoice, Track live.
@@ -302,3 +317,16 @@ flight / admin APIs) and `postman/SKYO-local.postman_environment.json` — put y
 - Refund flow when payment succeeds but ticket issue fails (booking is marked `failed`, refund is manual today).
 - Fast2SMS DLT template / sender (`FAST2SMS_SENDER_ID`, `FAST2SMS_TEMPLATE_ID`) and ZeptoMail templates are copied from the iMoney project — register SKYO-branded ones before launch.
 - Have Privacy Policy / Terms reviewed by counsel.
+
+## PNR status (RailKit)
+
+- Key: `RAILKIT` in `.env.local` (server only). SDK: `railkit@6.0.2`, pinned and reviewed: it imports only `node:crypto` and calls `https://api.railkit.in`.
+- Page `/trains/pnr`, API `POST /api/train/pnr { pnr }`. The PNR goes in the request body, never in a URL. My Trips links use `/trains/pnr#<pnr>`, and the hash never reaches the server.
+- Only `src/lib/server/train/pnr.ts` talks to RailKit. Protections:
+  - kill switch (`pnr_api`)
+  - cache (`pnr_cache_min` before charting, at least 2 h after, 1 day after travel)
+  - per-person daily limits (`pnr_user_daily`, `pnr_guest_daily`)
+  - monthly cap (`pnr_monthly_cap` from `pnr_quota_reset_day`)
+  - in-flight coalescing
+- Ledger `pnr_api_calls` stores the PNR as a keyed hash + last 4 digits. Responses are encrypted and cleared after `pnr_log_retention_days`.
+- Admin → Settings → Trains → "PNR status · RailKit" holds the settings and the usage meter. The meter also appears on Admin → Bookings → Trains.

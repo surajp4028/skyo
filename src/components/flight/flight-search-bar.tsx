@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeftRight, Crown, Minus, Plane, Plus, Radar, Search, Users } from "lucide-react";
+import { ArrowLeftRight, Crown, LayoutList, Minus, Plane, Plus, Radar, Search, Users } from "lucide-react";
 import { AirportInput } from "./airport-input";
 import { DatePicker, toISO } from "@/components/ui/date-picker";
 import { parseAirportInput } from "@/lib/flight/airports";
@@ -122,6 +122,7 @@ export function FlightSearchBar({ initial, compact }: { initial?: FlightQuery; c
           </div>
           <div className="flex gap-2 text-xs font-bold">
             {site.flight_live === "on" && <Link href="/flights/status" className="flex items-center gap-1.5 rounded-full bg-sky/10 px-3 py-1.5 text-sky-600"><Radar className="h-3.5 w-3.5" /> Flight status</Link>}
+            {site.flight_airport_board === "on" && <Link href="/flights/airport?code=DEL&type=departure" className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-amber-700"><LayoutList className="h-3.5 w-3.5" /> Airport board</Link>}
             {recent && <span className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-ink/60">Your last search</span>}
           </div>
         </div>

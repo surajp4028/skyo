@@ -15,7 +15,7 @@ import { fmtINR, prettyDate } from "@/lib/train/format";
 import { saveRecentFlightSearch } from "@/lib/client/recent-flight";
 import { cn, timeAgo } from "@/lib/utils";
 
-type Result = { options: FlightOption[]; meta: { source: string; fetchedAt: string | null; sourceDate: string | null; stale: boolean; devSingle: boolean; totalBeforeLimit: number; connections: boolean; routeFound: boolean; directCount: number; suggestHubs: { iata: string; city: string }[]; gateway: { iata: string; city: string; km: number } | null }; explored?: { spent: number; checked: string[]; error?: string | null } };
+type Result = { options: FlightOption[]; meta: { source: string; fetchedAt: string | null; sourceDate: string | null; stale: boolean; devSingle: boolean; totalBeforeLimit: number; connections: boolean; routeFound: boolean; directCount: number; suggestHubs: { iata: string; city: string }[]; gateway: { iata: string; city: string; km: number } | null; onTime?: { date: string; flights: number; onTimePct: number; avgDelayMin: number; cancelled: number } | null }; explored?: { spent: number; checked: string[]; error?: string | null } };
 
 const SLOTS = [
   { key: "early", label: "Before 6 AM", icon: Sunrise },
@@ -99,6 +99,14 @@ export function FlightResults({ q }: { q: FlightQuery }) {
       <div className="bg-[radial-gradient(120%_90%_at_100%_0%,#e0f2fe_0%,#ffffff_65%)] p-3">
         <DottedRouteMap codes={[q.from, q.to]} />
       </div>
+      {meta?.onTime && (
+        <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-xs">
+          <span className="font-semibold text-muted">On time on {prettyDate(meta.onTime.date, { day: "numeric", month: "short" })} · {meta.onTime.flights} flights</span>
+          <span className={cn("rounded-full px-2 py-0.5 font-extrabold", meta.onTime.onTimePct >= 80 ? "bg-emerald-50 text-emerald-700" : meta.onTime.onTimePct >= 60 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700")}>
+            {meta.onTime.onTimePct}%{meta.onTime.avgDelayMin ? ` · avg +${meta.onTime.avgDelayMin}m` : ""}{meta.onTime.cancelled ? ` · ${meta.onTime.cancelled} cancelled` : ""}
+          </span>
+        </div>
+      )}
       <div className="grid grid-cols-3 divide-x divide-line border-t border-line text-center">
         <div className="px-2 py-2.5"><div className="text-[10px] font-bold uppercase tracking-wider text-muted">Distance</div><div className="text-sm font-extrabold">{direct ? `${direct.legs[0].distanceKm.toLocaleString("en-IN")} km` : all[0] ? `${all[0].legs.reduce((x, l) => x + l.distanceKm, 0).toLocaleString("en-IN")} km` : "—"}</div></div>
         <div className="px-2 py-2.5"><div className="text-[10px] font-bold uppercase tracking-wider text-muted">Fastest</div><div className="text-sm font-extrabold">{all.length ? fmtDur(Math.min(...all.map((o) => o.durationMin))) : "—"}</div></div>
@@ -145,7 +153,7 @@ export function FlightResults({ q }: { q: FlightQuery }) {
   return (
     <div>
       <section className="relative z-20 -mt-20 overflow-x-clip pb-6 pt-24 md:pb-10 md:pt-28">
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,#0a3dcc_0%,#1f6dff_45%,#8ccaff_100%)]" />
+        <div className="absolute inset-0 sky-band" />
         <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.7),transparent_65%)]" />
         <motion.div className="pointer-events-none absolute right-[8%] top-24 hidden text-white/25 md:block" initial={{ x: -40, y: 20, opacity: 0 }} animate={{ x: 0, y: 0, opacity: 1 }} transition={{ duration: 1.4 }}>
           <Plane className="h-24 w-24 -rotate-12 fill-white/20" />

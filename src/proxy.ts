@@ -29,7 +29,9 @@ export function proxy(req: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://checkout.razorpay.com${isProd ? "" : " 'unsafe-eval'"}`,
+    isProd
+      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://checkout.razorpay.com`
+      : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://images.unsplash.com https://cdn.razorpay.com https://*.razorpay.com https://pics.avs.io",
     "font-src 'self' data:",

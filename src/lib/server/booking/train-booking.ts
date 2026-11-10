@@ -20,6 +20,7 @@ import { notifyFailure } from "./post-issue";
 import { getUserGst, saveBilling, type Billing } from "../gst";
 import { issueFlightForBooking } from "./flight-issue";
 import type { FlightBookingDetails } from "./flight-booking";
+import { needsPassport } from "@/lib/flight/model";
 
 const HOLD_MINUTES = 15;
 /** A payment started just before the hold ended may finish a little later — allow 10 minutes. */
@@ -306,7 +307,16 @@ export async function listUserBookings(uid: string, service = "") {
         gst: d.gst ? { gstin: d.gst.gstin, company: d.gst.company } : null,
         refund: r.refunded ? { amount: Number(r.refunded) / 100, pending: Number(r.refund_pending) > 0 } : null,
         failure: r.ticket_status === "failed" ? "We couldn't confirm this ticket." : null,
-        flight: fd ? { ...fd.flight, passengers: fd.passengers, allocations: fd.ticket?.allocations ?? null, airlinePnrs: fd.ticket?.airlinePnrs ?? null } : null,
+        flight: fd
+          ? {
+              ...fd.flight,
+              intl: needsPassport(fd.flight.legs),
+              // owner's own trip — still only the last 3 passport characters leave the server
+              passengers: fd.passengers.map(({ passport, ...p }) => ({ ...p, passport: passport ? { last3: passport.number.slice(-3), expiry: passport.expiry, nationality: passport.nationality } : null })),
+              allocations: fd.ticket?.allocations ?? null,
+              airlinePnrs: fd.ticket?.airlinePnrs ?? null,
+            }
+          : null,
       };
     }),
   );

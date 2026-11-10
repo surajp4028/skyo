@@ -69,6 +69,7 @@ export function FlightStatus() {
             <button className="flex items-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-extrabold text-white transition hover:-translate-y-0.5"><Search className="h-4 w-4" /> Track</button>
           </motion.form>
           <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+            <Link href="/flights/airport?code=DEL&type=departure" className="rounded-full bg-amber-300 px-3 py-1.5 text-ink">Airport live board →</Link>
             <span className="py-1.5 text-white/70">Popular:</span>
             {["6E 6676", "AI 2933", "QP 1114", "SG 612"].map((f) => (
               <button key={f} type="button" onClick={() => router.push(`/flights/status?flight=${f.replace(" ", "")}`)} className="rounded-full border border-white/40 bg-white/15 px-3 py-1.5 text-white backdrop-blur transition hover:bg-white hover:text-[#0057ff]">{f}</button>

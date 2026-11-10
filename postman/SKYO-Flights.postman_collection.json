@@ -1110,6 +1110,42 @@
           }
         },
         {
+          "name": "Airport live board",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/flight/board?code=DEL&type=departure",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "flight",
+                "board"
+              ],
+              "query": [
+                {
+                  "key": "code",
+                  "value": "DEL",
+                  "description": "airport IATA"
+                },
+                {
+                  "key": "type",
+                  "value": "departure",
+                  "description": "departure | arrival"
+                }
+              ]
+            },
+            "description": "Today's departures / arrivals (aviationstack /v1/flights?dep_iata|arr_iata, free plan). Cached boards are public; a fresh one costs 1 request and needs login (6 per user per day). Cache: flight_board_cache_min."
+          }
+        },
+        {
           "name": "Seat map",
           "request": {
             "method": "GET",
@@ -1490,6 +1526,82 @@
               ]
             },
             "description": ""
+          }
+        },
+        {
+          "name": "Add passports later (login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/bookings/SKT12345678/passports",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "SKT12345678",
+                "passports"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"passports\": {\n    \"0\": {\n      \"number\": \"Z1234567\",\n      \"expiry\": \"2031-05-01\",\n      \"nationality\": \"IN\"\n    }\n  },\n  \"save\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "International flight booking: add / update passports after booking (key = traveller index on the booking). save=true also stores them on the saved traveller profiles. Allowed until the travel date; numbers are never written to logs."
+          }
+        },
+        {
+          "name": "Save traveller with passport (login)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "skyo"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skyo_base}}/api/account/passengers/1",
+              "host": [
+                "{{skyo_base}}"
+              ],
+              "path": [
+                "api",
+                "account",
+                "passengers",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rahul Verma\",\n  \"age\": 32,\n  \"gender\": \"M\",\n  \"berth\": null,\n  \"nationality\": \"IN\",\n  \"passport\": {\n    \"number\": \"Z1234567\",\n    \"expiry\": \"2031-05-01\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Account → Travellers. passport is optional (null to remove) and is used to prefill international bookings."
           }
         }
       ]

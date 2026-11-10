@@ -3,6 +3,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Armchair, BadgeCheck, Briefcase, ChevronDown, Clock, Luggage, Plane, Radio, ShieldCheck } from "lucide-react";
 import { AirlineLogo } from "./airline-logo";
+import { RouteRunner } from "@/components/ui/route-runner";
 import { TerminalChip } from "./terminal-chip";
 import { airlineInfo, CABIN_LABEL, type CabinKey } from "@/lib/flight/airlines";
 import { fmtDur, groupAirfarePaise, type FlightLeg, type FlightOption, type PaxMix } from "@/lib/flight/model";
@@ -56,9 +57,9 @@ export function FlightCard({ o, cabin, mix, onSelect, index = 0 }: { o: FlightOp
                 <span className="absolute -left-1 -top-[5px] h-3 w-3 rounded-full border-2 border-[#0057ff] bg-white" />
                 <span className="absolute -right-1 -top-[5px] h-3 w-3 rounded-full bg-[#0057ff]" />
                 {o.stops > 0 && <span className="absolute left-1/2 -top-[4px] h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-amber-400 ring-2 ring-white" />}
-                <motion.span className="absolute -top-[9px] text-[#0057ff]" initial={{ left: "8%" }} whileInView={{ left: "78%" }} transition={{ duration: 1.6, ease: "easeInOut" }} viewport={{ once: true }}>
-                  <Plane className="h-5 w-5 rotate-0 fill-[#0057ff]" />
-                </motion.span>
+                <RouteRunner className="-top-[9px] text-[#0057ff]" duration={2.2}>
+                  <Plane className="h-5 w-5 fill-[#0057ff]" />
+                </RouteRunner>
               </div>
               <span className={cn("mt-1.5 whitespace-nowrap text-[11px] font-bold", o.stops ? "text-amber-600" : "text-emerald-600")}>{o.stops ? `${o.stops} stop${o.stops > 1 ? "s" : ""} · ${o.legs.slice(0, -1).map((l) => l.to.iata).join(", ")}` : "Non-stop"}</span>
               {o.stops > 0 && <span className="whitespace-nowrap text-[10px] font-semibold text-muted">{o.layovers.map((x) => fmtDur(x)).join(" + ")} layover</span>}

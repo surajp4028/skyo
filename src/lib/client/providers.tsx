@@ -16,6 +16,7 @@ export type PublicSettings = {
   service_hotel: string;
   service_package: string;
   train_live: string;
+  pnr_status: string;
   max_saved_passengers: string;
   max_passengers_per_booking: string;
   gst_input_mode: string;
@@ -50,6 +51,8 @@ export type PublicSettings = {
   flight_pg_gst_pct: string;
   flight_child_discount_pct: string;
   flight_infant_fee: string;
+  flight_passport_mode: string;
+  flight_airport_board: string;
 };
 export type Me = {
   uid: string;
@@ -80,6 +83,10 @@ const LS_KEY = "skyo.profile.v1";
 export function Providers({ settings, initialUser, children }: { settings: PublicSettings; initialUser: Me | null; children: ReactNode }) {
   const [user, setUserState] = useState<Me | null>(initialUser);
   const [ready, setReady] = useState(true);
+
+  useEffect(() => {
+    document.documentElement.classList.add("js");
+  }, []);
 
   const setUser = useCallback((u: Me | null) => {
     setUserState(u);

@@ -69,7 +69,7 @@ export function TrainDetail({ number, from, to, tab }: { number: string; from?: 
   return (
     <div>
       <section className="relative -mt-20 overflow-hidden pb-20 pt-24">
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,#0057ff_0%,#1a82ff_55%,#6cbcff_100%)]" />
+        <div className="absolute inset-0 sky-band" />
         <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.85),transparent_65%)]" />
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="relative mx-auto max-w-7xl px-5 text-white">
           <div className="flex flex-wrap items-center gap-3">

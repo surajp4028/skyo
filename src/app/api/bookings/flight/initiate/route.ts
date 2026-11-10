@@ -47,6 +47,7 @@ export const POST = route(async (req: NextRequest) => {
           }),
         )
         .optional(),
+      savePassports: z.boolean().default(true),
     }),
   );
   const billing = body.billing ? { state: body.billing.state, pincode: body.billing.pincode || null, address: body.billing.address || null } : null;

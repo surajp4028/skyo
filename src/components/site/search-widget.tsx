@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { ArrowLeftRight, BusFront, Building2, CalendarDays, CloudSun, MapPin, Moon, Palmtree, Plane, Search, Sun, Sunrise, TrainFront, Users, Ticket, Radio, Armchair } from "lucide-react";
 import { DatePicker, toISO } from "@/components/ui/date-picker";
 import { useSite } from "@/lib/client/providers";
-import { isServiceOn, isTrainLiveOn } from "@/lib/services";
+import { isPnrOn, isServiceOn, isTrainLiveOn } from "@/lib/services";
 import { AnimatedTabs } from "@/components/ui/animated-tabs";
 import { cn } from "@/lib/utils";
 import { readRecentTrainSearch, saveRecentTrainSearch } from "@/lib/client/recent-search";
@@ -54,7 +54,7 @@ function SearchWidgetInner({ initial, tabs }: { initial: Tab; tabs: typeof TABS 
         </span>
       </div>
       <AnimatePresence mode="wait">
-        <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+        <motion.div key={tab} initial={false} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
           {tab === "train" && <TrainForm />}
           {tab === "flight" && <FlightForm />}
           {tab === "bus" && <BusForm />}
@@ -127,7 +127,9 @@ function soon(service: string, ok: boolean, why?: string) {
 
 function TrainForm() {
   const router = useRouter();
-  const liveOn = isTrainLiveOn(useSite());
+  const trainSite = useSite();
+  const liveOn = isTrainLiveOn(trainSite);
+  const pnrOn = isPnrOn(trainSite);
   const [from, setFrom] = useState("New Delhi (NDLS)");
   const [to, setTo] = useState("Mumbai Central (MMCT)");
   const [date, setDate] = useState(() => addDays(1));
@@ -180,7 +182,7 @@ function TrainForm() {
           ))}
         </div>
         <div className="flex gap-2 text-xs font-bold">
-          <button type="button" onClick={() => toast.info("PNR status is coming soon", { description: "Our live rail data partner doesn't offer PNR lookups yet." })} className="flex items-center gap-1.5 rounded-full bg-iris/10 px-3 py-1.5 text-iris"><Ticket className="h-3.5 w-3.5" /> PNR status</button>
+          {pnrOn && <Link href="/trains/pnr" className="flex items-center gap-1.5 rounded-full bg-iris/10 px-3 py-1.5 text-iris"><Ticket className="h-3.5 w-3.5" /> PNR status</Link>}
           {liveOn && <Link href="/trains/live" className="flex items-center gap-1.5 rounded-full bg-sky/10 px-3 py-1.5 text-sky-600"><Radio className="h-3.5 w-3.5" /> Running status</Link>}
           {recent && <span className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-ink/60">Your last search</span>}
         </div>

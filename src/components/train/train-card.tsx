@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { RouteRunner } from "@/components/ui/route-runner";
 import { Clock, Radio, Route, Star, TrainFront, UtensilsCrossed } from "lucide-react";
 import type { RouteTrain } from "@/lib/server/train/types";
 import { AvailabilityPanel } from "./availability-panel";
@@ -68,9 +69,9 @@ export function TrainCard({ t, from, to, date, quota, index }: { t: RouteTrain; 
           <div className="relative mt-1.5 h-[2px] w-full bg-[repeating-linear-gradient(90deg,#0a0f1f30_0_6px,transparent_6px_10px)]">
             <span className="absolute -left-1 -top-[3px] h-2 w-2 rounded-full border-2 border-ink bg-white" />
             <span className="absolute -right-1 -top-[3px] h-2 w-2 rounded-full bg-ink" />
-            <motion.span className="absolute -top-[9px] text-brand" initial={{ left: "0%" }} whileInView={{ left: "88%" }} viewport={{ once: true }} transition={{ duration: 1.6, ease: "easeInOut", delay: 0.2 }}>
+            <RouteRunner className="-top-[9px] text-brand" duration={2.4}>
               <TrainFront className="h-4 w-4" />
-            </motion.span>
+            </RouteRunner>
           </div>
           {t.distance_km != null && <span className="mt-1.5 text-[11px] text-muted">{Math.round(t.distance_km)} km</span>}
         </div>

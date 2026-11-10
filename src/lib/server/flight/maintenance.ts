@@ -26,7 +26,9 @@ export async function runFlightMaintenance(force = false) {
   const result = {
     responsesCleared: await n("UPDATE flight_api_calls SET response_enc = NULL WHERE response_enc IS NOT NULL AND created_at < UTC_TIMESTAMP() - INTERVAL ? DAY", [responseDays]),
     callsDeleted: await n("DELETE FROM flight_api_calls WHERE created_at < UTC_TIMESTAMP() - INTERVAL ? DAY", [keepDays]),
-    statusCacheDeleted: await n("DELETE FROM flight_status_cache WHERE flight_date < UTC_DATE() - INTERVAL 2 DAY"),
+    statusCacheDeleted:
+      (await n("DELETE FROM flight_status_cache WHERE flight_date < UTC_DATE() - INTERVAL 2 DAY")) +
+      (await n("DELETE FROM flight_board_cache WHERE fetched_at < UTC_TIMESTAMP() - INTERVAL 2 DAY")),
     seatHoldsReleased: await n(
       `DELETE h FROM flight_seat_holds h JOIN bookings b ON b.booking_ref = h.booking_ref
         WHERE b.status IN ('cancelled','failed','refunded') OR (b.status = 'pending' AND b.payment_status <> 'paid' AND b.hold_expires_at < UTC_TIMESTAMP() - INTERVAL 1 DAY)

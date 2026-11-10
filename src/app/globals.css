@@ -77,8 +77,30 @@
   to { transform: translateX(110vw); }
 }
 
+/* vehicle on a route line (flight / train cards): flies once from the departure dot and lands on the arrival dot */
+@keyframes route-run {
+  0% { left: 0%; transform: translateX(0); opacity: 0; }
+  12% { opacity: 1; }
+  100% { left: 100%; transform: translateX(-100%); opacity: 1; }
+}
+.route-runner { animation: route-run var(--route-run, 2.2s) cubic-bezier(0.45, 0, 0.55, 1) 0.3s 1 both; }
+@media (prefers-reduced-motion: reduce) {
+  .route-runner { animation: none; left: 100%; transform: translateX(-100%); opacity: 1; }
+}
+
+/* hero skies — deep enough at the top that white text always reads, fading into the page */
+.sky-fade { background: linear-gradient(180deg, #0035c4 0%, #004be0 26%, #1269ec 50%, #3d8ff2 72%, #a9d2fb 90%, #f6f7fb 100%); }
+.sky-band { background: linear-gradient(180deg, #0035c4 0%, #0a55e6 50%, #3d8ff2 100%); }
+
 html {
   scroll-behavior: smooth;
+}
+
+/* Keep motion's server-rendered opacity:0 elements readable if hydration is blocked. */
+html:not(.js) [style*="opacity: 0"] {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
 }
 
 body {

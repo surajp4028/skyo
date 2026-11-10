@@ -4,7 +4,7 @@ import { exec, transaction } from "../db";
 import { encrypt } from "../crypto";
 import { ApiError } from "../http";
 import { getAllSettings, getSetting } from "../settings";
-import { getPassengersByIds } from "./passengers";
+import { getPassengersByIds, updatePassenger } from "./passengers";
 import { createOrder } from "../payments/razorpay";
 import { loadMe } from "../me";
 import { reserveCoupon, validateCoupon } from "../coupons";
@@ -19,7 +19,7 @@ import type { PayMode } from "@/lib/charges-core";
 const HOLD_MINUTES = 15;
 
 export type Passport = { number: string; expiry: string; nationality: string };
-export type FlightPassenger = { name: string; age: number; gender: "M" | "F" | "T"; nationality: string; type: "adult" | "child" | "infant"; seats: Record<string, string | null>; passport?: Passport | null };
+export type FlightPassenger = { name: string; age: number; gender: "M" | "F" | "T"; nationality: string; type: "adult" | "child" | "infant"; seats: Record<string, string | null>; passport?: Passport | null; profileId?: number };
 
 export type FlightBookingDetails = {
   kind: "flight";
@@ -58,7 +58,7 @@ export const flightLabel = (legs: FlightLeg[]) => legs.map((l) => `${l.airline.i
  */
 export async function initiateFlightBooking(
   user: { id: number; uid: string },
-  p: { optionId: string; from: string; to: string; date: string; cabin: CabinKey; passengerIds: number[]; seats: Record<string, string[]>; payMode: PayMode; insurance: boolean; couponCode?: string | null; billing?: Billing | null; useGst?: boolean; notifyEmail?: string | null; passports?: Record<string, Passport> },
+  p: { optionId: string; from: string; to: string; date: string; cabin: CabinKey; passengerIds: number[]; seats: Record<string, string[]>; payMode: PayMode; insurance: boolean; couponCode?: string | null; billing?: Billing | null; useGst?: boolean; notifyEmail?: string | null; passports?: Record<string, Passport>; savePassports?: boolean },
 ) {
   const maxPax = Math.min(9, Math.max(1, parseInt(await getSetting("max_passengers_per_flight"), 10) || 9));
   const ids = [...new Set(p.passengerIds)];
@@ -78,12 +78,16 @@ export async function initiateFlightBooking(
   const quote = option.fares[p.cabin];
   if (!quote) throw new ApiError(409, "CABIN_NA", `${CABIN_LABEL[p.cabin]} isn't available on this flight.`);
   // international: every traveller needs a passport valid beyond the travel date
+  // international: passports now (mode "booking") or later from My trips (mode "later");
+  // anything provided must be valid beyond the travel date. Saved-traveller passports are used when none is sent.
   const intl = needsPassport(option.legs);
+  const ppMode = await getSetting("flight_passport_mode");
+  const ppOf = (x: (typeof pax)[number]): Passport | null => p.passports?.[String(x.id)] ?? (x.passport ? { ...x.passport, nationality: x.nationality } : null);
   if (intl) {
     for (const x of pax) {
-      const pp = p.passports?.[String(x.id)];
-      if (!pp) throw new ApiError(422, "PASSPORT_REQUIRED", `Add passport details for ${x.name} — this trip leaves India.`);
-      if (pp.expiry <= p.date) throw new ApiError(422, "PASSPORT_EXPIRED", `${x.name}'s passport expires before the journey.`);
+      const pp = ppOf(x);
+      if (!pp && ppMode === "booking") throw new ApiError(422, "PASSPORT_REQUIRED", `Add passport details for ${x.name} — this trip leaves India.`);
+      if (pp && pp.expiry <= p.date) throw new ApiError(422, "PASSPORT_EXPIRED", `${x.name}'s passport expires before the journey.`);
     }
   }
   if (quote.seatsLeft < seatPax.length) throw new ApiError(409, "SOLD_OUT", `Only ${quote.seatsLeft} seat${quote.seatsLeft === 1 ? "" : "s"} left in ${CABIN_LABEL[p.cabin]}.`);
@@ -128,8 +132,8 @@ export async function initiateFlightBooking(
     passengers: pax.map((x) => {
       const si = seatPax.indexOf(x);
       return {
-        name: x.name, age: x.age, gender: x.gender, nationality: intl ? (p.passports![String(x.id)].nationality || x.nationality) : x.nationality, type: paxType(x.age),
-        passport: intl ? p.passports![String(x.id)] : null,
+        name: x.name, age: x.age, gender: x.gender, nationality: (intl && ppOf(x)?.nationality) || x.nationality, type: paxType(x.age),
+        passport: intl ? ppOf(x) : null, profileId: x.id,
         seats: Object.fromEntries(option.legs.map((l) => [l.key, si < 0 ? null : picks.find((k) => k.key === l.key && k.pax === si)?.seat ?? null])),
       };
     }),
@@ -165,6 +169,16 @@ export async function initiateFlightBooking(
         continue;
       }
       throw e;
+    }
+  }
+  // remember newly typed passports on the traveller's profile (asked in the booking sheet)
+  if (intl && p.savePassports) {
+    for (const x of pax) {
+      const pp = p.passports?.[String(x.id)];
+      if (pp && (pp.number !== x.passport?.number || pp.expiry !== x.passport?.expiry)) {
+        const { id, ...rest } = x;
+        await updatePassenger(user.id, id, { ...rest, nationality: pp.nationality || rest.nationality, passport: { number: pp.number, expiry: pp.expiry } }).catch(() => {});
+      }
     }
   }
   await logProvider({ bookingRef: ref, provider: "aviationstack", direction: "outbound", action: "schedule.snapshot", outcome: "ok", request: { from: p.from, to: p.to, date: p.date, option: option.id, cabin: p.cabin }, response: { legs: option.legs.map((l) => ({ key: l.key, dep: l.from.time, arr: l.to.time, aircraft: l.aircraft.code, terminal: l.from.terminal })), seatsLeft: quote.seatsLeft, seats: picks } });

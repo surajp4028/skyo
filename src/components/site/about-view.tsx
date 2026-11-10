@@ -45,7 +45,7 @@ export function AboutView() {
     <div className="overflow-x-clip">
       {/* ── Hero: same sky as home ─────────────────────────────── */}
       <section className="relative -mt-20 overflow-hidden pb-40 pt-32 md:pb-48 md:pt-40">
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,#0057ff_0%,#0a74ff_28%,#2f94ff_55%,#6cbcff_78%,#cfe9ff_92%,#f6f7fb_100%)]" />
+        <div className="absolute inset-0 sky-fade" />
         <div className="absolute -right-16 -top-20 h-[360px] w-[360px] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.95)_0%,rgba(255,246,214,0.55)_22%,transparent_60%)]" />
         <Clouds />
         <FlightPath />

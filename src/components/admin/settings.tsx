@@ -10,6 +10,7 @@ import { Field } from "@/components/ui/field";
 import { trainCharges, type ChargeSettings, type PayMode } from "@/lib/train/charges";
 import { flightCharges, legFare, type FlightChargeSettings } from "@/lib/flight/model";
 import { FlightUsage } from "./flight-usage";
+import { PnrUsage } from "./pnr-usage";
 import { cn } from "@/lib/utils";
 
 type Resp = { settings: Record<string, string>; system: { encryption: string; email: string; sms: string; otpTtl: number; userSessionDays: number; adminIdleMinutes: number } };
@@ -194,6 +195,22 @@ function TrainTab({ v, set, toggle }: { v: Record<string, string>; set: (k: stri
         <div className="mt-4 max-w-xs"><Field label="Daily credit cap" name="train_daily_credit_cap" inputMode="numeric" value={v.train_daily_credit_cap || ""} onChange={set("train_daily_credit_cap")} hint="≈ 80/day keeps you inside 2,500/month" /></div>
       </Section>
 
+      <Section title="PNR status · RailKit" desc="PNR lookups use RailKit's monthly quota. A status is kept for a while so re-checks are free: the cache time below before charting, at least 2 h after charting, and a day after the journey.">
+        <div className="divide-y divide-line">
+          <Toggle label="PNR status page" desc="Shows /trains/pnr, the PNR button on the train search and on My Trips." on={v.pnr_status === "on"} onClick={() => toggle("pnr_status")} />
+          <Toggle label="Live PNR data" desc="Kill switch — when off, SKYO makes no RailKit calls; travellers see saved statuses only." on={v.pnr_api === "on"} onClick={() => toggle("pnr_api")} />
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <Field label="Monthly request cap" name="pnr_monthly_cap" inputMode="numeric" value={v.pnr_monthly_cap || ""} onChange={set("pnr_monthly_cap")} hint="Keep it at or below your RailKit plan's monthly limit" />
+          <Field label="Plan renews on day" name="pnr_quota_reset_day" inputMode="numeric" value={v.pnr_quota_reset_day || ""} onChange={set("pnr_quota_reset_day")} hint="1 – 28 · the meter restarts that day" />
+          <Field label="Cache before charting (minutes)" name="pnr_cache_min" inputMode="numeric" value={v.pnr_cache_min || ""} onChange={set("pnr_cache_min")} hint="Default 30 · waitlists move slowly" />
+          <Field label="Fresh lookups per user / day" name="pnr_user_daily" inputMode="numeric" value={v.pnr_user_daily || ""} onChange={set("pnr_user_daily")} hint="Saved statuses don't count" />
+          <Field label="Fresh lookups per visitor / day" name="pnr_guest_daily" inputMode="numeric" value={v.pnr_guest_daily || ""} onChange={set("pnr_guest_daily")} hint="Not logged in, per IP · 0 = login required" />
+          <Field label="Keep responses for (days)" name="pnr_log_retention_days" inputMode="numeric" value={v.pnr_log_retention_days || ""} onChange={set("pnr_log_retention_days")} hint="Then the response and cached status are deleted" />
+        </div>
+        <div className="mt-4"><PnrUsage /></div>
+      </Section>
+
       <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
         <div className="space-y-6">
           <Section title="IRCTC convenience fee" desc="Charged once per ticket (not per passenger). Depends on AC / non-AC class and how the customer pays.">
@@ -262,6 +279,13 @@ function FlightTab({ v, set, toggle }: { v: Record<string, string>; set: (k: str
           <Toggle label="Dev: show only 1 flight in search results" desc="Keeps result lists short while you build. Turn off to show every flight." on={v.flight_dev_single_result === "on"} onClick={() => toggle("flight_dev_single_result")} />
           <Toggle label="One-stop connections" desc="Builds connections through hubs (DEL, BOM, BLR…) from routes already in the cache — 0 extra requests." on={v.flight_connections === "on"} onClick={() => toggle("flight_connections")} />
           <Toggle label="Live flight tracking" desc="Logged-in travellers can track flights operating today. Each new flight costs 1 request, then it's cached." on={v.flight_live === "on"} onClick={() => toggle("flight_live")} />
+          <Toggle label="Airport live board" desc="Today's departures / arrivals per airport (/flights/airport). A fresh board costs 1 request, then it's cached for everyone." on={v.flight_airport_board === "on"} onClick={() => toggle("flight_airport_board")} />
+          <Toggle
+            label="Passports required at booking (international)"
+            desc={v.flight_passport_mode === "booking" ? "Travellers must enter every passport before paying." : "Off: passports are optional at booking — travellers add them later from My trips (or from saved traveller profiles), like most travel sites."}
+            on={v.flight_passport_mode === "booking"}
+            onClick={() => set("flight_passport_mode")({ target: { value: v.flight_passport_mode === "booking" ? "later" : "booking" } })}
+          />
         </div>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <Field label="Requests per month (cap)" name="flight_monthly_cap" inputMode="numeric" value={v.flight_monthly_cap || ""} onChange={set("flight_monthly_cap")} hint="Free plan has 100 — keep a few spare" />
@@ -270,6 +294,7 @@ function FlightTab({ v, set, toggle }: { v: Record<string, string>; set: (k: str
           <Field label="Hubs fetched for connections" name="flight_connection_fetch" inputMode="numeric" value={v.flight_connection_fetch || ""} onChange={set("flight_connection_fetch")} hint="0 = cache only · each hub = 2 requests" />
           <Field label="Live status cache (minutes)" name="flight_live_cache_min" inputMode="numeric" value={v.flight_live_cache_min || ""} onChange={set("flight_live_cache_min")} hint="Default 15" />
           <Field label="Max travellers per booking" name="max_passengers_per_flight" inputMode="numeric" value={v.max_passengers_per_flight || ""} onChange={set("max_passengers_per_flight")} hint="1 – 9" />
+          <Field label="Airport board cache (minutes)" name="flight_board_cache_min" inputMode="numeric" value={v.flight_board_cache_min || ""} onChange={set("flight_board_cache_min")} hint="Default 30 · each refresh = 1 request" />
           <Field label="Plan renews on day" name="flight_quota_reset_day" inputMode="numeric" value={v.flight_quota_reset_day || ""} onChange={set("flight_quota_reset_day")} hint="Day you subscribed (1 – 28) — the meter resets then" />
           <Field label="Keep API responses (days)" name="flight_log_retention_days" inputMode="numeric" value={v.flight_log_retention_days || ""} onChange={set("flight_log_retention_days")} hint="Older full responses are cleared; the request row stays" />
           <Field label="Keep request history (days)" name="flight_log_keep_days" inputMode="numeric" value={v.flight_log_keep_days || ""} onChange={set("flight_log_keep_days")} hint="35 – 3650" />
