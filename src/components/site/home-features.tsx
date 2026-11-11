@@ -58,7 +58,7 @@ export function PlaneWindowSection() {
   const mobile = useIsMobile();
   if (!isServiceOn(site, "flight")) return null;
   return (
-    <section className="mx-auto max-w-7xl px-5 pt-24">
+    <section className="mx-auto max-w-7xl px-4 pt-14 sm:px-5 sm:pt-24">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* plane window card: black shell → dark bezel (dotted walls) → the view */}
         <div ref={ref} className="relative h-[440px] overflow-hidden rounded-3xl bg-gradient-to-r from-neutral-900 via-neutral-700 to-neutral-900 px-2 pt-4 md:h-[420px] md:px-3 md:pt-5 lg:col-span-2">
@@ -80,18 +80,17 @@ export function PlaneWindowSection() {
                 </div>
               </div>
 
-              <div className="relative h-full overflow-hidden rounded-t-[42px] bg-gradient-to-t from-[#5a9ee6] to-[#0b4fc4] md:rounded-t-[94px]">
+              <div className="relative h-full overflow-hidden rounded-t-[42px] bg-gradient-to-t from-[#3f8ef0] to-[#0646c8] md:rounded-t-[94px]">
                 {near && (
                   <motion.div className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.4, ease: "easeOut" }}>
+                    {/* Aceternity UI Cloud Shader (Plane Window demo) — same sky colours as the home hero, half size scaled 2× */}
                     <div className="absolute h-1/2 w-1/2 origin-top-left scale-200">
-                      <CloudShader speed={1} count={mobile ? 3 : 5} skyTopColor="#0b4fc4" skyBottomColor="#5a9ee6" cloudColor="#ffffff" className="absolute inset-0" />
+                      <CloudShader speed={1} count={mobile ? 3 : 6} skyTopColor="#0646c8" skyBottomColor="#3f8ef0" className="absolute inset-0" />
                     </div>
                   </motion.div>
                 )}
                 {/* glass: a soft rim + one diagonal reflection */}
                 <div aria-hidden className="pointer-events-none absolute inset-0 z-[15] rounded-t-[42px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.25),inset_0_30px_60px_-30px_rgba(255,255,255,0.45)] md:rounded-t-[94px]" />
-                <div aria-hidden className="pointer-events-none absolute -left-1/4 top-0 z-[15] h-full w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
-                <div aria-hidden className="pointer-events-none absolute inset-0 z-[16] bg-[radial-gradient(ellipse_65%_55%_at_25%_35%,rgba(3,25,80,0.4),transparent_70%)]" />
 
                 <div className="relative z-20 px-6 pt-10 md:px-14 md:pt-14">
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-white backdrop-blur-md">
@@ -114,7 +113,7 @@ export function PlaneWindowSection() {
                 </div>
 
                 <motion.div
-                  className="pointer-events-none absolute -bottom-8 right-0 z-10 w-[80%] sm:w-[52%]"
+                  className="pointer-events-none absolute -bottom-2 -right-[8%] z-10 w-[64%] sm:bottom-0 sm:right-0 sm:w-[52%]"
                   animate={{ y: [0, -8, 0] }}
                   transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
                 >
@@ -126,8 +125,8 @@ export function PlaneWindowSection() {
         </div>
 
         {/* what flying with us gets you */}
-        <div className="relative flex flex-col overflow-hidden rounded-3xl bg-ink p-6 md:h-[420px]">
-          <div className="bg-grid absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_top,black,transparent_75%)]" />
+        <div className="relative flex flex-col overflow-hidden rounded-3xl bg-ink p-5 dotted-glow-bg sm:p-6 md:h-[420px]">
+          <div className="bg-grid absolute inset-0 opacity-30 [mask-image:radial-gradient(ellipse_at_top,black,transparent_75%)]" />
           <div className="relative">
             <div className="flex gap-2">
               {[PlaneTakeoff, Route, BookUser].map((I, i) => (

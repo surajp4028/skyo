@@ -17,6 +17,10 @@ export type PublicSettings = {
   service_package: string;
   train_live: string;
   pnr_status: string;
+  train_alt_seats: string;
+  train_alt_auto: string;
+  train_alt_limit: string;
+  train_alt_guests: string;
   max_saved_passengers: string;
   max_passengers_per_booking: string;
   gst_input_mode: string;

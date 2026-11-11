@@ -30,14 +30,14 @@ export function loadRazorpay(): Promise<RzpCtor> {
 
 export async function openCheckout(
   options: Record<string, unknown>,
-  cb: { onSuccess: (r: RzpHandlerResponse) => void; onFailed: (r: RzpFailed) => void; onDismiss: () => void },
+  cb: { onSuccess: (r: RzpHandlerResponse) => void; onFailed: (r: RzpFailed) => void; onDismiss: () => void; failurePath?: string | null },
 ) {
   const Razorpay = await loadRazorpay();
   const rzp = new Razorpay({ ...options, handler: cb.onSuccess, modal: { ondismiss: cb.onDismiss, confirm_close: true }, retry: { enabled: true } });
   rzp.on("payment.failed", (r) => {
     // Log the failed attempt for admins (log-only; status comes from the webhook).
     const ref = (options.notes as { booking_ref?: string } | undefined)?.booking_ref;
-    if (ref) void api("/api/bookings/train/failed", { body: { bookingRef: ref, error: r.error } }).catch(() => {});
+    if (ref && cb.failurePath !== null) void api(cb.failurePath || "/api/bookings/train/failed", { body: { bookingRef: ref, error: r.error } }).catch(() => {});
     cb.onFailed(r);
   });
   rzp.open();

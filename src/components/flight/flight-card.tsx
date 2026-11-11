@@ -45,10 +45,10 @@ export function FlightCard({ o, cabin, mix, onSelect, index = 0 }: { o: FlightOp
               {o.refundable && <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700"><ShieldCheck className="h-3 w-3" />Refundable</span>}
             </span>
           </div>
-          <div className="flex items-center gap-3 sm:gap-5">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-5">
             <div className="text-left">
               <div className="text-2xl font-black tabular-nums tracking-tight sm:text-[28px]">{o.dep}</div>
-              <div className="text-xs font-bold text-ink/70">{first.from.iata} <span className="font-semibold text-muted">· {first.from.city}</span></div>
+              <div className="max-w-[76px] truncate text-[10px] font-bold text-ink/70 sm:max-w-none sm:text-xs">{first.from.iata} <span className="font-semibold text-muted">· {first.from.city}</span></div>
               <TerminalChip t={first.from.terminal} />
             </div>
             <div className="relative flex min-w-0 flex-1 flex-col items-center">
@@ -61,12 +61,12 @@ export function FlightCard({ o, cabin, mix, onSelect, index = 0 }: { o: FlightOp
                   <Plane className="h-5 w-5 fill-[#0057ff]" />
                 </RouteRunner>
               </div>
-              <span className={cn("mt-1.5 whitespace-nowrap text-[11px] font-bold", o.stops ? "text-amber-600" : "text-emerald-600")}>{o.stops ? `${o.stops} stop${o.stops > 1 ? "s" : ""} · ${o.legs.slice(0, -1).map((l) => l.to.iata).join(", ")}` : "Non-stop"}</span>
+              <span className={cn("mt-1.5 max-w-full truncate text-[9px] font-bold sm:whitespace-nowrap sm:text-[11px]", o.stops ? "text-amber-600" : "text-emerald-600")}>{o.stops ? `${o.stops} stop${o.stops > 1 ? "s" : ""} · ${o.legs.slice(0, -1).map((l) => l.to.iata).join(", ")}` : "Non-stop"}</span>
               {o.stops > 0 && <span className="whitespace-nowrap text-[10px] font-semibold text-muted">{o.layovers.map((x) => fmtDur(x)).join(" + ")} layover</span>}
             </div>
             <div className="text-right">
               <div className="text-2xl font-black tabular-nums tracking-tight sm:text-[28px]">{o.arr}{o.dayOffset ? <sup className="ml-0.5 text-[11px] font-bold text-orange-500">+{o.dayOffset}</sup> : null}</div>
-              <div className="text-xs font-bold text-ink/70"><span className="font-semibold text-muted">{last.to.city} · </span>{last.to.iata}</div>
+              <div className="max-w-[76px] truncate text-[10px] font-bold text-ink/70 sm:max-w-none sm:text-xs"><span className="font-semibold text-muted">{last.to.city} · </span>{last.to.iata}</div>
               <TerminalChip t={last.to.terminal} />
             </div>
           </div>

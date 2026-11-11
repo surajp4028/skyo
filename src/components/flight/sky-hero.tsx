@@ -37,7 +37,7 @@ export function SkyHero({
           animate={{ opacity: 1 }}
           transition={{ duration: 1.4, ease: "easeOut" }}
         >
-          <div className="absolute h-1/2 w-1/2 origin-top-left scale-200">
+          <div className="absolute inset-0 hidden md:block">
             <CloudShader
               speed={1}
               skyTopColor="#0646c8"
@@ -46,14 +46,15 @@ export function SkyHero({
               className="absolute inset-0"
             />
           </div>
+          <div className="cloud-sky-fallback absolute inset-0 md:hidden" />
         </motion.div>
         {/* window-seat wing view with a gentle in-flight bob */}
         <motion.div
           className={cn(
             "pointer-events-none absolute -bottom-6 right-0 z-10",
             compact
-              ? "w-[80%] sm:w-[60%] md:w-[44%]"
-              : "w-[95%] sm:w-[80%] md:w-[62%]",
+              ? "-bottom-1 -right-[8%] w-[64%] sm:bottom-0 sm:right-0 sm:w-[60%] md:w-[44%]"
+              : "-bottom-1 -right-[8%] w-[72%] sm:bottom-0 sm:right-0 sm:w-[80%] md:w-[62%]",
           )}
           animate={{ y: [0, -12, 0] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}

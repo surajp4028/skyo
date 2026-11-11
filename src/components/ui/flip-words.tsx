@@ -27,6 +27,7 @@ export function FlipWords({ words, duration = 2600, className }: { words: string
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 100, damping: 10 }}
         exit={{ opacity: 0, y: -40, x: 40, filter: "blur(8px)", scale: 2, position: "absolute" }}
+        style={{ minWidth: `${Math.max(...words.map((word) => word.length)) + 1}ch` }}
         className={cn("relative z-10 inline-block text-left", className)}
       >
         {current.split("").map((ch, i) => (

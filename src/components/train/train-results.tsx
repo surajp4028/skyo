@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { AlertTriangle, ArrowRight, CloudSun, Filter, Moon, SearchX, Sun, Sunrise } from "lucide-react";
+import { AlertTriangle, ArrowRight, CloudSun, Filter, Moon, Pencil, SearchX, Sun, Sunrise, X } from "lucide-react";
 import { trainApi } from "@/lib/train/client";
 import { errMsg } from "@/lib/client/api";
 import type { RouteTrains } from "@/lib/server/train/types";
@@ -37,6 +37,7 @@ export function TrainResults({ q, initialSlots }: { q: TrainQuery; initialSlots:
   const [onlyAvail, setOnlyAvail] = useState(false);
   const [sort, setSort] = useState<(typeof SORTS)[number]["key"]>("dep");
   const [showFilters, setShowFilters] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const resultsTop = useRef<HTMLDivElement>(null);
   const filterSig = `${slots.join()}|${classes.join()}|${types.join()}|${onlyAvail}|${sort}`;
   const firstSig = useRef(filterSig);
@@ -92,12 +93,12 @@ export function TrainResults({ q, initialSlots }: { q: TrainQuery; initialSlots:
   const filters = (
     <div className="space-y-6">
       <FilterGroup title="Departure time">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid min-w-0 grid-cols-2 gap-2">
           {SLOTS.map((s) => (
-            <button key={s.key} onClick={() => toggle(slots, setSlots, s.key)} className={cn("flex flex-col items-center rounded-xl border p-2.5 text-xs font-bold transition", slots.includes(s.key) ? "border-brand bg-brand-soft text-brand" : "border-line text-ink/60 hover:border-ink/30")}>
+            <button key={s.key} onClick={() => toggle(slots, setSlots, s.key)} className={cn("flex min-w-0 flex-col items-center rounded-xl border px-1.5 py-2.5 text-[11px] font-bold leading-tight transition sm:p-2.5 sm:text-xs", slots.includes(s.key) ? "border-brand bg-brand-soft text-brand" : "border-line text-ink/60 hover:border-ink/30")}>
               <s.icon className="h-4 w-4" />
-              {s.label}
-              <span className="text-[10px] font-medium opacity-70">{s.sub}</span>
+              <span>{s.label}</span>
+              <span className="text-[9px] font-medium opacity-70 sm:text-[10px]">{s.sub}</span>
             </button>
           ))}
         </div>
@@ -130,15 +131,20 @@ export function TrainResults({ q, initialSlots }: { q: TrainQuery; initialSlots:
   return (
     <div>
       {/* Sky header */}
-      <section className="relative -mt-20 overflow-hidden pb-10 pt-28">
+      <section className="relative -mt-20 overflow-hidden pb-8 pt-24 sm:pb-10 sm:pt-28">
         <div className="absolute inset-0 sky-band" />
         <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.75),transparent_65%)]" />
-        <div className="relative mx-auto max-w-7xl px-5">
-          <div className="mb-4 flex flex-wrap items-center gap-3 text-white">
-            <h1 className="flex items-center gap-2 text-2xl font-extrabold md:text-3xl">{q.fromLabel.replace(/\s*\(.*\)$/, "")} <ArrowRight className="h-6 w-6" /> {q.toLabel.replace(/\s*\(.*\)$/, "")}</h1>
-            <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold backdrop-blur">{prettyDate(q.date, { weekday: "long", day: "numeric", month: "long" })} · {quotaLabel(q.quota)}</span>
+        <div className="relative mx-auto max-w-7xl px-3 sm:px-5">
+          <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 text-white sm:mb-4 sm:gap-3">
+            <h1 className="flex min-w-0 items-center gap-2 text-lg font-extrabold sm:text-2xl md:text-3xl"><span className="truncate">{q.fromLabel.replace(/\s*\(.*\)$/, "")}</span><ArrowRight className="h-4 w-4 shrink-0 sm:h-6 sm:w-6" /><span className="truncate">{q.toLabel.replace(/\s*\(.*\)$/, "")}</span></h1>
+            <span className="rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-bold backdrop-blur sm:px-3 sm:text-xs">{prettyDate(q.date, { weekday: "short", day: "numeric", month: "short" })} · {quotaLabel(q.quota)}</span>
           </div>
-          <div className="rounded-[28px] border border-white/70 bg-white/95 p-3 shadow-[0_30px_80px_-30px_rgba(10,15,31,0.5)] backdrop-blur-xl md:p-4">
+          {!editOpen && <button type="button" onClick={() => setEditOpen(true)} className="mb-2 flex w-full items-center gap-3 rounded-2xl border border-white/75 bg-white/95 px-3.5 py-3 text-left shadow-[0_16px_45px_-26px_rgba(10,15,31,.48)] md:hidden">
+            <span className="min-w-0 flex-1"><span className="block truncate text-sm font-extrabold text-ink">{q.from} <span className="text-brand">→</span> {q.to}</span><span className="mt-0.5 block truncate text-[11px] font-semibold text-muted">{prettyDate(q.date, { day: "numeric", month: "short" })} · {quotaLabel(q.quota)}</span></span>
+            <span className="flex shrink-0 items-center gap-1 rounded-xl bg-ink px-3 py-2 text-xs font-extrabold text-white"><Pencil className="h-3.5 w-3.5" /> Modify</span>
+          </button>}
+          <div className={cn("rounded-[28px] border border-white/70 bg-white/95 p-2.5 shadow-[0_30px_80px_-30px_rgba(10,15,31,0.5)] backdrop-blur-xl sm:p-3 md:p-4", !editOpen && "hidden md:block")}>
+            {editOpen && <button type="button" onClick={() => setEditOpen(false)} className="mb-2 ml-auto flex items-center gap-1 rounded-full bg-surface px-3 py-1.5 text-xs font-bold text-muted md:hidden"><X className="h-3.5 w-3.5" /> Done</button>}
             <TrainSearchBar initial={q} compact />
           </div>
           <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto">
@@ -156,7 +162,7 @@ export function TrainResults({ q, initialSlots }: { q: TrainQuery; initialSlots:
         </div>
       </section>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-5 py-8 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="mx-auto grid max-w-7xl gap-4 px-3 py-6 sm:gap-6 sm:px-5 sm:py-8 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="hidden lg:block">
           <div className="sticky top-24 rounded-3xl border border-line bg-white p-5 shadow-soft">
             <div className="mb-5 flex items-center justify-between">
@@ -169,19 +175,19 @@ export function TrainResults({ q, initialSlots }: { q: TrainQuery; initialSlots:
           </div>
         </aside>
 
-        <div ref={resultsTop} className="min-h-[80vh] scroll-mt-24">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-muted">{loading ? "Searching live trains…" : `${list.length} of ${all.length} trains`}</p>
-            {!loading && devLimited && <p className="mt-1 inline-flex rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">Test mode · showing 1 of {devLimited.total} trains</p>}
-            <div className="flex items-center gap-1 rounded-2xl bg-white p-1 shadow-soft ring-1 ring-line">
+        <div ref={resultsTop} className="min-h-[80vh] min-w-0 scroll-mt-24">
+          <div className="mb-4 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap sm:justify-between sm:gap-3">
+            <div className="min-w-0"><p className="text-sm font-semibold text-muted">{loading ? "Searching live trains…" : `${list.length} of ${all.length} trains`}</p>
+            {!loading && devLimited && <p className="mt-1 inline-flex max-w-full rounded-md bg-amber-50 px-2 py-1 text-[10px] font-bold leading-tight text-amber-700 sm:text-[11px]">Test mode · showing 1 of {devLimited.total} trains</p>}</div>
+            <div className="no-scrollbar col-span-2 flex min-w-0 items-center gap-1 overflow-x-auto rounded-2xl bg-white p-1 shadow-soft ring-1 ring-line sm:col-span-1">
               {SORTS.map((s) => (
-                <button key={s.key} onClick={() => setSort(s.key)} className={cn("relative rounded-xl px-3 py-1.5 text-xs font-bold transition", sort === s.key ? "text-white" : "text-ink/60 hover:text-ink")}>
+                <button key={s.key} onClick={() => setSort(s.key)} className={cn("relative shrink-0 rounded-xl px-2.5 py-2 text-[11px] font-bold transition sm:px-3 sm:py-1.5 sm:text-xs", sort === s.key ? "text-white" : "text-ink/60 hover:text-ink")}>
                   {sort === s.key && <motion.span layoutId="train-sort" className="absolute inset-0 rounded-xl bg-ink" transition={{ type: "spring", bounce: 0.2, duration: 0.45 }} />}
                   <span className="relative">{s.label}</span>
                 </button>
               ))}
             </div>
-            <button onClick={() => setShowFilters((v) => !v)} className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-bold lg:hidden"><Filter className="mr-1 inline h-3.5 w-3.5" /> Filters</button>
+            <button onClick={() => setShowFilters((v) => !v)} className="justify-self-end rounded-xl border border-line bg-white px-3 py-2 text-xs font-bold lg:hidden"><Filter className="mr-1 inline h-3.5 w-3.5" /> Filters</button>
           </div>
           <AnimatePresence>{showFilters && <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="mb-4 overflow-hidden rounded-3xl border border-line bg-white p-5 lg:hidden">{filters}</motion.div>}</AnimatePresence>
 

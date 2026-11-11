@@ -1,10 +1,10 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import {
-  ArrowRight, BadgePercent, BusFront, Building2, CalendarClock, Clock3, CreditCard, Gift, Headphones, Palmtree, Plane,
+  ArrowLeft, ArrowRight, BadgePercent, BusFront, Building2, CalendarClock, Clock3, CreditCard, Gift, Headphones, Palmtree, Plane,
   ShieldCheck, Smartphone, Sparkles, TrainFront, Undo2, Wallet, Star, MapPin,
 } from "lucide-react";
 import { Spotlight } from "@/components/ui/spotlight";
@@ -17,8 +17,12 @@ import { MovingBorderButton } from "@/components/ui/moving-border";
 import { SearchWidget } from "./search-widget";
 import { useSite } from "@/lib/client/providers";
 import { Meteors } from "@/components/ui/meteors";
+import { CloudShader } from "@/components/ui/cloud-shader";
 import { isServiceOn, type ServiceKey } from "@/lib/services";
 import { IMAGES, img } from "@/lib/utils";
+import { SkyClouds } from "@/components/ui/sky-clouds";
+import type { TourPackage } from "@/lib/packages";
+import { api } from "@/lib/client/api";
 
 const fadeUp = { initial: { opacity: 0, y: 24 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, margin: "-80px" }, transition: { duration: 0.6 } };
 
@@ -26,11 +30,16 @@ export function Hero() {
   const site = useSite();
   return (
     <section className="relative -mt-20 overflow-hidden pb-44 pt-32 md:pb-52 md:pt-40">
-      {/* bluish sky */}
-      {/* clear, saturated daytime sky */}
-      <div className="absolute inset-0 sky-fade" />
-      <div className="absolute -right-16 -top-20 h-[360px] w-[360px] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.95)_0%,rgba(255,246,214,0.55)_22%,transparent_60%)]" />
-      <Clouds />
+      {/* Aceternity UI Cloud Shader sky — rendered at half size and scaled up (same as their demo) */}
+      <div className="absolute inset-0 bg-gradient-to-t from-[#3f8ef0] to-[#0646c8]" />
+      <motion.div aria-hidden className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.4, ease: "easeOut" }}>
+        <div className="absolute h-1/2 w-1/2 origin-top-left scale-200">
+          <CloudShader speed={1} count={6} skyTopColor="#0646c8" skyBottomColor="#3f8ef0" className="absolute inset-0" />
+        </div>
+      </motion.div>
+      {/* soft dark pool behind the headline + fade into the page */}
+      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_55%_42%_at_50%_34%,rgba(3,25,80,0.32),transparent_75%)]" />
+      <div aria-hidden className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-[#f6f7fb]" />
       <FlightPath />
       <Spotlight className="-top-40 left-0 md:-top-20 md:left-60" fill="white" />
 
@@ -81,32 +90,14 @@ export function Hero() {
 }
 
 export function Clouds() {
-  const clouds = [
-    { top: "16%", w: 220, dur: 75, delay: -10, op: 0.95 },
-    { top: "34%", w: 300, dur: 100, delay: -45, op: 0.9 },
-    { top: "58%", w: 260, dur: 85, delay: -25, op: 0.95 },
-    { top: "70%", w: 380, dur: 120, delay: -80, op: 0.9 },
-  ];
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden [mask-image:radial-gradient(ellipse_46%_40%_at_50%_46%,transparent_45%,black_85%)]">
-      {clouds.map((c, i) => (
-        <div key={i} className="absolute left-0 animate-[drift_var(--d)_linear_infinite]" style={{ top: c.top, ["--d" as string]: `${c.dur}s`, animationDelay: `${c.delay}s`, opacity: c.op }}>
-          <div className="relative" style={{ width: c.w, height: c.w * 0.32 }}>
-            <span className="absolute bottom-0 left-0 h-[58%] w-full rounded-full bg-white blur-[2px]" />
-            <span className="absolute bottom-[22%] left-[16%] h-[85%] w-[40%] rounded-full bg-white blur-[2px]" />
-            <span className="absolute bottom-[28%] left-[44%] h-[105%] w-[38%] rounded-full bg-white blur-[2px]" />
-            <span className="absolute bottom-0 left-[6%] h-[30%] w-[88%] rounded-full bg-sky-100/70 blur-[3px]" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  return <SkyClouds className="[mask-image:radial-gradient(ellipse_46%_40%_at_50%_46%,transparent_45%,black_85%)]" />;
 }
 
 /** Plane flying along a dashed arc across the sky. */
 export function FlightPath() {
   const d = "M -80 420 C 300 120, 820 80, 1600 260";
   return (
+    <>
     <div aria-hidden className="pointer-events-none absolute inset-0 hidden md:block">
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1440 700" preserveAspectRatio="xMidYMid slice">
         <motion.path d={d} fill="none" stroke="white" strokeWidth="2" strokeDasharray="6 10" strokeLinecap="round" initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 0.8 }} transition={{ duration: 2.4, ease: "easeInOut" }} />
@@ -122,6 +113,13 @@ export function FlightPath() {
         </g>
       </svg>
     </div>
+    <svg aria-hidden="true" className="pointer-events-none absolute left-0 top-[18%] h-36 w-full overflow-visible opacity-80 md:hidden" viewBox="0 0 390 140" preserveAspectRatio="none">
+      <path d="M -24 116 C 72 16, 288 16, 414 116" fill="none" stroke="rgba(255,255,255,.34)" strokeWidth="1.6" strokeDasharray="4 8" />
+    </svg>
+    <motion.div aria-hidden className="pointer-events-none absolute left-0 top-[18%] z-[1] text-white drop-shadow-[0_2px_8px_rgba(0,30,90,.4)] md:hidden" initial={{ x: "2vw", y: 55 }} animate={{ x: ["2vw", "84vw"], y: [55, 4, 4, 55] }} transition={{ duration: 13, repeat: Infinity, ease: "linear" }}>
+      <Plane className="h-6 w-6 fill-white stroke-white" />
+    </motion.div>
+    </>
   );
 }
 
@@ -145,14 +143,21 @@ const SERVICES = [
 
 export function ServicesStrip() {
   const site = useSite();
+  const scroller = useRef<HTMLDivElement>(null);
   const list = SERVICES.filter((x) => isServiceOn(site, x.key as ServiceKey));
   if (!list.length) return null;
   return (
-    <section className="mx-auto max-w-7xl px-5 pt-20">
-      <SectionHead eyebrow="Everything in one app" title={list.length === 5 ? "Five ways to get going" : "Ways to get going"} sub="One login, one wallet, every mode of travel." />
-      <div className={`mt-10 grid grid-cols-2 gap-4 ${list.length >= 5 ? "md:grid-cols-5" : list.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
+    <section className="mx-auto max-w-7xl px-4 pt-14 sm:px-5 sm:pt-20">
+      <div className="flex items-end justify-between gap-4">
+        <SectionHead eyebrow="Everything in one app" title={list.length === 5 ? "Five ways to get going" : "Ways to get going"} sub="One login, one wallet, every mode of travel." />
+        <div className="mb-1 flex shrink-0 gap-1.5 md:hidden">
+          <button aria-label="Scroll services left" onClick={() => scroller.current?.scrollBy({ left: -300, behavior: "smooth" })} className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white text-ink shadow-soft"><ArrowLeft className="h-4 w-4" /></button>
+          <button aria-label="Scroll services right" onClick={() => scroller.current?.scrollBy({ left: 300, behavior: "smooth" })} className="flex h-10 w-10 items-center justify-center rounded-full bg-ink text-white shadow-soft"><ArrowRight className="h-4 w-4" /></button>
+        </div>
+      </div>
+      <div ref={scroller} className={`no-scrollbar mt-6 -mr-4 flex snap-x snap-proximity gap-3 overflow-x-auto overflow-y-clip overscroll-x-contain pb-4 pr-4 sm:mt-8 sm:mr-0 sm:grid sm:overflow-visible sm:pb-0 sm:pr-0 sm:gap-4 ${list.length >= 5 ? "sm:grid-cols-3 md:grid-cols-5" : list.length === 4 ? "sm:grid-cols-2 md:grid-cols-4" : "sm:grid-cols-2 md:grid-cols-3"}`}>
         {list.map((x, i) => (
-          <ServiceCard key={x.key} s={x} i={i} />
+          <div key={x.key} className="w-[76vw] max-w-[300px] shrink-0 snap-start sm:w-auto sm:max-w-none"><ServiceCard s={x} i={i} /></div>
         ))}
       </div>
     </section>
@@ -199,7 +204,7 @@ function ServiceCard({ s, i }: { s: (typeof SERVICES)[number]; i: number }) {
 
 export function Offers() {
   return (
-    <section className="mx-auto max-w-7xl px-5 pt-24">
+    <section className="mx-auto max-w-7xl px-4 pt-14 sm:px-5 sm:pt-24">
       <SectionHead eyebrow="Offers for you" title="Deals that actually save" sub="Auto-applied at checkout. No coupon hunting." />
       <HoverEffect
         className="mt-8"
@@ -215,39 +220,45 @@ export function Offers() {
 }
 
 const DESTS = [
-  { name: "Kashmir", tag: "Paradise on earth", price: "₹18,999", image: IMAGES.kashmir, days: "5N/6D" },
-  { name: "Kerala", tag: "Backwaters & tea hills", price: "₹14,499", image: IMAGES.keralaBoat, days: "4N/5D" },
-  { name: "Goa", tag: "Sun, sand & shacks", price: "₹9,999", image: IMAGES.goa, days: "3N/4D" },
-  { name: "Jaipur", tag: "The pink city", price: "₹7,499", image: IMAGES.jaipur, days: "2N/3D" },
-  { name: "Manali", tag: "Snow & cafés", price: "₹11,999", image: IMAGES.manali, days: "4N/5D" },
-  { name: "Agra", tag: "Wonder of the world", price: "₹4,999", image: IMAGES.tajArch, days: "1N/2D" },
-];
+  { name: "Kashmir", tag: "Paradise on earth", price: "₹18,999", basis: "couple", image: IMAGES.kashmir, days: "5N/6D" },
+  { name: "Kerala", tag: "Backwaters & tea hills", price: "₹14,499", basis: "couple", image: IMAGES.keralaBoat, days: "4N/5D" },
+  { name: "Goa", tag: "Sun, sand & shacks", price: "₹9,999", basis: "person", image: IMAGES.goa, days: "3N/4D" },
+  { name: "Jaipur", tag: "The pink city", price: "₹7,499", basis: "person", image: IMAGES.jaipur, days: "2N/3D" },
+  { name: "Manali", tag: "Snow & cafés", price: "₹11,999", basis: "couple", image: IMAGES.manali, days: "4N/5D" },
+  { name: "Agra", tag: "Wonder of the world", price: "₹4,999", basis: "person", image: IMAGES.tajArch, days: "1N/2D" },
+] as const;
 
 export function Destinations() {
   return (
     <section className="mx-auto max-w-7xl px-5 pt-24">
-      <SectionHead eyebrow="Trending this season" title="Where India is heading" sub="Packages with stays, transfers & sightseeing — all included." />
+      <SectionHead size="sm" eyebrow="Trending this season" title="Where India is heading" sub="Packages with stays, transfers & sightseeing — all included." />
       <div className="mt-6 grid gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
         {DESTS.map((d) => (
           <CardContainer key={d.name} className="w-full" containerClassName="py-6">
-            <CardBody className="group/card relative h-auto w-full rounded-3xl border border-line bg-white p-4 shadow-soft hover:shadow-lift">
-              <CardItem translateZ={60} className="relative h-56 w-full overflow-hidden rounded-2xl">
-                <Image src={img(d.image, 800)} alt={d.name} fill sizes="(max-width:768px) 100vw, 33vw" className="object-cover transition duration-700 group-hover/card:scale-105" />
-                <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-ink backdrop-blur">{d.days}</span>
-              </CardItem>
-              <div className="mt-4 flex items-end justify-between px-1">
-                <div>
-                  <CardItem translateZ={40} as="h3" className="flex items-center gap-1.5 text-xl font-extrabold text-ink">
-                    <MapPin className="h-4 w-4 text-brand" /> {d.name}
-                  </CardItem>
-                  <CardItem translateZ={30} as="p" className="mt-0.5 text-sm text-muted">{d.tag}</CardItem>
-                </div>
-                <CardItem translateZ={50} className="text-right">
-                  <div className="text-[11px] font-semibold text-muted">from</div>
-                  <div className="text-lg font-extrabold text-ink">{d.price}</div>
+            <Link href={`/packages?destination=${encodeURIComponent(d.name)}`} className="block w-full">
+              <CardBody className="group/card relative h-auto w-full rounded-3xl border border-line bg-white p-4 shadow-soft hover:shadow-lift">
+                <CardItem translateZ={60} className="relative h-56 w-full overflow-hidden rounded-2xl">
+                  <Image src={img(d.image, 800)} alt={d.name} fill sizes="(max-width:768px) 100vw, 33vw" className="object-cover transition duration-700 group-hover/card:scale-105" />
+                  <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-ink backdrop-blur">{d.days}</span>
+                  <span className={`absolute right-3 top-3 flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold backdrop-blur ${d.basis === "couple" ? "bg-rose-500/90 text-white" : "bg-ink/80 text-white"}`}>
+                    {d.basis === "couple" ? "♥ Couple · 2 guests" : "Per person"}
+                  </span>
                 </CardItem>
-              </div>
-            </CardBody>
+                <div className="mt-4 flex items-end justify-between gap-3 px-1">
+                  <div className="min-w-0">
+                    <CardItem translateZ={40} as="h3" className="flex items-center gap-1.5 text-lg font-bold tracking-tight text-ink">
+                      <MapPin className="h-4 w-4 shrink-0 text-brand" /> {d.name}
+                    </CardItem>
+                    <CardItem translateZ={30} as="p" className="mt-0.5 truncate text-[13px] text-muted">{d.tag}</CardItem>
+                  </div>
+                  <CardItem translateZ={50} className="shrink-0 text-right">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">from</div>
+                    <div className="text-lg font-extrabold leading-tight text-ink">{d.price}</div>
+                    <div className="text-[11px] font-semibold text-muted">{d.basis === "couple" ? "per couple" : "per person"}</div>
+                  </CardItem>
+                </div>
+              </CardBody>
+            </Link>
           </CardContainer>
         ))}
       </div>
@@ -339,11 +350,11 @@ export function AppCta() {
   );
 }
 
-function SectionHead({ eyebrow, title, sub, dark }: { eyebrow: string; title: string; sub?: string; dark?: boolean }) {
+function SectionHead({ eyebrow, title, sub, dark, size = "lg" }: { eyebrow: string; title: string; sub?: string; dark?: boolean; size?: "sm" | "lg" }) {
   return (
     <motion.div {...fadeUp} className="max-w-2xl">
       <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-brand"><Star className="h-3 w-3 fill-brand" />{eyebrow}</div>
-      <h2 className={`mt-3 text-3xl font-extrabold tracking-tight md:text-[42px] md:leading-[1.1] ${dark ? "text-white" : "text-ink"}`}>{title}</h2>
+      <h2 className={`mt-3 font-extrabold tracking-tight ${size === "sm" ? "text-2xl md:text-[32px] md:leading-[1.15]" : "text-3xl md:text-[42px] md:leading-[1.1]"} ${dark ? "text-white" : "text-ink"}`}>{title}</h2>
       {sub && <p className={`mt-3 text-base ${dark ? "text-white/60" : "text-muted"}`}>{sub}</p>}
     </motion.div>
   );

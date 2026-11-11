@@ -37,7 +37,7 @@ export function TrainSearchBar({ initial, compact }: { initial: TrainQuery; comp
         </button>
         <StationInput label="To" value={to} onChange={(l) => setTo(l)} />
         <DatePicker label="Journey date" value={date} onChange={setDate} className="md:max-w-[210px]" />
-        <button type="submit" className={cn("flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand to-brand-2 px-7 font-extrabold text-white shadow-[0_16px_40px_-12px_rgba(255,90,31,0.8)] transition hover:brightness-110", compact ? "h-[74px]" : "h-[74px]")}>
+        <button type="submit" className={cn("flex w-full shrink-0 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand to-brand-2 px-5 font-extrabold text-white shadow-[0_12px_32px_-12px_rgba(255,90,31,0.72)] transition hover:brightness-110 md:w-auto md:px-7", compact ? "h-[54px] text-sm md:h-[62px]" : "h-[58px] text-sm md:h-[68px] md:text-base")}>
           <Search className="h-5 w-5" /> Modify
         </button>
       </div>

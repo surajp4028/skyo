@@ -31,6 +31,13 @@ export const IMAGES = {
   hotelRoom: "1590490360182-c33d57733427",
   resortNight: "1542314831-068cd1dbfeeb",
   halong: "1528127269322-539801943592",
+  // real Kedarnath temple photos (Unsplash, free licence)
+  kedarnath: "1772639340183-150d399c2085",
+  kedarnathFront: "1612438214708-f428a707dd4e",
+  kedarnathSpire: "1759262988017-199c93bacb6d",
+  // real Tungnath / Chandrashila photos (Unsplash, free licence)
+  tungnath: "1692759873514-6514e8b7696d",
+  chandrashila: "1698723985345-f1456340f0a0",
 } as const;
 
 export const formatINR = (paise: number) =>

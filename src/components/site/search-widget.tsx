@@ -111,7 +111,7 @@ function Chips<T extends string>({ items, value, onChange }: { items: T[]; value
 
 function SearchBtn({ label }: { label: string }) {
   return (
-    <button type="submit" className="group flex h-[74px] shrink-0 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand to-brand-2 px-8 text-base font-extrabold text-white shadow-[0_16px_40px_-12px_rgba(255,90,31,0.8)] transition hover:brightness-110 active:scale-[0.98] md:w-auto">
+    <button type="submit" className="group flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand to-brand-2 px-5 text-sm font-extrabold text-white shadow-[0_12px_30px_-12px_rgba(255,90,31,0.75)] transition hover:brightness-110 active:scale-[0.98] sm:h-[62px] md:h-[68px] md:w-auto md:px-8 md:text-base">
       <Search className="h-5 w-5 transition group-hover:scale-110" />
       {label}
     </button>
@@ -257,12 +257,13 @@ function Counter({ v, set, min, max, label }: { v: number; set: (n: number) => v
 }
 
 function PackageForm() {
+  const router = useRouter();
   const [dest, setDest] = useState("Kashmir");
   const [month, setMonth] = useState(() => addDays(30).slice(0, 7));
   const [theme, setTheme] = useState<"Honeymoon" | "Family" | "Adventure" | "Pilgrimage" | "Beach">("Family");
   return (
-    <form onSubmit={(e) => (e.preventDefault(), soon("Holiday package", !!dest))} className="space-y-3">
-      <datalist id="pcities">{["Kashmir", "Kerala", "Goa", "Manali", "Andaman", "Rajasthan", "Ladakh", "Bali", "Dubai", "Thailand", "Maldives", "Vietnam"].map((s) => <option key={s} value={s} />)}</datalist>
+    <form onSubmit={(e) => { e.preventDefault(); router.push(`/packages?destination=${encodeURIComponent(dest)}&month=${encodeURIComponent(month)}&theme=${encodeURIComponent(theme)}`); }} className="space-y-3">
+      <datalist id="pcities">{["Kashmir", "Kerala", "Goa", "Manali", "Andaman", "Rajasthan", "Ladakh", "Bali", "Dubai", "Thailand", "Maldives", "Vietnam", "Kedarnath", "Tungnath"].map((s) => <option key={s} value={s} />)}</datalist>
       <div className="flex flex-col gap-2 md:flex-row md:items-stretch">
         <Place label="Destination" value={dest} onChange={setDest} list="pcities" placeholder="Where do you dream of?" />
         <Box label="Month of travel" icon={<CalendarDays className="h-3.5 w-3.5" />} className="md:max-w-[220px]">
@@ -292,7 +293,7 @@ function TimeSlots({ value, onChange }: { value: string[]; onChange: (v: string[
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Departure time</span>
-      <div className="flex gap-1 rounded-2xl bg-surface p-1">
+      <div className="grid w-full grid-cols-4 gap-0.5 rounded-2xl bg-surface p-1 sm:flex sm:w-auto sm:gap-1">
         {SLOTS.map((s) => {
           const on = value.includes(s.key);
           return (
@@ -302,14 +303,14 @@ function TimeSlots({ value, onChange }: { value: string[]; onChange: (v: string[
               aria-pressed={on}
               onClick={() => onChange(on ? value.filter((v) => v !== s.key) : [...value, s.key])}
               className={cn(
-                "group flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-left transition",
+                "group flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-center transition sm:flex-row sm:gap-1.5 sm:px-2.5 sm:text-left",
                 on ? "bg-white text-ink shadow-[0_2px_10px_-4px_rgba(10,15,31,0.25)] ring-1 ring-brand/40" : "text-ink/55 hover:text-ink",
               )}
             >
               <s.icon className={cn("h-4 w-4 transition", on ? "text-brand" : "group-hover:text-brand")} />
-              <span className="leading-tight">
-                <span className="block text-[11px] font-bold">{s.label}</span>
-                <span className="block text-[10px] font-medium opacity-70">{s.range}</span>
+              <span className="min-w-0 leading-tight">
+                <span className="block text-[9px] font-bold sm:text-[11px]">{s.label}</span>
+                <span className="block whitespace-nowrap text-[8px] font-medium opacity-70 sm:text-[10px]">{s.range}</span>
               </span>
             </button>
           );

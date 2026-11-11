@@ -104,9 +104,9 @@ export function AccountView() {
 
       <div ref={contentRef} className="relative z-10 mx-auto -mt-12 grid min-h-[80vh] max-w-6xl gap-4 px-3 pb-16 sm:-mt-14 sm:gap-5 sm:px-5 lg:grid-cols-[250px_minmax(0,1fr)]">
         {/* phones: every section visible at once as a 4×2 grid · desktop: sticky side list */}
-        <nav className="grid grid-cols-4 gap-1 rounded-3xl border border-line bg-white p-1.5 shadow-soft lg:sticky lg:top-24 lg:flex lg:flex-col lg:self-start lg:p-2">
+        <nav className="no-scrollbar flex min-w-0 gap-1 overflow-x-auto rounded-3xl border border-line bg-white p-1.5 shadow-soft lg:sticky lg:top-24 lg:flex-col lg:overflow-visible lg:self-start lg:p-2">
           {NAV.map((n) => (
-            <button key={n.key} onClick={() => setSection(n.key)} className={cn("relative flex flex-col items-center gap-1 rounded-2xl px-1 py-2.5 text-[10.5px] font-bold leading-tight transition lg:flex-row lg:gap-2.5 lg:px-3.5 lg:text-sm", section === n.key ? "text-white" : "text-ink/60 hover:text-ink")}>
+            <button key={n.key} onClick={() => setSection(n.key)} className={cn("relative flex min-w-[78px] shrink-0 flex-col items-center gap-1 rounded-2xl px-2 py-2.5 text-[10.5px] font-bold leading-tight transition sm:min-w-[90px] lg:w-full lg:min-w-0 lg:flex-row lg:gap-2.5 lg:px-3.5 lg:text-sm", section === n.key ? "text-white" : "text-ink/60 hover:text-ink")}>
               {section === n.key && <motion.span layoutId="acct-nav" className="absolute inset-0 rounded-2xl bg-ink" transition={{ type: "spring", bounce: 0.2, duration: 0.45 }} />}
               <n.icon className="relative h-[18px] w-[18px] lg:h-4 lg:w-4" />
               <span className="relative text-center lg:hidden">{n.short ?? n.label}</span>
@@ -355,13 +355,15 @@ function ProfileForm({ user, onSaved }: { user: Me; onSaved: (u: Me) => void }) 
   return (
     <Panel title="Profile" sub="Use your name exactly as on your government ID — it's printed on tickets.">
       {up.el}
-      <div className="mb-6 flex items-center gap-4 rounded-2xl bg-surface p-4">
-        <AvatarImg user={user} className="h-16 w-16 text-xl" />
+      <div className="mb-6 flex flex-col gap-3 rounded-2xl bg-surface p-3 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
+        <div className="flex min-w-0 items-center gap-3 sm:flex-1 sm:gap-4">
+        <AvatarImg user={user} className="h-14 w-14 shrink-0 text-xl sm:h-16 sm:w-16" />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-bold">Profile photo</div>
-          <div className="text-xs text-muted">JPG, PNG or WebP · up to 2 MB · stored privately</div>
+          <div className="text-xs leading-relaxed text-muted">JPG, PNG or WebP · up to 2 MB · stored privately</div>
         </div>
-        <div className="flex gap-2">
+        </div>
+        <div className="flex w-full gap-2 sm:w-auto">
           <Button type="button" variant="outline" loading={up.busy} onClick={up.pick}><Camera className="h-4 w-4" /> {user.avatar ? "Change" : "Upload"}</Button>
           {user.avatar && <Button type="button" variant="outline" disabled={up.busy} onClick={up.remove}><Trash2 className="h-4 w-4" /></Button>}
         </div>

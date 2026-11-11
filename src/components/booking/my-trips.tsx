@@ -29,7 +29,8 @@ const PERIODS = [
 
 type Trip = {
   ref: string; service: string; status: string; paymentStatus: string; ticketStatus: string; amount: number; createdAt: string; holdExpiresAt: string | null; pnr: string | null;
-  train: { number: string; name: string }; from: string; to: string; date: string; cls: string; quota: string; food: boolean;
+  train?: { number: string; name: string }; from?: string; to?: string; date: string; cls?: string; quota?: string; food?: boolean;
+  title?: string; destinations?: string[]; guests?: number; paid?: number; remaining?: number; invoiceUrl?: string; voucherUrl?: string;
   passengers: { name: string; age: number; gender: string }[];
   ticket: { pnr: string; hasProviderPdf?: boolean; allocations: { name: string; status: string; coach?: string; berth?: number; berthType?: string }[] } | null;
   gst?: { gstin: string; company: string } | null;
@@ -81,12 +82,16 @@ export function MyTrips() {
   const resume = async (t: Trip) => {
     setResuming(t.ref);
     try {
-      const r = await api<{ checkout: Record<string, unknown> }>(`/api/bookings/${t.ref}/checkout`);
+      const r = t.service === "package"
+        ? await api<{ checkout: Record<string, unknown> }>("/api/payments/order", { body: { bookingRef:t.ref, paymentType:"balance" } })
+        : await api<{ checkout: Record<string, unknown> }>(`/api/bookings/${t.ref}/checkout`);
       await openCheckout(r.checkout, {
+        failurePath: t.service === "package" ? null : undefined,
         onSuccess: async (resp) => {
           try {
-            await api("/api/bookings/train/verify", { body: { bookingRef: t.ref, ...resp } });
-            toast.success("Payment received — issuing your ticket");
+            if (t.service === "package") await api("/api/payments/verify", { body: { bookingRef:t.ref, ...resp } });
+            else await api("/api/bookings/train/verify", { body: { bookingRef: t.ref, ...resp } });
+            toast.success(t.service === "package" ? "Balance payment received" : "Payment received — issuing your ticket");
           } catch (e) {
             toast.error(errMsg(e));
           }
@@ -151,14 +156,21 @@ export function MyTrips() {
           <motion.article key={t.ref} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="overflow-hidden rounded-3xl border border-line bg-white shadow-soft">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface/60 px-5 py-3">
               <div className="flex items-center gap-2 text-sm">
-                {t.flight ? <AirlineLogo iata={t.flight.legs[0].airline.iata} size={22} className="rounded-md" /> : <TrainFront className="h-4 w-4 text-brand" />}
-                <span className="font-extrabold">{t.train.name}</span>
-                <span className="rounded bg-ink px-1.5 py-0.5 font-mono text-[11px] font-bold text-white">{t.train.number}</span>
+                {t.flight ? <AirlineLogo iata={t.flight.legs[0].airline.iata} size={22} className="rounded-md" /> : t.service === "package" ? <Palmtree className="h-4 w-4 text-brand" /> : <TrainFront className="h-4 w-4 text-brand" />}
+                <span className="font-extrabold">{t.service === "package" ? t.title : t.flight ? t.flight.legs[0].airline.name : t.train?.name}</span>
+                {t.service !== "package" && !t.flight && <span className="rounded bg-ink px-1.5 py-0.5 font-mono text-[11px] font-bold text-white">{t.train?.number}</span>}
               </div>
               <span className={cn("rounded-full px-2.5 py-1 text-xs font-extrabold ring-1", tone)}>{label}</span>
             </div>
             <div className="grid gap-4 p-5 md:grid-cols-[1fr_auto]">
-              {t.flight ? (
+              {t.service === "package" ? (
+                <div>
+                  <div className="text-xl font-extrabold">{t.destinations?.join("  →  ")}</div>
+                  <div className="mt-1 text-sm text-muted">{prettyDate(t.date, { weekday:"short",day:"numeric",month:"short",year:"numeric" })} · {t.guests} travellers · Ref {t.ref}</div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-surface p-3"><div className="text-muted">Total package</div><b>{fmtINR(t.amount)}</b></div><div className="rounded-xl bg-surface p-3"><div className="text-muted">Paid · balance</div><b>{fmtINR(t.paid || 0)} · {fmtINR(t.remaining || 0)}</b></div></div>
+                  <div className="mt-3 flex flex-wrap gap-2"><a href={t.voucherUrl} className="inline-flex items-center gap-1.5 rounded-xl bg-ink px-3.5 py-2 text-xs font-extrabold text-white"><Download className="h-3.5 w-3.5" /> Travel voucher</a><a href={t.invoiceUrl} className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3.5 py-2 text-xs font-extrabold text-ink"><FileText className="h-3.5 w-3.5" /> Payment invoice</a></div>
+                </div>
+              ) : t.flight ? (
                 <div>
                   <div className="flex items-center gap-4">
                     <div><div className="text-2xl font-black tabular-nums">{t.flight.dep}</div><div className="text-xs font-bold text-muted">{t.flight.legs[0].from.iata} · {t.flight.legs[0].from.city}</div></div>
@@ -181,7 +193,7 @@ export function MyTrips() {
               ) : (
               <div>
                 <div className="text-xl font-extrabold">{t.from} → {t.to}</div>
-                <div className="mt-0.5 text-sm text-muted">{prettyDate(t.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })} · {CLASS_NAMES[t.cls] || t.cls} · {t.food ? <span className="inline-flex items-center gap-1"><Utensils className="h-3 w-3" /> with food</span> : "no food"}</div>
+                <div className="mt-0.5 text-sm text-muted">{prettyDate(t.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })} · {t.cls ? CLASS_NAMES[t.cls] || t.cls : ""} · {t.food ? <span className="inline-flex items-center gap-1"><Utensils className="h-3 w-3" /> with food</span> : "no food"}</div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {(t.ticket?.allocations || t.passengers.map((p) => ({ name: p.name, status: "—" } as { name: string; status: string; coach?: string; berth?: number }))).map((a, k) => (
                     <span key={k} className="rounded-lg bg-surface px-2.5 py-1 text-xs font-semibold">
@@ -210,6 +222,11 @@ export function MyTrips() {
                     )}
                     <a href={`/api/bookings/${t.ref}/invoice?view=1`} target="_blank" rel="noopener" title={t.gst ? `GST invoice for ${t.gst.company}` : "Payment invoice"} className="flex items-center gap-1.5 rounded-xl border border-line bg-white px-3.5 py-2 text-xs font-extrabold text-ink transition hover:-translate-y-0.5"><FileText className="h-3.5 w-3.5" /> Invoice</a>
                   </div>
+                )}
+                {t.service === "package" && (t.remaining || 0) > 0 && t.status === "confirmed" && (
+                  <button onClick={() => resume(t)} disabled={resuming === t.ref} className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand to-brand-2 px-3.5 py-2 text-xs font-extrabold text-white disabled:opacity-60">
+                    {resuming === t.ref ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />} Pay balance · {fmtINR(t.remaining)}
+                  </button>
                 )}
                 {t.status === "pending" && t.paymentStatus !== "paid" && holdLeft > 0 && (
                   <button onClick={() => resume(t)} disabled={resuming === t.ref} className="flex items-center gap-1.5 rounded-xl bg-ink px-3.5 py-2 text-xs font-extrabold text-white disabled:opacity-60">

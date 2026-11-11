@@ -92,6 +92,8 @@
 .sky-fade { background: linear-gradient(180deg, #0035c4 0%, #004be0 26%, #1269ec 50%, #3d8ff2 72%, #a9d2fb 90%, #f6f7fb 100%); }
 .sky-band { background: linear-gradient(180deg, #0035c4 0%, #0a55e6 50%, #3d8ff2 100%); }
 
+@keyframes shimmer-x { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
 html {
   scroll-behavior: smooth;
 }
@@ -126,6 +128,20 @@ body {
 .bg-dots {
   background-image: radial-gradient(rgb(10 15 31 / 0.08) 1px, transparent 1px);
   background-size: 18px 18px;
+}
+.dotted-glow-bg {
+  background-image:
+    radial-gradient(circle at 86% 6%, rgb(42 115 255 / 0.32), transparent 38%),
+    radial-gradient(circle at 8% 88%, rgb(255 90 31 / 0.18), transparent 34%),
+    radial-gradient(rgb(255 255 255 / 0.12) 1px, transparent 1px);
+  background-size: auto, auto, 18px 18px;
+}
+.cloud-sky-fallback {
+  background-image:
+    radial-gradient(ellipse 23% 8% at 24% 68%, rgb(255 255 255 / .8) 0 48%, transparent 74%),
+    radial-gradient(ellipse 28% 10% at 72% 42%, rgb(255 255 255 / .68) 0 46%, transparent 74%),
+    radial-gradient(ellipse 20% 7% at 83% 78%, rgb(210 233 255 / .8) 0 48%, transparent 74%);
+  filter: blur(8px);
 }
 .text-gradient {
   background: linear-gradient(100deg, #ff5a1f, #ff8a3d 40%, #ffb36b 70%, #ff5a1f);

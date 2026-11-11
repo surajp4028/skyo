@@ -207,18 +207,18 @@ export function FlightResults({ q }: { q: FlightQuery }) {
           </div>
         </aside>
 
-        <div className="min-h-[70vh]">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex rounded-2xl border border-line bg-white p-1 shadow-soft">
+        <div className="min-h-[70vh] min-w-0">
+          <div className="mb-4 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap sm:justify-between sm:gap-3">
+            <div className="no-scrollbar col-span-2 flex min-w-0 gap-1 overflow-x-auto rounded-2xl border border-line bg-white p-1 shadow-soft sm:col-span-1">
               {SORTS.map((s) => (
-                <button key={s.key} onClick={() => setSort(s.key)} className={cn("relative rounded-xl px-3 py-1.5 text-xs font-bold transition sm:px-4", sort === s.key ? "text-white" : "text-ink/60 hover:text-ink")}>
+                <button key={s.key} onClick={() => setSort(s.key)} className={cn("relative shrink-0 rounded-xl px-2.5 py-2 text-[11px] font-bold transition sm:px-4 sm:py-1.5 sm:text-xs", sort === s.key ? "text-white" : "text-ink/60 hover:text-ink")}>
                   {sort === s.key && <motion.span layoutId="flight-sort" className="absolute inset-0 rounded-xl bg-ink" />}
                   <span className="relative">{s.label}</span>
                 </button>
               ))}
             </div>
-            <button onClick={() => setMobileFilters(true)} className="flex items-center gap-1.5 rounded-xl border border-line bg-white px-3 py-2 text-xs font-bold lg:hidden"><SlidersHorizontal className="h-4 w-4" /> Filters{anyFilter ? ` (${stops.length + airlines.length + slots.length})` : ""}</button>
-            <p className="w-full text-sm font-semibold text-muted sm:w-auto">{loading ? "Searching flights…" : `${list.length} of ${all.length} flight${all.length === 1 ? "" : "s"}`}</p>
+            <button onClick={() => setMobileFilters(true)} className="justify-self-end flex items-center gap-1.5 rounded-xl border border-line bg-white px-3 py-2 text-xs font-bold lg:hidden"><SlidersHorizontal className="h-4 w-4" /> Filters{anyFilter ? ` (${stops.length + airlines.length + slots.length})` : ""}</button>
+            <p className="col-span-2 text-sm font-semibold text-muted sm:col-span-1 sm:w-auto">{loading ? "Searching flights…" : `${list.length} of ${all.length} flight${all.length === 1 ? "" : "s"}`}</p>
           </div>
 
           {!loading && meta && (

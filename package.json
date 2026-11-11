@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:setup": "node --conditions=react-server --import tsx scripts/db-setup.mts",
-    "db:migrate-v2": "node --conditions=react-server --import tsx scripts/migrate-v2.mts"
+    "db:migrate-v2": "node --conditions=react-server --import tsx scripts/migrate-v2.mts",
+    "db:migrate-packages": "node --conditions=react-server --import tsx scripts/migrate-packages.mts"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1163.0",

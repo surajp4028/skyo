@@ -3,7 +3,7 @@
  * Creates the database + v2 tables and seeds the first admin (encrypted with KMS).
  * Safe to re-run. For an existing v1 database run `npm run db:migrate-v2` instead.
  */
-import { adminConnection, dbName, schemaSql } from "./_env.mjs";
+import { adminConnection, dbName, packageSchemaSql, schemaSql } from "./_env.mjs";
 
 const { encrypt, blindIndex, hashPassword } = await import("../src/lib/server/crypto.ts");
 
@@ -18,6 +18,7 @@ if ((cols as unknown[]).length) {
   process.exit(1);
 }
 await c.query(schemaSql());
+await c.query(packageSchemaSql());
 await c.query("INSERT INTO schema_meta (meta_key, meta_value) VALUES ('version','2') ON DUPLICATE KEY UPDATE meta_value='2'");
 
 // v2.1: booking payment / ticket columns for databases created before them

@@ -78,6 +78,7 @@ export function Overview() {
         <div className="relative mt-6 flex flex-wrap gap-2">
           {admin.can("users.view") && <QuickLink href="/admin/users" icon={<Users className="h-4 w-4" />} label="Users" />}
           {admin.can("bookings.train") && <QuickLink href="/admin/bookings/train" icon={<TrainFront className="h-4 w-4" />} label="Train bookings" />}
+          {admin.can("bookings.package") && <QuickLink href="/admin/packages" icon={<Palmtree className="h-4 w-4" />} label="Tour packages" />}
           {admin.can("sessions.view") && <QuickLink href="/admin/sessions" icon={<Activity className="h-4 w-4" />} label="Live sessions" />}
           {admin.can("settings.manage") && <QuickLink href="/admin/settings" icon={<Settings2 className="h-4 w-4" />} label="Settings" />}
         </div>

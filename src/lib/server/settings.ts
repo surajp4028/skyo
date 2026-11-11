@@ -37,6 +37,13 @@ export const SETTING_DEFS = {
   train_daily_credit_cap: { label: "RailCore daily credit cap", default: process.env.RK_DAILY_CREDIT_CAP || "80", max: 6, public: false },
   gst_input_mode: { label: "GST details: fetch / manual / both", default: "both", max: 6, public: true },
   max_coupons: { label: "Max coupons", default: "20", max: 4, public: false },
+  train_alt_seats: { label: "Alternate seat finder (book from / change seat)", default: "on", max: 3, public: true },
+  train_alt_limit: { label: "Alternate seat: limit checks (per search / per visitor per day)", default: "off", max: 3, public: true },
+  train_alt_auto: { label: "Alternate seat: background checks per search", default: "2", max: 2, public: true },
+  train_alt_guests: { label: "Alternate seat: also for visitors who aren't logged in", default: "on", max: 3, public: true },
+  train_alt_guest_daily: { label: "Alternate seat: checks per visitor (not logged in) per day", default: "6", max: 3, public: false },
+  train_alt_min_chance: { label: "Alternate seat: also show options with at least this % chance", default: "85", max: 3, public: false },
+  train_alt_max_checks: { label: "Alternate seat: availability checks per tap", default: "6", max: 2, public: false },
   train_dev_single_result: { label: "Dev: show only 1 train in search results", default: "on", max: 3, public: false },
   // ---- Train charges (amounts in rupees, percentages as numbers) ----
   train_pg_fee_pct: { label: "Payment gateway fee %", default: "2", max: 6, public: true },
@@ -144,6 +151,10 @@ export async function getPublicSettings() {
     service_package: string;
     train_live: string;
     pnr_status: string;
+    train_alt_seats: string;
+    train_alt_auto: string;
+    train_alt_limit: string;
+    train_alt_guests: string;
     max_saved_passengers: string;
     max_passengers_per_booking: string;
     gst_input_mode: string;

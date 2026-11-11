@@ -128,7 +128,7 @@ export function SavedPnrs({ onOpen, activePnr, tone = "light", className }: { on
         ref={rail}
         onScroll={measure}
         className={cn(
-          "no-scrollbar -mx-1 mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-4 pt-1",
+          "no-scrollbar -mx-1 mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain px-1 pb-14 pt-3 -mb-10",
           edges.right && !edges.left && "[mask-image:linear-gradient(to_right,black_85%,transparent)]",
           edges.left && edges.right && "[mask-image:linear-gradient(to_right,transparent,black_8%,black_88%,transparent)]",
           edges.left && !edges.right && "[mask-image:linear-gradient(to_left,black_85%,transparent)]",

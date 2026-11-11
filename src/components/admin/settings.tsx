@@ -191,8 +191,21 @@ function TrainTab({ v, set, toggle }: { v: Record<string, string>; set: (k: stri
         <div className="divide-y divide-line">
           <Toggle label="Enable live train data" desc="Kill switch — when off, SKYO makes no RailCore calls at all." on={v.train_api === "on"} onClick={() => toggle("train_api")} />
           <Toggle label="Dev: show only 1 train in search results" desc="Saves credits while building — every result can trigger availability / schedule look-ups. Turn off to show all trains." on={v.train_dev_single_result === "on"} onClick={() => toggle("train_dev_single_result")} />
+          <Toggle label="Alternate seat finder" desc="Quietly looks for a confirmed seat on waitlisted classes (book from an earlier station, or change seat on the way). The 'Alternate seat ₹X' chip shows only when one is found." on={v.train_alt_seats === "on"} onClick={() => toggle("train_alt_seats")} />
+          <Toggle label="Alternate seat for visitors (not logged in)" desc="Also run the background check for people who aren't logged in. Turn off to keep it for logged-in travellers only." on={v.train_alt_guests === "on"} onClick={() => toggle("train_alt_guests")} />
+          <Toggle label="Limit alternate-seat checks" desc="Off (default): every waitlisted class of the trains on screen is checked — about 14 credits each. On: only the numbers below (per search, and per visitor per day) are allowed." on={v.train_alt_limit === "on"} onClick={() => toggle("train_alt_limit")} />
         </div>
         <div className="mt-4 max-w-xs"><Field label="Daily credit cap" name="train_daily_credit_cap" inputMode="numeric" value={v.train_daily_credit_cap || ""} onChange={set("train_daily_credit_cap")} hint="≈ 80/day keeps you inside 2,500/month" /></div>
+        <div className="mt-3 grid max-w-xl gap-4 sm:grid-cols-2">
+          {v.train_alt_limit === "on" && (
+            <>
+              <Field label="Alternate seat · checks per search" name="train_alt_auto" inputMode="numeric" value={v.train_alt_auto || ""} onChange={set("train_alt_auto")} hint="First waitlisted classes from the top · 0 = none" />
+              <Field label="Alternate seat · visitor checks per day" name="train_alt_guest_daily" inputMode="numeric" value={v.train_alt_guest_daily || ""} onChange={set("train_alt_guest_daily")} hint="Per IP, not logged in" />
+            </>
+          )}
+          <Field label="Alternate seat · show likely options from (% chance)" name="train_alt_min_chance" inputMode="numeric" value={v.train_alt_min_chance || ""} onChange={set("train_alt_min_chance")} hint="When nothing is confirmed, show options RailCore predicts at this % or more · 100 = confirmed only" />
+          <Field label="Alternate seat · stations per check" name="train_alt_max_checks" inputMode="numeric" value={v.train_alt_max_checks || ""} onChange={set("train_alt_max_checks")} hint="2 – 10 · each check ≈ 2 + 2 × this credits (6 ≈ 14)" />
+        </div>
       </Section>
 
       <Section title="PNR status · RailKit" desc="PNR lookups use RailKit's monthly quota. A status is kept for a while so re-checks are free: the cache time below before charting, at least 2 h after charting, and a day after the journey.">

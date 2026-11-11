@@ -43,6 +43,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { href: "/admin/staff", label: "Staff & access", icon: UserCog, perm: "staff.manage" },
       { href: "/admin/settings", label: "Settings", icon: Settings, perm: "settings.manage" },
+      { href: "/admin/packages", label: "Tour packages", icon: Palmtree, perm: "bookings.package" },
       { href: "/admin/profile", label: "My profile", icon: UserRound },
     ],
   },
