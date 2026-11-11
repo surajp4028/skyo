@@ -65,8 +65,11 @@ export async function sendOtpSms(phone10: string, otp: string): Promise<boolean>
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10_000),
     });
-    const j = (await res.json().catch(() => ({}))) as { return?: boolean };
-    if (!j.return) console.error("[sms] Fast2SMS rejected request", res.status);
+    const j = (await res.json().catch(() => ({}))) as { return?: boolean; request_id?: string; message?: string | string[]; status_code?: number };
+    const msg = Array.isArray(j.message) ? j.message.join(" ") : j.message || "";
+    // never the key or the full number — just enough to find the message in the Fast2SMS delivery report
+    if (!j.return) console.error(`[sms] Fast2SMS rejected OTP to ******${phone10.slice(-4)} · http ${res.status} · code ${j.status_code ?? "-"} · ${String(msg).slice(0, 160)}`);
+    else console.log(`[sms] Fast2SMS accepted OTP to ******${phone10.slice(-4)} · request ${j.request_id ?? "-"} · route ${env.sms.route}`);
     return Boolean(j.return);
   } catch (e) {
     console.error("[sms] Fast2SMS error", (e as Error).name);

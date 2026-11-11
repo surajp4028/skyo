@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { AtSign, Briefcase, Eye, EyeOff, KeyRound, Mail, Phone, Plane, UserRound } from "lucide-react";
+import { AtSign, Briefcase, Eye, EyeOff, KeyRound, Mail, Phone, Plane, ShieldCheck, UserRound, Zap } from "lucide-react";
 import { AnimatedTabs } from "@/components/ui/animated-tabs";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -83,7 +83,7 @@ function TravellerLogin() {
       }}
       className="space-y-5"
     >
-      <StepHeader title={`Welcome to ${site.site_name}`} sub="Log in or create an account with a one-time code. No password needed." />
+      <StepHeader eyebrow="Log in or sign up" title={`Welcome to ${site.site_name}`} sub="Enter your mobile number or email — we'll send a one-time code. No password needed." />
       <Field
         label="Email or mobile number"
         name="identifier"
@@ -98,8 +98,22 @@ function TravellerLogin() {
         error={err || undefined}
       />
       <Button type="submit" size="lg" className="w-full" loading={busy} disabled={identifier.trim().length < 5}>
-        Get OTP
+        {busy ? "Sending code…" : isPhone ? "Send OTP by SMS" : identifier.includes("@") ? "Send OTP by email" : "Get OTP"}
       </Button>
+      <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-semibold text-muted">
+        {[
+          [ShieldCheck, "Secure OTP"],
+          [Zap, "Instant login"],
+          [KeyRound, "No password"],
+        ].map(([Icon, t]) => {
+          const I = Icon as typeof ShieldCheck;
+          return (
+            <span key={t as string} className="flex items-center justify-center gap-1.5 rounded-xl bg-surface px-2 py-2">
+              <I className="h-3.5 w-3.5 text-[#0057ff]" /> {t as string}
+            </span>
+          );
+        })}
+      </div>
       <p className="text-center text-xs leading-relaxed text-muted">
         By continuing you agree to our <Link href="/terms" className="font-semibold text-ink underline">Terms</Link> and{" "}
         <Link href="/privacy" className="font-semibold text-ink underline">Privacy Policy</Link>. New here? An account is created automatically.
@@ -113,7 +127,7 @@ function TravellerLogin() {
     </form>
   ) : step === "otp" && challenge ? (
     <div>
-      <StepHeader title="Enter verification code" />
+      <StepHeader eyebrow="Almost there" title="Enter the 6-digit code" />
       <OtpStep
         sentTo={challenge.sentTo}
         resendIn={challenge.resendIn}

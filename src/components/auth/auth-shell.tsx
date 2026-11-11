@@ -5,18 +5,30 @@ import { motion } from "motion/react";
 import { BadgeCheck, Lock, Plane, ShieldCheck, TrainFront } from "lucide-react";
 import { Logo } from "@/components/site/logo";
 import { TextGenerateEffect } from "@/components/ui/text-generate-effect";
-import { Meteors } from "@/components/ui/meteors";
+import { CloudShader } from "@/components/ui/cloud-shader";
 import { useSite } from "@/lib/client/providers";
-import { IMAGES, img } from "@/lib/utils";
 
-export function AuthShell({ children, image = IMAGES.keralaBoat, quote }: { children: ReactNode; image?: string; quote?: string }) {
+export function AuthShell({ children, quote }: { children: ReactNode; image?: string; quote?: string }) {
   const site = useSite();
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
       <aside className="relative hidden overflow-hidden lg:block">
-        <Image src={img(image, 1600)} alt="" fill priority sizes="50vw" className="object-cover" />
-        <div className="absolute inset-0 bg-[linear-gradient(160deg,rgba(0,87,255,0.78)_0%,rgba(10,40,120,0.55)_45%,rgba(10,15,31,0.85)_100%)]" />
-        <Meteors number={14} />
+        {/* Aceternity Cloud Shader sky + window-seat wing — same sky as the rest of SKYO */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#3f8ef0] to-[#0646c8]" />
+        <motion.div aria-hidden className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.4 }}>
+          <div className="absolute h-1/2 w-1/2 origin-top-left scale-200">
+            <CloudShader speed={1} count={5} skyTopColor="#0646c8" skyBottomColor="#3f8ef0" className="absolute inset-0" />
+          </div>
+        </motion.div>
+        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_30%_65%,rgba(3,25,80,0.45),transparent_75%)]" />
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-4 -right-6 w-[78%]"
+          animate={{ y: [0, -10, 0] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <Image src="/images/plane-wing.png" alt="" width={2200} height={1227} priority className="h-auto w-full -scale-x-100 opacity-95" />
+        </motion.div>
         <div className="relative z-10 flex h-full flex-col justify-between p-12">
           <Logo dark />
           <div className="relative">
@@ -45,7 +57,7 @@ export function AuthShell({ children, image = IMAGES.keralaBoat, quote }: { chil
         <div className="bg-dots pointer-events-none absolute inset-0 opacity-50 [mask-image:radial-gradient(ellipse_at_center,black,transparent_70%)]" />
         <div className="relative flex items-center justify-between p-6 lg:hidden"><Logo /></div>
         <div className="relative flex flex-1 items-center justify-center px-5 py-10">
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 200, damping: 24 }} className="relative w-full max-w-[460px] overflow-hidden rounded-[32px] border border-white bg-white/90 p-7 shadow-[0_40px_100px_-40px_rgba(10,15,31,0.45)] backdrop-blur-xl sm:p-8">
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 200, damping: 24 }} className="relative w-full max-w-[460px] overflow-hidden rounded-[32px] border border-white bg-white/95 p-7 shadow-[0_40px_100px_-40px_rgba(10,15,31,0.45)] ring-1 ring-black/[0.03] backdrop-blur-xl sm:p-9">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#0057ff] via-brand to-brand-2" />
             {children}
           </motion.div>
@@ -58,11 +70,12 @@ export function AuthShell({ children, image = IMAGES.keralaBoat, quote }: { chil
   );
 }
 
-export function StepHeader({ title, sub }: { title: string; sub?: ReactNode }) {
+export function StepHeader({ title, sub, eyebrow }: { title: string; sub?: ReactNode; eyebrow?: string }) {
   return (
     <div className="mb-7">
-      <h1 className="text-3xl font-extrabold tracking-tight text-ink">{title}</h1>
-      {sub && <p className="mt-2 text-[15px] text-muted">{sub}</p>}
+      {eyebrow && <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand">{eyebrow}</div>}
+      <h1 className="text-[28px] font-extrabold leading-tight tracking-tight text-ink sm:text-3xl">{title}</h1>
+      {sub && <p className="mt-2 text-[15px] leading-relaxed text-muted">{sub}</p>}
     </div>
   );
 }

@@ -27,6 +27,7 @@ import { api, errMsg } from "@/lib/client/api";
 import { formatINR } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Btn, Card } from "./ui";
+import { PackageTransfer } from "./package-transfer";
 
 type Booking = {
   ref: string;
@@ -215,9 +216,12 @@ export function PackageManager() {
           ))}
         </div>
         {tab === "packages" && (
-          <Btn variant="dark" onClick={() => setEditing(blank())}>
-            <Plus className="h-4 w-4" /> New package
-          </Btn>
+          <div className="flex flex-wrap items-center gap-2">
+            <PackageTransfer packages={data?.packages || []} onImported={() => setTick((v) => v + 1)} />
+            <Btn variant="dark" onClick={() => setEditing(blank())}>
+              <Plus className="h-4 w-4" /> New package
+            </Btn>
+          </div>
         )}
       </div>
       {tab === "packages" ? (
