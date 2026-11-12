@@ -8,6 +8,8 @@ import { trainApi } from "@/lib/train/client";
 import { errMsg } from "@/lib/client/api";
 import type { RouteTrains } from "@/lib/server/train/types";
 import { TrainCard } from "./train-card";
+import { useSearchChances } from "./alternate-seat";
+import { useAuth, useSite } from "@/lib/client/providers";
 import { CardSkeleton, TrainLoader } from "./train-loader";
 import { TrainSearchBar, type TrainQuery } from "./train-search-bar";
 import { addDaysISO, istISO, prettyDate, prettyType, quotaLabel, slotOf, toMinutes } from "@/lib/train/format";
@@ -68,6 +70,9 @@ export function TrainResults({ q, initialSlots }: { q: TrainQuery; initialSlots:
   const loading = !state || state.key !== key;
   const all = useMemo(() => (state?.key === key ? state.data?.trains || [] : []), [state, key]);
   const devLimited = state?.key === key ? (state.data as (RouteTrains & { dev_limited?: { shown: number; total: number } }) | undefined)?.dev_limited : undefined;
+  const site = useSite();
+  const { user } = useAuth();
+  const { data: chances, unavailable: chancesOff } = useSearchChances({ trains: all, from: q.from, to: q.to, date: q.date, quota: q.quota, enabled: (site.train_alt_seats ?? "on") === "on" && (!!user || (site.train_alt_guests ?? "on") === "on") });
   const allClasses = useMemo(() => [...new Set(all.flatMap((t) => t.classes || []))], [all]);
   const allTypes = useMemo(() => [...new Set(all.map((t) => t.train_type).filter(Boolean))], [all]);
 
@@ -203,8 +208,14 @@ export function TrainResults({ q, initialSlots }: { q: TrainQuery; initialSlots:
             <EmptyState icon={<SearchX className="h-7 w-7" />} title={all.length ? "No trains match your filters" : "No trains on this route"} text={all.length ? "Try clearing a filter." : "Try a nearby station or another date."} />
           ) : (
             <div className="space-y-4">
+              {chancesOff && (
+                <div className="flex items-center gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  Live confirmation chances and alternate seats are unavailable right now. Seat status above is still live.
+                </div>
+              )}
               {list.map((t, i) => (
-                <TrainCard key={`${t.train_number}-${t.departure_time}`} t={t} from={q.from} to={q.to} date={q.date} quota={q.quota} index={i} />
+                <TrainCard key={`${t.train_number}-${t.departure_time}`} t={t} from={q.from} to={q.to} date={q.date} quota={q.quota} index={i} chances={chances[t.train_number]} />
               ))}
               <p className="pt-2 text-center text-[11px] text-muted">Live data by RailCore · Not affiliated with IRCTC / Indian Railways · Always verify before travel</p>
             </div>

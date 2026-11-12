@@ -3,6 +3,8 @@
 @theme {
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-display-serif), Georgia, serif;
+  --font-lux: var(--font-lux-serif), Georgia, serif;
+  --font-mono: var(--font-dm-mono), ui-monospace, monospace;
 
   --color-ink: #0a0f1f;
   --color-ink-2: #121a33;

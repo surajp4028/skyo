@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { PACKAGE_CATEGORIES, inCategory } from "@/lib/package-categories";
 import { toast } from "sonner";
 import {
   ArrowUpRight,
@@ -40,6 +41,7 @@ type Booking = {
     phone: string;
     package?: { title: string; route: string[] };
     guests: number;
+    travellers?: { name: string; age: number | null; gender: string | null; email: string | null; phone: string | null }[];
     travelDate: string;
     pricingType: string;
     packagePrice: number;
@@ -72,6 +74,7 @@ const blank = (): Partial<TourPackage> => ({
   durationDays: 3,
   durationNights: 2,
   destinations: [""],
+  categories: [],
   itinerary: [{ dayNumber: 1, title: "", description: "", activityDetails: [] }],
   departures: [],
   tripInfo: { origin: "", reportingPoint: "", returnPoint: "", travelMode: "", mealPlan: "" },
@@ -356,11 +359,26 @@ export function PackageManager() {
                   </Link>
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Info label="Traveller" value={b.customer.name} />
+                  <Info label="Lead traveller" value={b.customer.name} />
                   <Info label="Email / mobile" value={`${b.customer.email} · ${b.customer.phone}`} />
                   <Info label="SKYO ID" value={b.userUid} />
                   <Info label="Coupon / promo" value={b.couponCode || "—"} />
                 </div>
+                {(b.customer.travellers?.length ?? 0) > 0 && (
+                  <div className="mt-3 rounded-2xl border border-line p-3">
+                    <div className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-muted">All travellers · {b.customer.travellers!.length}</div>
+                    <ol className="grid gap-1.5 sm:grid-cols-2">
+                      {b.customer.travellers!.map((t, k) => (
+                        <li key={k} className="flex items-center gap-2 text-xs">
+                          <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[10px] font-extrabold", k === 0 ? "bg-brand text-white" : "bg-surface text-ink")}>{k + 1}</span>
+                          <span className="font-bold">{t.name}</span>
+                          <span className="text-muted">{[t.age != null ? `${t.age}y` : "", t.gender || ""].filter(Boolean).join(" · ")}</span>
+                          {k > 0 && (t.phone || t.email) && <span className="truncate text-muted">· {[t.phone, t.email].filter(Boolean).join(" · ")}</span>}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
                 <div className="mt-4 rounded-2xl bg-surface p-3.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-xs font-extrabold">
@@ -561,6 +579,9 @@ function PackageEditor({
                   }
                   placeholder="Haridwar, Rudraprayag, Guptkashi, Kedarnath"
                 />
+              </Field>
+              <Field label="Categories · where it shows on /packages" full>
+                <CategoryPicker pkg={f} value={f.categories || []} onChange={(v) => set("categories", v as TourPackage["categories"])} />
               </Field>
             </div>
           </section>
@@ -1123,6 +1144,36 @@ function SectionTitle({ n, title, sub }: { n: string; title: string; sub: string
       <div className="text-[9px] font-extrabold tracking-[.18em] text-brand">{n} / PACKAGE DETAILS</div>
       <h3 className="mt-1 text-sm font-extrabold">{title}</h3>
       <p className="mt-0.5 text-[10px] leading-relaxed text-muted">{sub}</p>
+    </div>
+  );
+}
+
+/** Tag chips for the /packages rails. No tags = SKYO places the trip automatically (shown faded). */
+function CategoryPicker({ pkg, value, onChange }: { pkg: Partial<TourPackage>; value: string[]; onChange: (v: string[]) => void }) {
+  const guess = PACKAGE_CATEGORIES.filter((c) => c.key !== "trending" && inCategory({ ...(pkg as TourPackage), destinations: pkg.destinations || [], categories: [], shortDescription: pkg.shortDescription || "", title: pkg.title || "" }, c)).map((c) => c.key as string);
+  const auto = value.length === 0;
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5">
+        {PACKAGE_CATEGORIES.filter((c) => c.key !== "trending").map((c) => {
+          const on = value.includes(c.key);
+          const guessed = auto && guess.includes(c.key);
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => onChange(on ? value.filter((k) => k !== c.key) : [...value, c.key])}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${on ? "bg-ink text-white" : guessed ? "border border-dashed border-ink/40 bg-white text-ink" : "border border-line bg-white text-muted hover:text-ink"}`}
+            >
+              {on ? "✓ " : ""}{c.label}
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-1.5 text-[11px] text-muted">
+        {auto ? <>No tags picked — shown automatically under <b>{guess.length ? guess.map((k) => PACKAGE_CATEGORIES.find((c) => c.key === k)!.label).join(", ") : "All packages only"}</b> (dashed). Tap to choose yourself.</> : <>Shows only under the categories you picked. Clear all to go back to automatic.</>}
+        {" "}<b>Trending</b> follows the Featured switch.
+      </p>
     </div>
   );
 }

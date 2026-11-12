@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { PACKAGE_CATEGORY_KEYS } from "@/lib/package-categories";
 
 const line = z.string().trim().max(240);
 const urlOrPath = z.string().trim().max(1000).refine((v) => !v || v.startsWith("/") || /^https?:\/\//i.test(v), "Use an https image URL or a local path.");
@@ -15,6 +16,7 @@ export const packageInput = z.object({
   slug: z.string().trim().toLowerCase().min(3).max(160).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   title: z.string().trim().min(3).max(180), shortDescription: z.string().trim().min(10).max(320), detailedDescription: z.string().trim().min(20).max(20000),
   durationDays: z.number().int().min(1).max(60), durationNights: z.number().int().min(0).max(59), destinations: strings.min(1),
+  categories: z.array(z.enum(PACKAGE_CATEGORY_KEYS)).max(12).default([]).transform((c) => [...new Set(c)].filter((k) => k !== "trending")),
   itinerary: z.array(z.object({ dayNumber: z.number().int().min(1).max(60), title: line.min(2), description: z.string().trim().max(1500), activityDetails: strings, time: z.string().trim().max(80).optional() })).min(1).max(60),
   departures: z.array(departure).max(60).default([]),
   tripInfo: z.object({ origin: line.optional(), reportingPoint: line.optional(), returnPoint: line.optional(), travelMode: line.optional(), mealPlan: line.optional() }).nullable().optional(),
@@ -28,8 +30,22 @@ export const packageInput = z.object({
 }).refine((p) => p.discountedPrice <= p.originalPrice, { message: "Discounted price must be less than or equal to original price.", path: ["discountedPrice"] })
   .refine((p) => new Set(p.departures.map((d) => d.id)).size === p.departures.length, { message: "Two departures share the same id.", path: ["departures"] });
 
+const phone10 = z.string().trim().transform((v) => v.replace(/\D+/g, "").replace(/^(?:91|0)(?=\d{10}$)/, "")).refine((v) => /^[6-9]\d{9}$/.test(v), "Enter a valid 10-digit mobile number");
+/** One person on the trip. Name is always required; email / phone only for the lead (first) traveller. */
+export const packageTraveller = z.object({
+  name: z.string().trim().min(2, "Enter each traveller's full name").max(100),
+  age: z.number().int().min(0).max(120).nullable().optional(),
+  gender: z.enum(["M", "F", "T"]).nullable().optional(),
+  email: z.union([z.literal(""), z.string().trim().toLowerCase().email("Enter a valid email").max(190)]).optional(),
+  phone: z.union([z.literal(""), phone10]).optional(),
+});
 export const packageCheckoutInput = z.object({
   slug: z.string().trim().min(3).max(160), travelDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), departureId: z.string().trim().max(24).optional(), guests: z.number().int().min(1).max(12),
-  name: z.string().trim().min(2).max(100), email: z.string().trim().toLowerCase().email().max(190), phone: z.string().trim().min(8).max(20),
+  travellers: z.array(packageTraveller).min(1).max(12),
   couponCode: z.string().trim().max(40).optional().default(""), paymentType: z.enum(["upfront", "full"]).default("upfront"),
+}).superRefine((b, ctx) => {
+  if (b.travellers.length !== b.guests) ctx.addIssue({ code: "custom", path: ["travellers"], message: `Add the name of all ${b.guests} travellers.` });
+  const lead = b.travellers[0];
+  if (!lead?.email) ctx.addIssue({ code: "custom", path: ["travellers", 0, "email"], message: "Enter the lead traveller's email." });
+  if (!lead?.phone) ctx.addIssue({ code: "custom", path: ["travellers", 0, "phone"], message: "Enter the lead traveller's mobile number." });
 });

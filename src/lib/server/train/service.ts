@@ -50,7 +50,7 @@ export const seatAvailabilityBatch = (items: { train_number: string; from: strin
   return railRequest<{ results: AvailabilityResponse[] }>("availability.batch", "/availability/seats/batch", {
     method: "POST",
     body: { items },
-    cost: Math.max(5, 2 * classRequests), // documented batch formula
+    cost: Math.max(1, classRequests), // docs: 1 request per distinct class per item (max 25 items)
     ...o,
   });
 };

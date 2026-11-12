@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ import { api, ClientApiError, errMsg } from "@/lib/client/api";
 import { openCheckout } from "@/lib/client/razorpay";
 import { useAuth } from "@/lib/client/providers";
 import { KedarnathRouteMap, type PackageGeoProp } from "./route-map";
+import { TravellerSheet, type TripTraveller } from "./traveller-sheet";
 import { cn } from "@/lib/utils";
 
 type Tab = "Overview" | "Itinerary" | "Stays" | "Inclusions" | "Cancellation";
@@ -87,9 +88,7 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
   const [success, setSuccess] = useState<{ ref: string; voucher: string; invoice: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [mobileBookingOpen, setMobileBookingOpen] = useState(false);
-  const [customerName, setCustomerName] = useState(user?.name || "");
-  const [customerEmail, setCustomerEmail] = useState(user?.email || "");
-  const [customerPhone, setCustomerPhone] = useState(user?.phone || "");
+  const [travellerSheet, setTravellerSheet] = useState(false);
   const photos = [pkg.coverPhoto, ...pkg.images].filter(Boolean);
   const isKedarnath = /kedarnath/i.test(pkg.slug);
   const video = videoEmbed(pkg.videoLink);
@@ -131,8 +130,10 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
     };
   }, [pkg.slug, guestsShown, applied, depId]);
 
-  const book = async () => {
+  // step 1: logged in + date chosen → "Who's travelling?"; step 2 (book) runs from that sheet
+  const startBooking = () => {
     if (!user) {
+      toast.info("Log in to book — we'll bring you right back.");
       router.push(`/login?next=${encodeURIComponent(`/packages/${pkg.slug}`)}`);
       return;
     }
@@ -140,10 +141,11 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
       toast.error("Choose your travel date first.");
       return;
     }
-    if (customerName.trim().length < 2 || !customerEmail.includes("@") || customerPhone.replace(/\D/g, "").length < 10) {
-      toast.error("Enter the lead traveller's name, email and mobile number.");
-      return;
-    }
+    setMobileBookingOpen(false);
+    setTravellerSheet(true);
+  };
+
+  const book = async (travellers: TripTraveller[]) => {
     setBusy(true);
     try {
       const order = await api<{ bookingRef: string; checkout: Record<string, unknown> }>("/api/payments/order", {
@@ -152,9 +154,7 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
           travelDate: dep ? dep.startDate : date,
           departureId: dep?.id,
           guests: guestsShown,
-          name: customerName,
-          email: customerEmail,
-          phone: customerPhone,
+          travellers,
           couponCode: applied,
           paymentType: "upfront",
         },
@@ -167,6 +167,7 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
               "/api/payments/verify",
               { body: { bookingRef: order.bookingRef, ...resp } },
             );
+            setTravellerSheet(false);
             setSuccess({ ref: result.result.bookingRef, voucher: result.result.voucherUrl, invoice: result.result.invoiceUrl });
             toast.success("Your tour booking is confirmed.");
           } catch (e) {
@@ -280,32 +281,13 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
           </select>
         </label>
       </div>
-      <div className="mt-3 grid gap-2">
-        <input
-          value={customerName}
-          onChange={(e) => setCustomerName(e.target.value)}
-          placeholder="Lead traveller name"
-          autoComplete="name"
-          className="h-10 w-full rounded-xl border border-line px-3 text-sm font-semibold outline-none focus:border-brand"
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            type="email"
-            value={customerEmail}
-            onChange={(e) => setCustomerEmail(e.target.value)}
-            placeholder="Email address"
-            autoComplete="email"
-            className="h-10 min-w-0 rounded-xl border border-line px-3 text-xs font-semibold outline-none focus:border-brand"
-          />
-          <input
-            type="tel"
-            value={customerPhone}
-            onChange={(e) => setCustomerPhone(e.target.value)}
-            placeholder="Mobile number"
-            autoComplete="tel"
-            className="h-10 min-w-0 rounded-xl border border-line px-3 text-xs font-semibold outline-none focus:border-brand"
-          />
-        </div>
+      <div className="mt-3 flex items-center gap-2.5 rounded-xl bg-surface px-3 py-2.5 text-[11px] leading-snug text-muted">
+        <Users className="h-4 w-4 shrink-0 text-brand" />
+        {user ? (
+          <span>Next you&apos;ll add <b className="text-ink">{guestsShown} traveller name{guestsShown === 1 ? "" : "s"}</b> — pick from your saved travellers in one tap.</span>
+        ) : (
+          <span><b className="text-ink">Log in to book</b> — your saved travellers fill in automatically.</span>
+        )}
       </div>
       <div className="mt-3 flex gap-2">
         <input
@@ -357,7 +339,7 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
       {!quote.valid && applied && <p className="mt-2 text-xs font-semibold text-red-600">{quote.error}</p>}
       <button
         type="button"
-        onClick={book}
+        onClick={startBooking}
         disabled={busy || quoteLoading || !quote.valid || (hasDepartures && (!dep || !seatsLeft))}
         className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#ff5a1f] to-[#ff8734] text-sm font-extrabold text-white shadow-[0_12px_30px_-12px_rgba(255,90,31,.7)] transition hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
       >
@@ -792,6 +774,16 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
           </div>
         </div>
       )}
+      {travellerSheet && user && (
+        <TravellerSheet
+          guests={guestsShown}
+          me={{ name: user.name, email: user.email, phone: user.phone }}
+          busy={busy}
+          priceLabel={quote.valid ? inr(quote.upfront) : ""}
+          onClose={() => !busy && setTravellerSheet(false)}
+          onContinue={book}
+        />
+      )}
       {success && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#071326]/65 p-4 backdrop-blur-sm">
           <motion.div
@@ -1025,6 +1017,19 @@ function CancellationTab({ pkg, dep, total }: { pkg: TourPackage; dep: PackageDe
 function GalleryPhoto({ src, alt, thumb, onSwipe }: { src: string; alt: string; thumb?: boolean; onSwipe?: (dir: number) => void }) {
   const [loaded, setLoaded] = useState<string | null>(null);
   const ready = loaded === src;
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  // a cached photo can finish loading before React attaches onLoad — check `complete` too, and never hide a photo forever
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      const el = imgRef.current;
+      if (el && el.complete && el.naturalWidth > 0) setLoaded(src);
+    });
+    const t = setTimeout(() => setLoaded(src), 4000);
+    return () => {
+      cancelAnimationFrame(id);
+      clearTimeout(t);
+    };
+  }, [src]);
   return (
     <>
       {!ready && (
@@ -1036,6 +1041,7 @@ function GalleryPhoto({ src, alt, thumb, onSwipe }: { src: string; alt: string; 
       <AnimatePresence initial={false}>
         <motion.img
           key={src}
+          ref={imgRef}
           src={src}
           alt={alt}
           draggable={false}

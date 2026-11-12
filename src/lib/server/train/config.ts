@@ -2,7 +2,7 @@ import "server-only";
 
 /**
  * RailCore (https://railcore.tech/docs) configuration + the official credit price list.
- * Free plan: 2,500 credits/month, 20 req/min, 300 req/IST-day. Chart family = Scale/Enterprise only.
+ * Free plan: 2,500 credits/month, 20 req/min, 300 req/IST-day. Starter (current): 40,000 credits/month, 60 req/min. Chart family = Scale/Enterprise only.
  */
 const str = (k: string, d = "") => (process.env[k] ?? d).toString().trim();
 
@@ -17,32 +17,32 @@ export const railConfig = {
 export type Plan = typeof railConfig.plan;
 export const PREMIUM_PLANS: Plan[] = ["scale", "enterprise"];
 
-/** Operation catalog: path template, credit cost (from docs/credits) and plan entitlement. */
+/** Operation catalog: request cost and plan entitlement — from railcore.tech/docs/credits (10 Nov 2026). Charts need Scale/Enterprise. */
 export const OPS = {
   "stations.search": { cost: 1, premium: false },
   "stations.get": { cost: 1, premium: false },
-  "stations.live": { cost: 4, premium: false },
+  "stations.live": { cost: 1, premium: false },
   "trains.search": { cost: 1, premium: false },
   "trains.get": { cost: 1, premium: false },
-  "trains.schedule": { cost: 2, premium: false },
-  "trains.stops": { cost: 2, premium: false },
-  "trains.route": { cost: 2, premium: false },
-  "trains.coach": { cost: 2, premium: false },
-  "trains.live": { cost: 5, premium: false },
-  "routes.trains": { cost: 5, premium: false },
-  "journeys.search": { cost: 5, premium: false },
-  "journeys.compare": { cost: 5, premium: false },
-  "availability.seats": { cost: 5, premium: false },
-  "availability.batch": { cost: 5, premium: false }, // real: max(5, 2 × item/class combos) — computed per call
-  "availability.calendar": { cost: 4, premium: false },
-  "availability.classes": { cost: 3, premium: false },
-  "fares.estimate": { cost: 3, premium: false },
-  "fares.search": { cost: 3, premium: false },
-  "fares.unreserved": { cost: 3, premium: false },
-  "charts.status": { cost: 4, premium: true },
-  "charts.vacant": { cost: 8, premium: true },
-  "charts.hopping": { cost: 10, premium: true },
-  "charts.routeScan": { cost: 25, premium: true },
+  "trains.schedule": { cost: 1, premium: false },
+  "trains.stops": { cost: 1, premium: false },
+  "trains.route": { cost: 1, premium: false },
+  "trains.coach": { cost: 1, premium: false },
+  "trains.live": { cost: 1, premium: false },
+  "routes.trains": { cost: 1, premium: false },
+  "journeys.search": { cost: 1, premium: false },
+  "journeys.compare": { cost: 1, premium: false },
+  "availability.seats": { cost: 1, premium: false },
+  "availability.batch": { cost: 1, premium: false }, // real: 1 per distinct class per item — computed per call
+  "availability.calendar": { cost: 1, premium: false },
+  "availability.classes": { cost: 1, premium: false },
+  "fares.estimate": { cost: 1, premium: false },
+  "fares.search": { cost: 1, premium: false },
+  "fares.unreserved": { cost: 1, premium: false },
+  "charts.status": { cost: 1, premium: true },
+  "charts.vacant": { cost: 3, premium: true },
+  "charts.hopping": { cost: 4, premium: true },
+  "charts.routeScan": { cost: 8, premium: true },
 } as const;
 
 export type Op = keyof typeof OPS;

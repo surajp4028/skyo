@@ -34,6 +34,25 @@ export async function creditsUsedToday(): Promise<number> {
   return Number(r?.n || 0);
 }
 
+/** Admin's daily credit cap. 0 = no cap (RailCore's own wallet balance still applies). */
+async function dailyCap() {
+  const v = parseInt(await getSetting("train_daily_credit_cap"), 10);
+  return Number.isFinite(v) ? Math.max(0, v) : railConfig.dailyCreditCap;
+}
+
+/** Throw before spending anything when a multi-call feature can't finish within today's cap (so no half-spent checks). */
+export async function assertDailyBudget(cost: number) {
+  const cap = await dailyCap();
+  if (cap > 0 && (await creditsUsedToday()) + cost > cap) {
+    throw new ApiError(429, "DAILY_BUDGET_REACHED", "Today's live train lookups are used up. Please try again after midnight.");
+  }
+  // RailCore wallet: don't start a check the account can't pay for
+  const balance = await lastKnownBalance();
+  if (balance !== null && balance < cost) {
+    throw new ApiError(503, "TRAIN_SERVICE_UNAVAILABLE", "Live train data is temporarily unavailable. Please try again later.");
+  }
+}
+
 async function lastKnownBalance(): Promise<number | null> {
   const r = await queryOne<{ credits_remaining: number | null }>(
     "SELECT credits_remaining FROM rail_api_calls WHERE credits_remaining IS NOT NULL ORDER BY id DESC LIMIT 1",
@@ -116,8 +135,8 @@ export async function railRequest<T>(
   if (existing) return existing as Promise<RailResult<T>>;
 
   const run = (async (): Promise<RailResult<T>> => {
-    const cap = Math.max(0, parseInt(await getSetting("train_daily_credit_cap"), 10) || railConfig.dailyCreditCap);
-    if ((await creditsUsedToday()) + cost > cap) {
+    const cap = await dailyCap();
+    if (cap > 0 && (await creditsUsedToday()) + cost > cap) {
       throw new ApiError(429, "DAILY_BUDGET_REACHED", "Today's live train lookups are used up. Please try again after midnight.");
     }
     const balance = await lastKnownBalance();

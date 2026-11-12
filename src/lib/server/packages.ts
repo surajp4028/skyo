@@ -11,7 +11,7 @@ const json = <T,>(v: unknown, fallback: T): T => {
 export function packageFromRow(r: Row): TourPackage {
   return {
     id: Number(r.id), slug: r.slug, title: r.title, shortDescription: r.short_description, detailedDescription: r.detailed_description,
-    durationDays: Number(r.duration_days), durationNights: Number(r.duration_nights), destinations: json(r.destinations, []), itinerary: json(r.itinerary, []),
+    durationDays: Number(r.duration_days), durationNights: Number(r.duration_nights), destinations: json(r.destinations, []), categories: json(r.categories, []), itinerary: json(r.itinerary, []),
     accommodations: json(r.accommodations, []), departures: json(r.departures, []), tripInfo: json(r.trip_info, null), cancellationRules: json(r.cancellation_rules, []), originalPrice: Number(r.original_price), discountedPrice: Number(r.discounted_price),
     pricingType: r.pricing_type, upfrontTokenAmount: Number(r.upfront_token_amount), coverPhoto: r.cover_photo, images: json(r.images, []),
     videoLink: r.video_link, inclusions: json(r.inclusions, []), exclusions: json(r.exclusions, []), coupons: json(r.coupons, []),

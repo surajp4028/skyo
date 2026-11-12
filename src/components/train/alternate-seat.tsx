@@ -1,15 +1,15 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { createPortal } from "react-dom";
-import { ArrowRight, Armchair, Lightbulb, Loader2, Repeat2, TrainFront, X } from "lucide-react";
-import { api } from "@/lib/client/api";
+import { ArrowRight, Armchair, Clock3, Lightbulb, Loader2, Repeat2, TrainFront, X } from "lucide-react";
+import { api, ClientApiError } from "@/lib/client/api";
 import { BookingSheet, type BookingIntent } from "./booking-sheet";
 import { CLASS_NAMES, fmtINR, titleCase } from "@/lib/train/format";
 import { cn } from "@/lib/utils";
 
-export type Leg = { from: string; fromName: string; to: string; toName: string; date: string; dep: string | null; arr: string | null; status: string; text: string; fare: number | null; chance: number | null };
+export type Leg = { from: string; fromName: string; to: string; toName: string; date: string; dep: string | null; arr: string | null; status: string; text: string; fare: number | null; chance: number | null; mins?: number | null; km?: number | null; days?: number };
 type Level = "confirmed" | "likely";
 type Result = {
   train: string; cls: string; checked: number;
@@ -20,6 +20,8 @@ type Result = {
 };
 
 const hm = (t: string | null) => (t ? t.slice(0, 5) : "");
+export const dur = (m: number | null | undefined) => (m == null ? null : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}`);
+const addDay = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 const dayLabel = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
 
 /*
@@ -29,21 +31,110 @@ const dayLabel = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("e
  *  - never twice for the same train in one search;
  *  - when Admin turns on "Limit alternate-seat checks", at most `train_alt_auto` class checks per search.
  */
-type ByClass = Record<string, Result>;
+export type ByClass = Record<string, Result>;
+export type { Result as AltResult, Level as AltLevel };
+
+/* Live per-search view of every train's check, for the "confirmed seats" summary above the list. */
+export type AltTrainState = { train: string; name: string; from: string; to: string; state: "checking" | "done"; classes: ByClass | null; outOfCredits?: boolean };
+const board = new Map<string, Map<string, AltTrainState>>();
+const snaps = new Map<string, AltTrainState[]>();
+const listeners = new Set<() => void>();
+const EMPTY: AltTrainState[] = [];
+function post(searchKey: string, row: AltTrainState) {
+  if (!board.has(searchKey)) board.set(searchKey, new Map());
+  board.get(searchKey)!.set(row.train, row);
+  snaps.set(searchKey, [...board.get(searchKey)!.values()]);
+  listeners.forEach((l) => l());
+}
+/** Every train checked so far in this search (and the ones still being checked). */
+export function useAltBoard(searchKey: string): AltTrainState[] {
+  return useSyncExternalStore(
+    (l) => (listeners.add(l), () => listeners.delete(l)),
+    () => snaps.get(searchKey) ?? EMPTY,
+    () => EMPTY,
+  );
+}
 const searches = new Map<string, { used: number; trains: Map<string, Promise<ByClass | null>> }>();
 let queue: Promise<unknown> = Promise.resolve();
-/** run one request at a time, with a short gap between them */
+// RailCore Starter allows 60 requests a minute and each train check is 2 requests (stops + batch),
+// so trains are checked about every 2.5 s (busy answers are still retried below).
+const GAP_MS = 1500;
+const BUSY_WAIT_MS = 20_000;
+let budgetOut = false; // set when the server says today's credit cap is used up (reset on reload)
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** run one request at a time, with a gap between them */
 function enqueue<T>(job: () => Promise<T>): Promise<T> {
   const run = queue.then(job, job);
-  queue = run.then(() => new Promise((r) => setTimeout(r, 350)), () => new Promise((r) => setTimeout(r, 350)));
+  const gap = () => (budgetOut ? undefined : sleep(GAP_MS));
+  queue = run.then(gap, gap);
   return run;
+}
+/** RailCore said "busy" (per-minute limit) — wait and try the same train again, holding the queue meanwhile. Failed calls cost nothing. */
+async function withBusyRetry<T>(call: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await call();
+    } catch (e) {
+      const busy = e instanceof ClientApiError && e.status === 429 && e.info.code === "RATE_LIMITED" && e.info.retryAfter == null; // our own flood guard sends retryAfter — don't retry that
+      if (!busy || attempt >= 3) throw e;
+      await sleep(BUSY_WAIT_MS * (attempt + 1));
+    }
+  }
+}
+
+/* Real % chance for every train in a search — one cheap request (a batch per 25 trains), shared by all cards. */
+type ChanceMap = Record<string, Record<string, { pct: number | null; text: string }>>;
+const chanceReqs = new Map<string, Promise<ChanceMap | "unavailable" | null>>();
+const WAITING = ["WAITLIST", "RAC", "REGRET", "NOT_AVAILABLE"];
+export function useSearchChances(p: { trains: { train_number: string; from_station_code?: string; to_station_code?: string; availability_summary?: { class_code: string; status: string }[] }[]; from: string; to: string; date: string; quota: string; enabled: boolean }): { data: ChanceMap; unavailable: boolean } {
+  const [data, setData] = useState<ChanceMap>({});
+  const [unavailable, setUnavailable] = useState(false);
+  const entries = p.trains
+    .map((t) => {
+      const cls = (t.availability_summary || []).filter((a) => WAITING.slice(0, 2).includes(a.status)).map((a) => a.class_code);
+      return cls.length ? `${t.train_number}:${t.from_station_code || p.from}:${t.to_station_code || p.to}:${cls.join(".")}` : null;
+    })
+    .filter(Boolean)
+    .slice(0, 40)
+    .join(",");
+  useEffect(() => {
+    if (!p.enabled || !entries) return;
+    const key = `${p.date}|${p.quota}|${entries}`;
+    let req = chanceReqs.get(key);
+    if (!req) {
+      if (chanceReqs.size > 20) chanceReqs.clear();
+      const qs = new URLSearchParams({ date: p.date, quota: p.quota, t: entries });
+      // jumps the queue (it's one call for every train), and the alternate checks wait for it to finish
+      req = withBusyRetry(() => api<{ data: ChanceMap }>(`/api/train/chances?${qs}`, { method: "GET" }))
+        .then((r) => r.data as ChanceMap | "unavailable" | null)
+        // RailCore out of credits / paused → tell the page; other errors stay silent
+        .catch((e) => (e instanceof ClientApiError && ["TRAIN_SERVICE_UNAVAILABLE", "DAILY_BUDGET_REACHED", "TRAIN_DISABLED"].includes(e.info.code) ? "unavailable" : null));
+      const done = req.then(() => sleep(GAP_MS));
+      queue = Promise.all([queue, done]);
+      chanceReqs.set(key, req);
+    }
+    let alive = true;
+    req.then((d) => {
+      if (!alive) return;
+      if (d === "unavailable") setUnavailable(true);
+      else if (d) setData(d);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [p.enabled, p.date, p.quota, entries]);
+  return { data, unavailable };
 }
 
 export type TrainAltProps = { train: string; name: string; from: string; to: string; date: string; quota: string };
 
 /** All waitlisted classes of one train, checked in one request. Returns the results by class as they arrive. */
-export function useTrainAlternates(p: TrainAltProps & { classes: string[]; enabled: boolean; max: number | null; searchKey: string }): ByClass {
+/** Trains whose check was skipped because today's credit cap ran out (per search). */
+const capped = new Set<string>();
+export const CAPPED = Symbol("capped");
+export function useTrainAlternates(p: TrainAltProps & { classes: string[]; enabled: boolean; max: number | null; searchKey: string }): ByClass & { [CAPPED]?: true } {
   const [data, setData] = useState<ByClass>({});
+  const [isCapped, setCapped] = useState(false);
   const classKey = p.classes.join(",");
   useEffect(() => {
     if (!p.enabled || !classKey || (p.max != null && p.max <= 0)) return;
@@ -60,18 +151,43 @@ export function useTrainAlternates(p: TrainAltProps & { classes: string[]; enabl
       if (!classes.length) return;
       search.used += classes.length;
       const qs = new URLSearchParams({ train: p.train, from: p.from, to: p.to, date: p.date, classes: classes.join(","), quota: p.quota, search: p.searchKey.toUpperCase() });
-      req = enqueue(() => api<{ data: { classes: ByClass } }>(`/api/train/alternate?${qs}`, { method: "GET" }))
+      const row = { train: p.train, name: p.name, from: p.from, to: p.to };
+      const key = p.searchKey;
+      post(key, { ...row, state: "checking", classes: null });
+      // once today's cap is hit, don't keep calling for the remaining trains
+      req = enqueue(() =>
+        budgetOut
+          ? Promise.reject(new ClientApiError(429, { code: "DAILY_BUDGET_REACHED", message: "" }))
+          : withBusyRetry(() => api<{ data: { classes: ByClass } }>(`/api/train/alternate?${qs}`, { method: "GET" })),
+      )
         .then((r) => r.data.classes)
-        .catch(() => null); // nothing to show — never surface errors here
+        .then(
+          (d) => (post(key, { ...row, state: "done", classes: d }), d),
+          (e) => {
+            // nothing to show on the card — only the summary notes when today's credit cap is used up
+            const outOfCredits = e instanceof ClientApiError && e.info.code === "DAILY_BUDGET_REACHED";
+            if (outOfCredits) {
+              budgetOut = true;
+              capped.add(`${key}|${row.train}`);
+            }
+            post(key, { ...row, state: "done", classes: null, outOfCredits });
+            return null;
+          },
+        );
       search.trains.set(p.train, req);
     }
     let alive = true;
-    req.then((d) => alive && d && setData(d));
+    const ck = `${p.searchKey}|${p.train}`;
+    req.then((d) => {
+      if (!alive) return;
+      if (d) setData(d);
+      else if (capped.has(ck)) setCapped(true);
+    });
     return () => {
       alive = false;
     };
-  }, [p.enabled, p.max, p.searchKey, p.train, p.from, p.to, p.date, p.quota, classKey]);
-  return data;
+  }, [p.enabled, p.max, p.searchKey, p.train, p.name, p.from, p.to, p.date, p.quota, classKey]);
+  return isCapped ? { ...data, [CAPPED]: true } : data;
 }
 
 /** What the chip says: a confirmed option (cheapest) beats a likely one (highest chance). */
@@ -110,7 +226,7 @@ export function AlternateSeatChip({ data, ...p }: AltProps & { data?: Result }) 
   );
 }
 
-function AlternateDialog({ train, name, date, cls, quota, data, onClose }: AltProps & { data: Result; onClose: () => void }) {
+export function AlternateDialog({ train, name, date, cls, quota, data, onClose }: AltProps & { data: Result; onClose: () => void }) {
   const [book, setBook] = useState<BookingIntent | null>(null);
   const state: { loading: boolean; data?: Result; err?: string; login?: boolean } = { loading: false, data };
   useEffect(() => {
@@ -183,10 +299,12 @@ function AlternateDialog({ train, name, date, cls, quota, data, onClose }: AltPr
                   <RouteLine
                     points={[
                       { label: "Book from", code: b.from, name: b.fromName, time: hm(b.dep), dim: true },
-                      { label: "Boarding", code: b.boardAt, name: b.boardAtName, time: "", strong: true },
+                      { label: "Boarding", code: b.boardAt, name: b.boardAtName, time: hm(d.own?.dep ?? null), strong: true },
                       { label: "Deboarding", code: b.to, name: b.toName, time: hm(b.arr) },
                     ]}
+                    segments={[null, dur(d.own?.mins)]}
                   />
+                  <JourneyStrip mins={d.own?.mins} km={d.own?.km} arrDate={d.own ? addDay(d.own.date, d.own.days ?? 0) : null} arr={b.arr} from={b.boardAt} to={b.to} />
                   <BookBar className="mt-4" cls={cls} leg={b} level={b.level} label={b.level === "confirmed" ? "Confirmed" : "High chance"} onBook={() => setBook(intent(b))} />
                   <p className="mt-3 rounded-xl bg-surface px-3 py-2 text-[11px] leading-relaxed text-muted">
                     The ticket is from {titleCase(b.fromName)}; you board at {titleCase(b.boardAtName)}. Set the boarding point to {b.boardAt} on IRCTC after booking (allowed up to 24 h before the chart).
@@ -208,6 +326,16 @@ function AlternateDialog({ train, name, date, cls, quota, data, onClose }: AltPr
                       { label: "Change seat", code: s.via, name: s.viaName, time: hm(s.viaTime), badge: "Same train" },
                       { label: "Book upto", code: s.legs[1].to, name: s.legs[1].toName, time: hm(s.legs[1].arr) },
                     ]}
+                    segments={[dur(s.legs[0].mins), dur(s.legs[1].mins)]}
+                  />
+                  <JourneyStrip
+                    mins={d.own?.mins ?? (s.legs[0].mins != null && s.legs[1].mins != null ? s.legs[0].mins + s.legs[1].mins : null)}
+                    km={d.own?.km ?? (s.legs[0].km != null && s.legs[1].km != null ? s.legs[0].km + s.legs[1].km : null)}
+                    arrDate={addDay(s.legs[1].date, s.legs[1].days ?? 0)}
+                    arr={s.legs[1].arr}
+                    from={s.legs[0].from}
+                    to={s.legs[1].to}
+                    note={s.legs[0].mins != null ? `Seat change after ${dur(s.legs[0].mins)}` : undefined}
                   />
                   <div className="mt-4 space-y-2">
                     {s.legs.map((l, i) => (
@@ -216,7 +344,7 @@ function AlternateDialog({ train, name, date, cls, quota, data, onClose }: AltPr
                         cls={cls}
                         leg={l}
                         level={l.status === "AVAILABLE" ? "confirmed" : "likely"}
-                        label={`${i ? "2nd" : "1st"} ticket`}
+                        label={`${i ? "2nd" : "1st"} ticket${l.mins != null ? ` · ${dur(l.mins)}` : ""}`}
                         onBook={() => setBook(intent(l))}
                       />
                     ))}
@@ -257,36 +385,45 @@ function short(text: string) {
 function BookBar({ cls, leg, level, label, onBook, className }: { cls: string; leg: Leg; level: Level; label: string; onBook: () => void; className?: string }) {
   const ok = level === "confirmed";
   return (
-    <div className={cn("flex items-center gap-3 rounded-2xl p-2 pl-3 ring-1", ok ? "bg-emerald-50/70 ring-emerald-200" : "bg-sky-50/70 ring-sky-200", className)}>
-      <span className={cn("flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-white text-xs font-black shadow-sm", ok ? "text-emerald-700" : "text-sky-700")}>{cls}</span>
+    <div className={cn("flex items-center gap-2 rounded-2xl p-2 ring-1 sm:gap-3 sm:pl-3", ok ? "bg-emerald-50/70 ring-emerald-200" : "bg-sky-50/70 ring-sky-200", className)}>
+      <span className={cn("flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-xl bg-white text-xs font-black shadow-sm sm:h-11 sm:w-11", ok ? "text-emerald-700" : "text-sky-700")}>{cls}</span>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[10px] font-bold uppercase tracking-wider text-muted">{label}</div>
-        <div className={cn("whitespace-nowrap text-sm font-extrabold leading-tight", ok ? "text-emerald-700" : "text-sky-700")}>{short(leg.text)}</div>
+        <div className={cn("truncate text-sm font-extrabold leading-tight", ok ? "text-emerald-700" : "text-sky-700")}>{short(leg.text)}</div>
         {!ok && leg.chance != null && <div className="whitespace-nowrap text-[10.5px] font-bold text-sky-600">{leg.chance}% chance</div>}
       </div>
-      <div className="shrink-0 text-right">
-        {leg.fare != null && <div className="text-base font-black leading-none text-ink">{fmtINR(leg.fare)}</div>}
-        <div className="text-[9px] font-semibold text-muted">per person</div>
+      <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+        <div className="text-right">
+          {leg.fare != null && <div className="text-[15px] font-black leading-none text-ink sm:text-base">{fmtINR(leg.fare)}</div>}
+          <div className="hidden text-[9px] font-semibold text-muted sm:block">per person</div>
+        </div>
+        <button
+          onClick={onBook}
+          className={cn(
+            "group relative flex h-9 shrink-0 items-center gap-1 overflow-hidden whitespace-nowrap rounded-xl px-3 text-[13px] sm:h-11 sm:text-sm sm:gap-1.5 sm:px-4 font-extrabold text-white transition hover:-translate-y-0.5",
+            ok ? "bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-[0_10px_24px_-10px_rgba(5,150,105,.9)]" : "bg-gradient-to-r from-sky-500 to-[#0057ff] shadow-[0_10px_24px_-10px_rgba(0,87,255,.8)]",
+          )}
+        >
+          <span aria-hidden className="absolute inset-y-0 -left-1/2 w-1/3 -skew-x-12 bg-white/30 transition-all duration-700 group-hover:left-[120%]" />
+          Book <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+        </button>
       </div>
-      <button
-        onClick={onBook}
-        className={cn(
-          "group relative flex h-11 shrink-0 items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-xl px-4 text-sm font-extrabold text-white transition hover:-translate-y-0.5",
-          ok ? "bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-[0_10px_24px_-10px_rgba(5,150,105,.9)]" : "bg-gradient-to-r from-sky-500 to-[#0057ff] shadow-[0_10px_24px_-10px_rgba(0,87,255,.8)]",
-        )}
-      >
-        <span aria-hidden className="absolute inset-y-0 -left-1/2 w-1/3 -skew-x-12 bg-white/30 transition-all duration-700 group-hover:left-[120%]" />
-        Book <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-      </button>
     </div>
   );
 }
 
-function RouteLine({ points }: { points: { label: string; code: string; name: string; time: string; strong?: boolean; dim?: boolean; badge?: string }[] }) {
+function RouteLine({ points, segments }: { points: { label: string; code: string; name: string; time: string; strong?: boolean; dim?: boolean; badge?: string }[]; segments?: (string | null)[] }) {
   return (
     <div className="rounded-2xl bg-sky-50/70 px-3 py-4 sm:px-5">
       <div className="relative grid grid-cols-3">
         <span aria-hidden className="absolute left-[16%] right-[16%] top-[30px] border-t-2 border-sky-300" />
+        {segments?.map((t, i) =>
+          t ? (
+            <span key={i} className={cn("absolute top-[20px] z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-1.5 py-0.5 text-[9.5px] font-extrabold text-sky-700 shadow-sm ring-1 ring-sky-200 sm:text-[10.5px]", i === 0 ? "left-[33%]" : "left-[67%]")}>
+              {t}
+            </span>
+          ) : null,
+        )}
         {points.map((p, i) => (
           <div key={p.code + i} className={cn("relative flex flex-col", i === 0 ? "items-start text-left" : i === 2 ? "items-end text-right" : "items-center text-center")}>
             {p.badge && <span className="absolute -top-3.5 rounded-full bg-ink px-2 py-0.5 text-[9px] font-bold text-white">{p.badge}</span>}
@@ -299,6 +436,20 @@ function RouteLine({ points }: { points: { label: string; code: string; name: st
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** "Total journey 22h 55m · 1,050 km · reaches Sat, 21 Nov 23:00" */
+function JourneyStrip({ mins, km, arrDate, arr, from, to, note }: { mins?: number | null; km?: number | null; arrDate: string | null; arr: string | null; from: string; to: string; note?: string }) {
+  if (mins == null && !arrDate) return null;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-ink px-3.5 py-2.5 text-white sm:px-4">
+      <span className="flex items-center gap-1.5 text-[11px] font-semibold text-white/70"><Clock3 className="h-3.5 w-3.5" /> {from} → {to}</span>
+      {mins != null && <span className="text-sm font-black sm:text-base">{dur(mins)} <span className="text-[11px] font-semibold text-white/60">total journey</span></span>}
+      {km != null && <span className="text-[11px] font-bold text-white/70">{km.toLocaleString("en-IN")} km</span>}
+      {arrDate && arr && <span className="text-[11px] font-bold text-emerald-300 sm:ml-auto">Reaches {dayLabel(arrDate)} · {hm(arr)}</span>}
+      {note && <span className="w-full text-[10.5px] font-semibold text-white/55">{note}</span>}
     </div>
   );
 }

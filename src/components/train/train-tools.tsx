@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
@@ -10,7 +10,7 @@ import { StationInput } from "./station-input";
 import { trainApi, needsLogin } from "@/lib/train/client";
 import { ClientApiError, errMsg } from "@/lib/client/api";
 import { parseStationInput } from "@/lib/train/stations";
-import type { StationBoard, UnreservedFare, VacantBerthsResponse } from "@/lib/server/train/types";
+import type { StationBoard, TrainSchedule, UnreservedFare, VacantBerthsResponse } from "@/lib/server/train/types";
 import { fmtClock, istISO, prettyDate, titleCase } from "@/lib/train/format";
 import { useSite } from "@/lib/client/providers";
 import { isTrainLiveOn } from "@/lib/services";
@@ -126,6 +126,33 @@ function VacantBerthsTool() {
   const [to, setTo] = useState("");
   const [date, setDate] = useState(istISO(0));
   const [r, setR] = useState<{ loading?: boolean; data?: VacantBerthsResponse; error?: string; locked?: boolean; login?: boolean } | null>(null);
+
+  // the train's own stops (1 request) — From / To only offer stations this train stops at
+  const [route, setRoute] = useState<{ train: string; name?: string; stops?: { code: string; name: string; city: string; time?: string }[]; loading?: boolean; error?: string } | null>(null);
+  useEffect(() => {
+    if (!/^\d{5}$/.test(train)) return;
+    let alive = true;
+    const t = setTimeout(() => {
+      setRoute({ train, loading: true });
+      trainApi<TrainSchedule>(`/trains/${train}/schedule`, { view: "stops" })
+        .then((x) => {
+          if (!alive) return;
+          const stops = x.data.stops.filter((st) => st.is_stop).map((st) => ({ code: st.station_code, name: titleCase(st.station_name), city: "", time: [st.departure_time || st.arrival_time, st.day > 1 ? `day ${st.day}` : ""].filter(Boolean).join(" · ") }));
+          setRoute({ train, name: titleCase(x.data.train_name), stops });
+        })
+        .catch((e) => alive && setRoute({ train, error: errMsg(e) }));
+    }, 350);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [train]);
+  const stops = route?.train === train ? route.stops : undefined;
+  const fromCode = parseStationInput(from);
+  const fromIdx = stops ? stops.findIndex((x) => x.code === fromCode) : -1;
+  const fromStops = useMemo(() => stops?.slice(0, -1), [stops]);
+  const toStops = useMemo(() => (stops ? stops.slice(fromIdx >= 0 ? fromIdx + 1 : 1) : undefined), [stops, fromIdx]);
+
   const run = () => {
     const f = parseStationInput(from);
     const t = parseStationInput(to);
@@ -135,6 +162,15 @@ function VacantBerthsTool() {
       .then((x) => setR({ data: x.data }))
       .catch((e) => setR({ error: errMsg(e), login: needsLogin(e), locked: e instanceof ClientApiError && e.info.code === "PLAN_REQUIRED" }));
   };
+  const lastAuto = useRef("");
+  const toCode = parseStationInput(to);
+  useEffect(() => {
+    const k = `${train}|${fromCode}|${toCode}|${date}`;
+    if (!stops || !fromCode || !toCode || lastAuto.current === k) return;
+    lastAuto.current = k;
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stops, fromCode, toCode, date]);
   const byCoach = r?.data ? Object.entries(r.data.vacant_berths.reduce<Record<string, VacantBerthsResponse["vacant_berths"]>>((a, b) => ((a[b.coach_name] ||= []).push(b), a), {})) : [];
   return (
     <Shell>
@@ -142,11 +178,33 @@ function VacantBerthsTool() {
       <div className="grid gap-2 md:grid-cols-[150px_1fr_1fr]">
         <label className="flex flex-col rounded-2xl border border-line px-4 py-3">
           <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Train no.</span>
-          <input value={train} onChange={(e) => setTrain(e.target.value.replace(/\D/g, "").slice(0, 5))} placeholder="12952" className="mt-1 bg-transparent text-[17px] font-bold outline-none" />
+          <input
+            value={train}
+            onChange={(e) => {
+              setTrain(e.target.value.replace(/\D/g, "").slice(0, 5));
+              setFrom("");
+              setTo("");
+              setR(null);
+            }}
+            placeholder="12952"
+            inputMode="numeric"
+            className="mt-1 bg-transparent text-[17px] font-bold outline-none"
+          />
         </label>
-        <StationInput label="From" value={from} onChange={(l) => setFrom(l)} />
-        <StationInput label="To" value={to} onChange={(l) => setTo(l)} />
+        <StationInput label="From" value={from} stops={fromStops} placeholder={stops ? "Pick boarding stop" : "City or station"} onChange={(l) => (setFrom(l), setTo(""))} />
+        <StationInput label="To" value={to} stops={toStops} placeholder={stops ? "Pick destination stop" : "City or station"} onChange={(l) => setTo(l)} />
       </div>
+      {route?.train === train && (
+        <div className="mt-2 text-xs font-semibold">
+          {route.loading ? (
+            <span className="flex items-center gap-1.5 text-muted"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Finding train {train}…</span>
+          ) : route.error ? (
+            <span className="text-red-600">{route.error}</span>
+          ) : route.name ? (
+            <span className="text-emerald-700">{train} · {route.name} · {route.stops?.length} stops — pick From and To from its route</span>
+          ) : null}
+        </div>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {[0, 1].map((o) => (
           <button key={o} onClick={() => setDate(istISO(o))} className={cn("rounded-xl border px-3 py-2 text-xs font-bold", date === istISO(o) ? "border-ink bg-ink text-white" : "border-line text-ink/70")}>{o === 0 ? "Today" : "Tomorrow"}</button>
@@ -159,8 +217,8 @@ function VacantBerthsTool() {
           <div className="relative flex items-start gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400/20 text-amber-300"><Crown className="h-5 w-5" /></span>
             <div>
-              <div className="font-extrabold">Premium feature</div>
-              <p className="mt-1 text-sm text-white/70">Chart & vacant-berth data needs the RailCore <b>Scale</b> plan. It&apos;s fully built in SKYO and switches on automatically when the plan is upgraded (set <code className="rounded bg-white/10 px-1">RK_PLAN=scale</code>).</p>
+              <div className="font-extrabold">Vacant berths are coming soon</div>
+              <p className="mt-1 text-sm text-white/70">Live chart and empty-berth data isn&apos;t switched on yet. Meanwhile, check seat availability and alternate seats on the train search.</p>
             </div>
           </div>
         </motion.div>

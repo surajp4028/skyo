@@ -2,7 +2,7 @@ import "server-only";
 import { ApiError } from "../http";
 import { getSetting } from "../settings";
 import { seatAvailabilityBatch, trainStops } from "./service";
-import type { RailResult } from "./client";
+import { assertDailyBudget, type RailResult } from "./client";
 import type { AvailabilityDetail, ClassCode, Quota, ScheduleStop } from "./types";
 
 /*
@@ -13,7 +13,7 @@ import type { AvailabilityDetail, ClassCode, Quota, ScheduleStop } from "./types
  * One train = ONE route lookup + ONE batch call for all its classes (RailCore allows ~20 requests a minute, so
  * one-call-per-class got throttled). Batch cost = max(5, 2 × station pairs × classes).
  */
-export type AltLeg = { from: string; fromName: string; to: string; toName: string; date: string; dep: string | null; arr: string | null; status: string; text: string; fare: number | null; chance: number | null };
+export type AltLeg = { from: string; fromName: string; to: string; toName: string; date: string; dep: string | null; arr: string | null; status: string; text: string; fare: number | null; chance: number | null; mins: number | null; km: number | null; days: number };
 /** "confirmed" = seats available now; "likely" = waitlisted but RailCore predicts ≥ `train_alt_min_chance` % to confirm. */
 export type AltLevel = "confirmed" | "likely";
 export type AlternateSeats = {
@@ -35,6 +35,8 @@ export async function findAlternateSeats(p: { train: string; from: string; to: s
   const minChance = Math.min(100, Math.max(50, parseInt(await getSetting("train_alt_min_chance"), 10) || 85));
   const classes = [...new Set(p.classes)].slice(0, 8);
 
+  // the stops lookup is wasted if the batch after it can't run — check today's budget for both first
+  await assertDailyBudget(1 + classes.length * (1 + max));
   const route = await trainStops(p.train, { userId: p.userId });
   const stops = (route.data.stops || []).filter((s) => s.is_stop);
   const iF = stops.findIndex((s) => s.station_code === p.from);
@@ -84,13 +86,27 @@ export async function findAlternateSeats(p: { train: string; from: string; to: s
   for (const r of batch.data.results || []) res.set(key(r.from_station_code, r.to_station_code), r.classes || []);
   const byCode = new Map(stops.map((s) => [s.station_code, s]));
 
+  // time on the train between two stops, from the timetable (day numbers handle overnight / multi-day runs)
+  const toMin = (t: string | null | undefined) => {
+    const m = t?.match(/^(\d{1,2}):(\d{2})/);
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const ride = (f: string, t: string) => {
+    const a = byCode.get(f), b = byCode.get(t);
+    const dep = toMin(a?.departure_time), arr = toMin(b?.arrival_time);
+    const days = a && b ? b.day - a.day : 0;
+    const mins = a && b && dep != null && arr != null ? days * 1440 + arr - dep : null;
+    const km = a && b && b.distance_km != null && a.distance_km != null ? Math.round(b.distance_km - a.distance_km) : null;
+    return { mins: mins != null && mins > 0 ? mins : null, km: km != null && km > 0 ? km : null, days: Math.max(0, days) };
+  };
+
   const out: AlternateSeatsByClass["classes"] = {};
   for (const cls of classes) {
     const leg = (f: string, t: string, d: string): AltLeg => {
       const a = res.get(key(f, t))?.find((c) => c.class_code === cls);
       return {
         from: f, fromName: byCode.get(f)?.station_name || f, to: t, toName: byCode.get(t)?.station_name || t, date: d,
-        dep: byCode.get(f)?.departure_time ?? null, arr: byCode.get(t)?.arrival_time ?? null,
+        dep: byCode.get(f)?.departure_time ?? null, arr: byCode.get(t)?.arrival_time ?? null, ...ride(f, t),
         status: a?.status || "UNKNOWN", text: a?.availability_text || "—", fare: a?.total_fare ?? a?.fare ?? null, chance: chanceOf(a),
       };
     };

@@ -44,8 +44,8 @@ export const POST = route(async (req:NextRequest) => {
     } else if(!/^\d{4}-\d{2}-\d{2}$/.test(travelDate) || travelDate<=todayIST()) throw new ApiError(422,"TRAVEL_DATE","Choose a future travel date.",{field:"travelDate"});
     const q=packageQuote(withDeparturePrice(item,departure),body.guests,body.couponCode);
     if(!q.valid) throw new ApiError(422,"INVALID_COUPON",q.error);
-    ref=newPackageBookingRef(); customer={name:body.name,email:body.email,phone:body.phone}; paymentType=body.paymentType;
-    const created=await createPackageBooking({pkg:item,uid:user.uid,ref,customer,travelDate,departure,guests:body.guests,quote:q,paymentType});
+    ref=newPackageBookingRef(); const lead=body.travellers[0]; customer={name:lead.name,email:lead.email||"",phone:lead.phone||""}; paymentType=body.paymentType;
+    const created=await createPackageBooking({pkg:item,uid:user.uid,ref,customer,travellers:body.travellers.map((t)=>({name:t.name,age:t.age??null,gender:t.gender??null,email:t.email||null,phone:t.phone||null})),travelDate,departure,guests:body.guests,quote:q,paymentType});
     amountPaise=created.amountPaise; quote=q;
   }
   const order=await createOrder({amountPaise,receipt:ref,bookingRef:ref,notes:{booking_ref:ref,service:"package",payment_type:paymentType}}).catch(async(e)=>{

@@ -13,8 +13,12 @@ type Opt = LocalStation & { source?: "local" | "railcore" };
  * Only when nothing matches locally, after a 450 ms pause and ≥ 3 chars, it asks /api/train/stations/search.
  */
 export function StationInput({
-  label, value, onChange, placeholder = "City or station", className, dark,
-}: { label: string; value: string; onChange: (label: string, code: string | null) => void; placeholder?: string; className?: string; dark?: boolean }) {
+  label, value, onChange, placeholder = "City or station", className, dark, stops,
+}: {
+  label: string; value: string; onChange: (label: string, code: string | null) => void; placeholder?: string; className?: string; dark?: boolean;
+  /** when set (a train's own stops), only these are offered — no station search */
+  stops?: (LocalStation & { time?: string })[];
+}) {
   const [open, setOpen] = useState(false);
   const [remote, setRemote] = useState<{ q: string; list: Opt[] } | null>(null);
   const [active, setActive] = useState(0);
@@ -22,17 +26,23 @@ export function StationInput({
   const listId = useId();
   const q = value.replace(/\s*\([A-Z0-9]+\)\s*$/i, "").trim();
   const local = useMemo<Opt[]>(() => searchLocalStations(q, 7), [q]);
-  const options = remote && remote.q === q ? remote.list : local;
+  const ownStops = useMemo<Opt[] | null>(() => {
+    if (!stops) return null;
+    const n = q.toLowerCase();
+    const picked = stops.some((s) => stationLabel(s) === value);
+    return picked || !n ? stops : stops.filter((s) => `${s.code} ${s.name} ${s.city}`.toLowerCase().includes(n));
+  }, [stops, q, value]);
+  const options = ownStops ?? (remote && remote.q === q ? remote.list : local);
 
   useEffect(() => {
-    if (!open || q.length < 2) return;
+    if (!open || q.length < 2 || stops) return;
     const t = setTimeout(() => {
       api<{ stations: Opt[] }>(`/api/train/stations/search?q=${encodeURIComponent(q)}`)
         .then((r) => setRemote({ q, list: r.stations }))
         .catch(() => {});
     }, 160);
     return () => clearTimeout(t);
-  }, [q, open]);
+  }, [q, open, stops]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
@@ -104,7 +114,7 @@ export function StationInput({
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface text-ink/60"><TrainFront className="h-4 w-4" /></span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-bold text-ink">{s.name}</span>
-                    <span className="block truncate text-xs text-muted">{s.city}</span>
+                    <span className="block truncate text-xs text-muted">{(s as Opt & { time?: string }).time || s.city}</span>
                   </span>
                   <span className="rounded-md bg-ink px-2 py-0.5 font-mono text-[11px] font-bold text-white">{s.code}</span>
                 </button>

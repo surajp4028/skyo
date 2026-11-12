@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { Plus_Jakarta_Sans, Instrument_Serif } from "next/font/google";
+import { Plus_Jakarta_Sans, Instrument_Serif, Playfair_Display, DM_Mono } from "next/font/google";
 import { Providers } from "@/lib/client/providers";
 import { getPublicSettings } from "@/lib/server/settings";
 import { getSessionUser } from "@/lib/server/session";
@@ -8,6 +8,8 @@ import { loadMe } from "@/lib/server/me";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-jakarta", display: "swap" });
+const lux = Playfair_Display({ subsets: ["latin"], weight: ["600", "700", "800"], style: ["normal", "italic"], variable: "--font-lux-serif", display: "swap" });
+const mono = DM_Mono({ subsets: ["latin"], weight: ["500"], variable: "--font-dm-mono", display: "swap" });
 const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"], variable: "--font-display-serif", display: "swap" });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -27,7 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const [settings, session] = await Promise.all([getPublicSettings(), getSessionUser()]);
   const me = session ? await loadMe(session.id) : null;
   return (
-    <html lang="en" data-scroll-behavior="smooth" className={`${jakarta.variable} ${serif.variable}`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`${jakarta.variable} ${serif.variable} ${lux.variable} ${mono.variable}`}>
       <body className="min-h-screen">
         <Providers settings={settings} initialUser={me ? { ...me, memberSince: new Date(me.memberSince).toISOString() } : null}>
           {children}

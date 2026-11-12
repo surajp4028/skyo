@@ -195,7 +195,7 @@ function TrainTab({ v, set, toggle }: { v: Record<string, string>; set: (k: stri
           <Toggle label="Alternate seat for visitors (not logged in)" desc="Also run the background check for people who aren't logged in. Turn off to keep it for logged-in travellers only." on={v.train_alt_guests === "on"} onClick={() => toggle("train_alt_guests")} />
           <Toggle label="Limit alternate-seat checks" desc="Off (default): every waitlisted class of the trains on screen is checked — about 14 credits each. On: only the numbers below (per search, and per visitor per day) are allowed." on={v.train_alt_limit === "on"} onClick={() => toggle("train_alt_limit")} />
         </div>
-        <div className="mt-4 max-w-xs"><Field label="Daily credit cap" name="train_daily_credit_cap" inputMode="numeric" value={v.train_daily_credit_cap || ""} onChange={set("train_daily_credit_cap")} hint="≈ 80/day keeps you inside 2,500/month" /></div>
+        <div className="mt-4 max-w-xs"><Field label="Daily credit cap" name="train_daily_credit_cap" inputMode="numeric" value={v.train_daily_credit_cap || ""} onChange={set("train_daily_credit_cap")} hint="0 = no daily cap (RailCore wallet balance still applies)" /></div>
         <div className="mt-3 grid max-w-xl gap-4 sm:grid-cols-2">
           {v.train_alt_limit === "on" && (
             <>

@@ -31,4 +31,4 @@ export async function adminConnection(withDb = true) {
 
 export const schemaSql = () => fs.readFileSync(path.join(root, "database/schema.sql"), "utf8");
 export const packageSchemaSql = () =>
-  ["003_tour_packages.sql", "004_package_departures.sql"].map((f) => fs.readFileSync(path.join(root, "database/migrations", f), "utf8")).join("\n");
+  ["003_tour_packages.sql", "004_package_departures.sql", "005_package_categories.sql", "006_more_packages.sql"].map((f) => fs.readFileSync(path.join(root, "database/migrations", f), "utf8")).join("\n");

@@ -7,6 +7,7 @@ import { ApiError } from "./http";
 
 type BookingRow = { id:number; booking_ref:string; core_booking_ref:string; package_id:number; package_title:string; package_slug:string; user_uid:string; user_details_enc:string; travel_date:Date|string; total_guests:number; pricing_type:string; package_price_paise:number|string; discount_paise:number|string; coupon_code:string|null; total_amount_paise:number|string; upfront_amount_paise:number|string; amount_paid_paise:number|string; payment_status:string; booking_status:string; created_at:Date };
 export type PackageCustomer = { name:string; email:string; phone:string };
+export type PackageTraveller = { name:string; age:number|null; gender:"M"|"F"|"T"|null; email:string|null; phone:string|null };
 /** Guests holding seats: confirmed bookings + checkouts started in the last 30 minutes. */
 const SEATS_SQL = "SELECT COALESCE(SUM(total_guests),0) n FROM tour_package_bookings WHERE package_id=? AND (booking_status='confirmed' OR (booking_status='pending' AND payment_status<>'failed' AND created_at > NOW() - INTERVAL 30 MINUTE))";
 
@@ -19,15 +20,15 @@ export async function departureSeatsLeft(pkg: Pick<TourPackage,"id"|"departures"
 }
 
 export function newPackageBookingRef() { return `SKYP${randomBytes(6).toString("hex").toUpperCase()}`; }
-export async function createPackageBooking(p: { pkg:TourPackage; uid:string; ref:string; customer:PackageCustomer; travelDate:string; departure?:PackageDeparture|null; guests:number; quote:{subtotal:number;discount:number;total:number;upfront:number;couponCode:string|null}; paymentType:"upfront"|"full" }) {
+export async function createPackageBooking(p: { pkg:TourPackage; uid:string; ref:string; customer:PackageCustomer; travellers?:PackageTraveller[]; travelDate:string; departure?:PackageDeparture|null; guests:number; quote:{subtotal:number;discount:number;total:number;upfront:number;couponCode:string|null}; paymentType:"upfront"|"full" }) {
   const totalPaise = p.quote.total * 100;
   const depositPaise = p.quote.upfront * 100;
   const amountPaise = p.paymentType === "full" ? totalPaise : depositPaise;
-  const nameEnc = await encrypt(JSON.stringify({ ...p.customer, package:{slug:p.pkg.slug,title:p.pkg.title,route:p.pkg.destinations}, guests:p.guests, travelDate:p.travelDate, pricingType:p.pkg.pricingType, packagePrice:p.quote.subtotal, discount:p.quote.discount, total:p.quote.total, upfront:p.quote.upfront }));
+  const nameEnc = await encrypt(JSON.stringify({ ...p.customer, travellers:p.travellers ?? [], package:{slug:p.pkg.slug,title:p.pkg.title,route:p.pkg.destinations}, guests:p.guests, travelDate:p.travelDate, pricingType:p.pkg.pricingType, packagePrice:p.quote.subtotal, discount:p.quote.discount, total:p.quote.total, upfront:p.quote.upfront }));
   const titleEnc = await encrypt(p.pkg.title);
   const originEnc = await encrypt(p.pkg.destinations[0] || "");
   const destinationEnc = await encrypt(p.pkg.destinations[p.pkg.destinations.length - 1] || "");
-  const detailsEnc = await encrypt(JSON.stringify({kind:"tour_package",packageId:p.pkg.id,slug:p.pkg.slug,title:p.pkg.title,customer:p.customer,guests:p.guests,travelDate:p.travelDate,pricingType:p.pkg.pricingType,packagePrice:p.quote.subtotal,discount:p.quote.discount,total:p.quote.total,upfront:p.quote.upfront,remaining:p.quote.total-p.quote.upfront,couponCode:p.quote.couponCode,route:p.pkg.destinations,
+  const detailsEnc = await encrypt(JSON.stringify({kind:"tour_package",packageId:p.pkg.id,slug:p.pkg.slug,title:p.pkg.title,customer:p.customer,travellers:p.travellers ?? [],guests:p.guests,travelDate:p.travelDate,pricingType:p.pkg.pricingType,packagePrice:p.quote.subtotal,discount:p.quote.discount,total:p.quote.total,upfront:p.quote.upfront,remaining:p.quote.total-p.quote.upfront,couponCode:p.quote.couponCode,route:p.pkg.destinations,
     // what the traveller agreed to — kept with the booking even if the admin edits the package later
     departure:p.departure?{id:p.departure.id,startDate:p.departure.startDate,startTime:p.departure.startTime,endDate:p.departure.endDate,endTime:p.departure.endTime}:null,
     tripInfo:p.pkg.tripInfo,cancellationRules:p.pkg.cancellationRules,cancellationPolicy:p.pkg.cancellationPolicy}));

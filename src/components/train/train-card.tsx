@@ -5,14 +5,14 @@ import { RouteRunner } from "@/components/ui/route-runner";
 import { ChevronLeft, ChevronRight, Clock, Radio, Route, Star, TrainFront, UtensilsCrossed } from "lucide-react";
 import type { RouteTrain } from "@/lib/server/train/types";
 import { AvailabilityPanel } from "./availability-panel";
-import { AlternateSeatChip, useTrainAlternates } from "./alternate-seat";
+import { AlternateSeatChip, CAPPED, useTrainAlternates } from "./alternate-seat";
 import { TrainDrawer } from "./train-drawer";
 import { useAuth, useSite } from "@/lib/client/providers";
 import { isTrainLiveOn } from "@/lib/services";
 import { CLASS_NAMES, DAYS, arrivalDayOffset, fmtDuration, fmtINR, prettyType, statusTone, titleCase, weekdayOf } from "@/lib/train/format";
 import { cn } from "@/lib/utils";
 
-export function TrainCard({ t, from, to, date, quota, index }: { t: RouteTrain; from: string; to: string; date: string; quota: string; index: number }) {
+export function TrainCard({ t, from, to, date, quota, index, chances }: { t: RouteTrain; from: string; to: string; date: string; quota: string; index: number; chances?: Record<string, { pct: number | null; text: string }> }) {
   const [openCls, setOpenCls] = useState<string | null>(null);
   const [insight, setInsight] = useState<null | "route" | "live">(null);
   const site = useSite();
@@ -24,14 +24,6 @@ export function TrainCard({ t, from, to, date, quota, index }: { t: RouteTrain; 
   const altMax = site.train_alt_limit === "on" ? Math.max(0, parseInt(site.train_alt_auto ?? "2", 10) || 0) : null;
   const cardRef = useRef<HTMLElement>(null);
 
-  const [onScreen, setOnScreen] = useState(false);
-  useEffect(() => {
-    const el = cardRef.current;
-    if (!el || onScreen) return;
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && setOnScreen(true), { rootMargin: "0px 0px 80px 0px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [onScreen]);
   const { user } = useAuth();
   const altGuests = (site.train_alt_guests ?? "on") === "on";
   const boardFrom = t.from_station_code || from;
@@ -42,15 +34,21 @@ export function TrainCard({ t, from, to, date, quota, index }: { t: RouteTrain; 
     const st = t.availability_summary?.find((x) => x.class_code === c)?.status;
     return !!st && ["WAITLIST", "REGRET", "RAC", "NOT_AVAILABLE"].includes(st);
   });
+  // every train in the list is checked, top to bottom, one request at a time
   const alt = useTrainAlternates({
     train: t.train_number, name: t.train_name, from: t.from_station_code || from, to: t.to_station_code || to, date, quota,
-    classes: altOn ? altClasses : [], enabled: onScreen && (!!user || altGuests), max: altMax, searchKey: `${from}|${to}|${date}|${quota}`,
+    classes: altOn ? altClasses : [], enabled: !!user || altGuests, max: altMax, searchKey: `${from}|${to}|${date}|${quota}`,
   });
-  const realChance: Record<string, number | null> = Object.fromEntries(Object.entries(alt).map(([k, v]) => [k, v.own?.chance ?? null]));
+  // % from the one-shot search lookup first (fast), then from this train's alternate check
+  const realChance: Record<string, number | null> = {
+    ...Object.fromEntries(Object.entries(chances || {}).map(([k, v]) => [k, v.pct])),
+    ...Object.fromEntries(Object.entries(alt).filter(([, v]) => v.own?.chance != null).map(([k, v]) => [k, v.own!.chance])),
+  };
 
   return (
     <motion.article
       ref={cardRef}
+      id={`train-${t.train_number}`}
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index, 8) * 0.05, type: "spring", stiffness: 200, damping: 24 }}
@@ -170,6 +168,9 @@ export function TrainCard({ t, from, to, date, quota, index }: { t: RouteTrain; 
           );
         })}
       </ClassRail>
+      {alt[CAPPED] && (
+        <p className="mt-2 text-[11px] font-semibold text-muted">Alternate seats weren&apos;t checked for this train — today&apos;s live-check limit is used up.</p>
+      )}
 
       <AnimatePresence>
         {insight && <TrainDrawer train={t.train_number} name={t.train_name} from={boardFrom} to={alightTo} date={date} tab={insight} onClose={() => setInsight(null)} />}

@@ -10,7 +10,7 @@ export type CancellationRule = { daysBefore: number; deductionPct: number };
 export type PackageStay = { hotelName: string; starRating: number; roomType: string; amenities: string[]; city?: string };
 export type TourPackage = {
   id: number; slug: string; title: string; shortDescription: string; detailedDescription: string;
-  durationDays: number; durationNights: number; destinations: string[]; itinerary: PackageDay[]; accommodations: PackageStay[];
+  durationDays: number; durationNights: number; destinations: string[]; categories: string[]; itinerary: PackageDay[]; accommodations: PackageStay[];
   departures: PackageDeparture[]; tripInfo: PackageTripInfo | null; cancellationRules: CancellationRule[];
   originalPrice: number; discountedPrice: number; pricingType: PackagePricingType; upfrontTokenAmount: number;
   coverPhoto: string; images: string[]; videoLink: string | null; inclusions: string[]; exclusions: string[];
