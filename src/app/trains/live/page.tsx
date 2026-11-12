@@ -26,7 +26,7 @@ export default async function TrainToolsPage() {
           <div className="absolute inset-0 sky-fade" />
           <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.8),transparent_65%)]" />
           <div className="relative mx-auto max-w-7xl px-5">
-            <h1 className="text-center text-4xl font-extrabold tracking-tight text-white md:text-5xl">Train tools</h1>
+            <h1 className="text-center text-4xl font-lux font-bold tracking-[-0.01em] text-white md:text-5xl">Train <span className="lux-gold-light">tools</span></h1>
             <p className="mx-auto mt-3 max-w-xl text-center text-white/85">Live running status, station boards, vacant berths and unreserved fares — all in one place.</p>
             <div className="mt-8">
               <Suspense>

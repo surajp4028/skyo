@@ -74,7 +74,7 @@ export function StepHeader({ title, sub, eyebrow }: { title: string; sub?: React
   return (
     <div className="mb-7">
       {eyebrow && <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand">{eyebrow}</div>}
-      <h1 className="text-[28px] font-extrabold leading-tight tracking-tight text-ink sm:text-3xl">{title}</h1>
+      <h1 className="text-[28px] font-lux font-bold leading-tight tracking-[-0.01em] text-ink sm:text-3xl">{title}</h1>
       {sub && <p className="mt-2 text-[15px] leading-relaxed text-muted">{sub}</p>}
     </div>
   );

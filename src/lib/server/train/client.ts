@@ -93,11 +93,38 @@ function mapError(status: number, err: ErrorEnvelope["error"] | undefined): ApiE
       return new ApiError(400, code, err?.message || "Please check the details and try again.");
     case "RATE_LIMITED":
       return new ApiError(429, code, "Train service is busy. Please try again in a minute.");
+    // booking-window answers (422, free): RailCore's message names the day/classes — safe to show
+    case "TATKAL_NOT_OPEN": {
+      const opens = (err as { opens_at?: string } | undefined)?.opens_at;
+      const when = opens ? new Date(opens).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : null;
+      return new ApiError(422, code, when ? `Tatkal booking for this journey opens on ${when}.` : "Tatkal booking hasn't opened for this journey yet — it opens one day before the journey (AC 10 AM, non-AC 11 AM).");
+    }
+    case "BOOKING_NOT_OPEN":
+      return new ApiError(422, code, err?.message || "Booking hasn't opened for this date yet — reservations open 60 days before the journey at 8 AM.");
+    case "QUOTA_NOT_AVAILABLE":
+      return new ApiError(422, code, err?.message || "This train doesn't offer that quota in this class.");
+    case "CLASS_NOT_AVAILABLE":
+      return new ApiError(422, code, err?.message || "This train doesn't carry that class.");
+    case "TRAIN_NOT_RUNNING":
+      return new ApiError(422, code, err?.message || "This train doesn't run from your station on that date.");
+    case "INVALID_INPUT":
+    case "INVALID_STATION_CODE":
+    case "INVALID_TRAIN_NUMBER":
+    case "INVALID_DATE":
+    case "INVALID_QUOTA":
+    case "INVALID_CLASS_CODE":
+      return new ApiError(400, code, err?.message || "Please check the details and try again.");
     case "CREDITS_EXHAUSTED":
     case "MISSING_API_KEY":
     case "INVALID_API_KEY":
     case "SCOPE_MISSING":
     case "PLAN_ENDPOINT_DISABLED":
+    case "PLAN_INACTIVE":
+    case "API_KEY_DISABLED":
+    case "API_KEY_EXPIRED":
+    case "AMBIGUOUS_API_KEY":
+    case "SIGNATURE_INVALID":
+    case "IP_NOT_ALLOWED":
     case "API_VERSION_SUNSET":
       console.error("[rail] provider config/quota error:", code);
       return new ApiError(503, "TRAIN_SERVICE_UNAVAILABLE", "Live train data is temporarily unavailable. Please try again later.");

@@ -33,7 +33,7 @@ export default async function PnrPage() {
             <span className="mx-auto flex w-fit items-center gap-1.5 rounded-full border border-white/40 bg-white/15 px-3 py-1 text-xs font-bold text-white backdrop-blur">
               <Ticket className="h-3.5 w-3.5" /> PNR status
             </span>
-            <h1 className="mt-3 text-center text-4xl font-black tracking-tight text-white drop-shadow-[0_6px_30px_rgba(10,40,120,0.35)] md:text-5xl">Is my ticket confirmed?</h1>
+            <h1 className="mt-3 text-center text-4xl font-lux font-bold tracking-[-0.01em] text-white drop-shadow-[0_6px_30px_rgba(10,40,120,0.35)] md:text-5xl">Is my ticket <span className="lux-gold-light">confirmed?</span></h1>
             <p className="mx-auto mt-3 max-w-xl text-center text-white/90">Booking status, current status, coach and berth for every passenger, and whether the chart is prepared.</p>
             <div className="mt-8">
               <PnrStatus />

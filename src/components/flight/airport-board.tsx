@@ -72,7 +72,7 @@ export function AirportBoard() {
             <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" /></span>
             Airport live board
           </span>
-          <h1 className="mt-3 max-w-2xl text-4xl font-black leading-[1.05] tracking-tight text-white drop-shadow-[0_6px_30px_rgba(10,40,120,0.35)] md:text-5xl">Departures & arrivals, live.</h1>
+          <h1 className="mt-3 max-w-2xl text-4xl font-lux font-bold leading-[1.05] tracking-[-0.01em] text-white drop-shadow-[0_6px_30px_rgba(10,40,120,0.35)] md:text-5xl">Departures & arrivals, live.</h1>
           <p className="mt-2 max-w-lg text-sm text-white/85 md:text-base">Today&apos;s flights at an airport — times, terminal, gate, baggage belt and delays.</p>
           <form onSubmit={(e) => (e.preventDefault(), parseAirportInput(label) && go(parseAirportInput(label)!, type))} className="mt-5 flex max-w-2xl flex-col gap-2 rounded-[22px] bg-white p-2 shadow-[0_30px_80px_-24px_rgba(10,30,90,0.55)] sm:flex-row sm:items-stretch">
             <AirportInput label="Airport" kind={type === "departure" ? "from" : "to"} value={label} onChange={(l, c) => (setLabel(l), c && go(c, type))} className="[&_label]:border-0" />

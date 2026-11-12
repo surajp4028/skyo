@@ -39,7 +39,7 @@ export function ContactView() {
         <div className="absolute -right-16 -top-20 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.9),transparent_62%)]" />
         <Spotlight className="-top-40 left-0 md:left-60" fill="white" />
         <div className="relative mx-auto max-w-4xl px-5 text-center text-white">
-          <h1 className="text-4xl font-extrabold tracking-tight md:text-6xl">We&apos;re here to help</h1>
+          <h1 className="text-4xl font-lux font-bold tracking-[-0.01em] md:text-6xl">We&apos;re here to <span className="lux-gold">help</span></h1>
           <p className="mx-auto mt-4 max-w-xl text-lg text-white/85">Questions about a trip, a refund or your account? Write to us — a real person replies.</p>
         </div>
       </section>
@@ -75,7 +75,7 @@ export function ContactView() {
             {done ? (
               <motion.div key="done" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="flex min-h-[420px] flex-col items-center justify-center text-center">
                 <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 14 }} className="flex h-16 w-16 items-center justify-center rounded-full bg-mint/15 text-mint"><CheckCircle2 className="h-9 w-9" /></motion.span>
-                <h2 className="mt-5 text-2xl font-extrabold">Message received</h2>
+                <h2 className="mt-5 text-2xl font-lux font-bold">Message received</h2>
                 <p className="mt-2 text-muted">Your reference number is</p>
                 <div className="mt-2 rounded-2xl bg-ink px-5 py-2 font-mono text-xl font-extrabold tracking-wider text-white">{done}</div>
                 <p className="mt-4 max-w-sm text-sm text-muted">We&apos;ll reply to <b className="text-ink">{email}</b> within 24 hours. Keep the reference handy.</p>
@@ -104,7 +104,7 @@ export function ContactView() {
                 <div className="flex items-center gap-3">
                   <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-soft text-brand"><MessageSquareText className="h-5 w-5" /></span>
                   <div>
-                    <h2 className="text-xl font-extrabold">Send us a message</h2>
+                    <h2 className="text-xl font-lux font-bold">Send us a message</h2>
                     <p className="text-sm text-muted">Fields marked * are required.</p>
                   </div>
                 </div>

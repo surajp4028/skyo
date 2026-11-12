@@ -96,8 +96,8 @@ export function PlaneWindowSection() {
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-white backdrop-blur-md">
                     <Plane className="h-3 w-3" /> Seat 12A · Window
                   </span>
-                  <h2 className="mt-3 max-w-md text-2xl font-extrabold tracking-tight text-white [text-shadow:0_2px_16px_rgba(5,25,70,0.55)] md:text-4xl">
-                    Your window seat to <span className="font-display font-normal italic text-gradient-sun">anywhere</span>
+                  <h2 className="mt-3 max-w-md text-2xl font-lux font-bold tracking-[-0.01em] text-white [text-shadow:0_2px_16px_rgba(5,25,70,0.55)] md:text-4xl">
+                    Your window seat to <span className="font-lux italic text-gradient-sun">anywhere</span>
                   </h2>
                   <p className="mt-2 max-w-sm text-sm text-white/90 [text-shadow:0_1px_10px_rgba(5,25,70,0.5)]">
                     7,900 airports, hub connections when there&apos;s no direct flight, and live status once you&apos;re up there.
@@ -192,8 +192,8 @@ export function FeatureBento() {
       <motion.div {...fadeUp} transition={{ duration: 0.6 }} className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div className="max-w-2xl">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-brand"><Sparkles className="h-3 w-3" /> What you can do here</div>
-          <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-ink md:text-[42px] md:leading-[1.1]">
-            More than just a <span className="font-display font-normal italic text-gradient-deep">booking page</span>
+          <h2 className="mt-3 text-3xl font-lux font-bold tracking-[-0.01em] text-ink md:text-[42px] md:leading-[1.1]">
+            More than just a <span className="font-lux italic text-gradient-deep">booking page</span>
           </h2>
           <p className="mt-3 text-base text-muted">Track, pick, connect and get your papers sorted, all from one account.</p>
         </div>

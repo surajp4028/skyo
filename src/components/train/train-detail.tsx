@@ -74,7 +74,7 @@ export function TrainDetail({ number, from, to, tab }: { number: string; from?: 
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="relative mx-auto max-w-7xl px-5 text-white">
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded-lg bg-white/20 px-2.5 py-1 font-mono text-sm font-bold backdrop-blur">{number}</span>
-            <h1 className="text-2xl font-extrabold md:text-3xl">{d ? titleCase(d.train_name) : "Train details"}</h1>
+            <h1 className="text-2xl font-lux font-bold md:text-3xl">{d ? titleCase(d.train_name) : "Train details"}</h1>
           </div>
           {d && (
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">

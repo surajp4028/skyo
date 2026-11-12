@@ -410,7 +410,7 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
             </span>
             {pkg.featured && <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-extrabold text-amber-800">★ Popular</span>}
           </div>
-          <h1 className="mt-3 max-w-3xl text-3xl font-extrabold leading-[1.1] tracking-tight sm:text-[40px]">{pkg.title}</h1>
+          <h1 className="mt-3 max-w-3xl text-3xl font-lux font-bold leading-[1.1] tracking-[-0.01em] sm:text-[40px]">{pkg.title}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm font-semibold text-ink/70">
             <MapPin className="h-4 w-4 text-brand" />
             {pkg.destinations.map((d, i) => (
@@ -500,7 +500,7 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
                     <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.2em] text-brand">
                       <CalendarDays className="h-3.5 w-3.5" /> Fixed departures
                     </div>
-                    <h2 className="mt-1.5 text-xl font-extrabold tracking-tight">Pick your departure</h2>
+                    <h2 className="mt-1.5 text-xl font-lux font-bold tracking-[-0.01em]">Pick your departure</h2>
                   </div>
                   <span className="text-xs font-semibold text-muted">{departures.length} upcoming {departures.length === 1 ? "date" : "dates"}</span>
                 </div>
@@ -611,7 +611,7 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
                   <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.2em] text-brand">
                     <Sparkles className="h-3.5 w-3.5" /> The experience
                   </div>
-                  <h2 className="mt-2 text-2xl font-extrabold tracking-tight">A little more than a getaway</h2>
+                  <h2 className="mt-2 text-2xl font-lux font-bold tracking-[-0.01em]">A little more than a getaway</h2>
                   <Markdown text={pkg.detailedDescription} />
                   <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {pkg.destinations.map((d, i) => (
@@ -635,7 +635,7 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
                   <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.2em] text-brand">
                     <CalendarDays className="h-3.5 w-3.5" /> Day by day
                   </div>
-                  <h2 className="mt-2 text-2xl font-extrabold tracking-tight">The journey, thoughtfully paced</h2>
+                  <h2 className="mt-2 text-2xl font-lux font-bold tracking-[-0.01em]">The journey, thoughtfully paced</h2>
                   {dep && (
                     <p className="mt-1 text-xs font-semibold text-muted">
                       Dates for the {fmtDay(dep.startDate, true)} departure · leave {fmtTime(dep.startTime)}
@@ -660,7 +660,7 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
                   <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.2em] text-brand">
                     <Mountain className="h-3.5 w-3.5" /> Places to rest
                   </div>
-                  <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Stays & accommodation</h2>
+                  <h2 className="mt-2 text-2xl font-lux font-bold tracking-[-0.01em]">Stays & accommodation</h2>
                   {pkg.accommodations.length ? (
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       {pkg.accommodations.map((s, i) => (
@@ -695,7 +695,7 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
                   <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.2em] text-brand">
                     <ShieldCheck className="h-3.5 w-3.5" /> Know before you go
                   </div>
-                  <h2 className="mt-2 text-2xl font-extrabold tracking-tight">What&apos;s included in your trip</h2>
+                  <h2 className="mt-2 text-2xl font-lux font-bold tracking-[-0.01em]">What&apos;s included in your trip</h2>
                   <div className="mt-5 grid gap-5 sm:grid-cols-2">
                     <InclusionList title="Included" items={pkg.inclusions} good />
                     <InclusionList title="Not included" items={pkg.exclusions} />
@@ -795,7 +795,7 @@ export function PackageDetail({ pkg, geo = null, availability = {} }: { pkg: Tou
               <Check className="h-7 w-7" />
             </span>
             <div className="mt-4 text-[10px] font-extrabold uppercase tracking-[.2em] text-emerald-700">You&apos;re going places</div>
-            <h2 className="mt-2 text-2xl font-black">Booking confirmed</h2>
+            <h2 className="mt-2 text-2xl font-lux font-bold">Booking confirmed</h2>
             <p className="mt-2 text-sm text-muted">
               Reference <b className="font-mono text-ink">{success.ref}</b>. You can find every detail in My Trips.
             </p>
@@ -952,7 +952,7 @@ function CancellationTab({ pkg, dep, total }: { pkg: TourPackage; dep: PackageDe
       <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.2em] text-brand">
         <ShieldCheck className="h-3.5 w-3.5" /> If plans change
       </div>
-      <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Cancellation charges</h2>
+      <h2 className="mt-2 text-2xl font-lux font-bold tracking-[-0.01em]">Cancellation charges</h2>
       {rules.length ? (
         <>
           <p className="mt-1 text-xs font-semibold text-muted">

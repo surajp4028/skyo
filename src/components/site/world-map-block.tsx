@@ -21,8 +21,8 @@ export function WorldMapBlock({ mapSrc }: { mapSrc: string }) {
       <div className="mx-auto max-w-7xl px-5">
         <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-80px" }} transition={{ duration: 0.6 }} className="mx-auto max-w-2xl text-center">
           <div className="flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-brand"><Star className="h-3 w-3 fill-brand" /> Beyond borders</div>
-          <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-ink md:text-[42px] md:leading-[1.1]">
-            From your city to <span className="font-display font-normal italic text-gradient">the world</span>
+          <h2 className="mt-3 text-3xl font-lux font-bold tracking-[-0.01em] text-ink md:text-[42px] md:leading-[1.1]">
+            From your city to <span className="font-lux italic text-gradient">the world</span>
           </h2>
           <p className="mt-3 text-base text-muted">International flights from every major Indian airport — with visa guides, forex tips and 24×7 support wherever you land.</p>
         </motion.div>

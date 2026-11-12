@@ -81,7 +81,7 @@ export function AccountView() {
               <AvatarButton user={user} onChange={setUser} />
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-xl font-extrabold sm:text-2xl md:text-3xl">{user.name || "Traveller"}</h1>
+              <h1 className="truncate text-xl font-lux font-bold sm:text-2xl md:text-3xl">{user.name || "Traveller"}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                 <button onClick={() => navigator.clipboard?.writeText(user.uid).then(() => toast.success("SKYO ID copied"))} className="flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 font-mono font-bold backdrop-blur hover:bg-white/30" title="All your bookings are linked to this ID">
                   {user.uid} <Copy className="h-3 w-3" />

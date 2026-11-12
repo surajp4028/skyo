@@ -160,7 +160,7 @@ export function FlightResults({ q }: { q: FlightQuery }) {
         </motion.div>
         <div className="relative mx-auto max-w-7xl px-4 sm:px-5">
           <div className="mb-4 flex flex-wrap items-center gap-3 text-white">
-            <h1 className="flex items-center gap-2 text-xl font-extrabold sm:text-2xl md:text-3xl">{q.fromLabel.replace(/\s*\(.*\)$/, "")} <ArrowRight className="h-6 w-6" /> {q.toLabel.replace(/\s*\(.*\)$/, "")}</h1>
+            <h1 className="flex items-center gap-2 text-xl font-lux font-bold sm:text-2xl md:text-3xl">{q.fromLabel.replace(/\s*\(.*\)$/, "")} <ArrowRight className="h-6 w-6" /> {q.toLabel.replace(/\s*\(.*\)$/, "")}</h1>
             <span className="hidden rounded-full bg-white/20 px-3 py-1 text-xs font-bold backdrop-blur md:inline-flex">{prettyDate(q.date, { weekday: "long", day: "numeric", month: "long" })} · {paxText(q.adults, q.children, q.infants)} · {q.cabin === "business" ? "Business" : "Economy"}</span>
           </div>
           {/* phones: a compact summary; tap Edit to open the full search */}

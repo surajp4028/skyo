@@ -92,6 +92,9 @@
 
 /* hero skies — deep enough at the top that white text always reads, fading into the page */
 .sky-fade { background: linear-gradient(180deg, #0035c4 0%, #004be0 26%, #1269ec 50%, #3d8ff2 72%, #a9d2fb 90%, #f6f7fb 100%); }
+/* luxury accent word: gold → saffron italic (light backgrounds) / soft gold (on sky / dark) */
+.lux-gold { font-style: italic; padding-right: .12em; background: linear-gradient(90deg,#b8740a,#d9822b,#ff5a1f); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lux-gold-light { font-style: italic; padding-right: .12em; background: linear-gradient(90deg,#fff1c7,#ffd27a,#ffb36b); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .sky-band { background: linear-gradient(180deg, #0035c4 0%, #0a55e6 50%, #3d8ff2 100%); }
 
 @keyframes shimmer-x { from { transform: translateX(-100%); } to { transform: translateX(100%); } }

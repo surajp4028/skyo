@@ -1,17 +1,16 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { motion } from "motion/react";
 import {
   ArrowLeft, ArrowRight, BadgePercent, BusFront, Building2, CalendarClock, Clock3, CreditCard, Gift, Headphones, Palmtree, Plane,
-  ShieldCheck, Smartphone, Sparkles, TrainFront, Undo2, Wallet, Star, MapPin,
+  ShieldCheck, Smartphone, Sparkles, TrainFront, Undo2, Wallet, MapPin,
 } from "lucide-react";
 import { Spotlight } from "@/components/ui/spotlight";
 import { FlipWords } from "@/components/ui/flip-words";
 import { HoverEffect } from "@/components/ui/hover-effect";
 import { CardBody, CardContainer, CardItem } from "@/components/ui/card-3d";
-import { CardSpotlight } from "@/components/ui/card-spotlight";
 import { InfiniteMovingCards } from "@/components/ui/infinite-moving-cards";
 import { MovingBorderButton } from "@/components/ui/moving-border";
 import { SearchWidget } from "./search-widget";
@@ -21,8 +20,6 @@ import { CloudShader } from "@/components/ui/cloud-shader";
 import { isServiceOn, type ServiceKey } from "@/lib/services";
 import { IMAGES, img } from "@/lib/utils";
 import { SkyClouds } from "@/components/ui/sky-clouds";
-import type { TourPackage } from "@/lib/packages";
-import { api } from "@/lib/client/api";
 
 const fadeUp = { initial: { opacity: 0, y: 24 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, margin: "-80px" }, transition: { duration: 0.6 } };
 
@@ -47,9 +44,9 @@ export function Hero() {
         <motion.div initial={false} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-white/30 bg-white/15 px-4 py-1.5 text-xs font-semibold text-white shadow-[0_8px_30px_-12px_rgba(0,30,90,0.5)] backdrop-blur-md">
           <Sparkles className="h-3.5 w-3.5 text-amber-300" /> India&apos;s smartest way to travel · {site.site_name}
         </motion.div>
-        <h1 className="mx-auto max-w-4xl text-center text-4xl font-extrabold leading-[1.06] tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,40,120,0.35)] md:text-7xl">
+        <h1 className="mx-auto max-w-4xl text-center text-4xl font-lux font-bold leading-[1.06] tracking-[-0.01em] text-white drop-shadow-[0_4px_24px_rgba(0,40,120,0.35)] md:text-7xl">
           Book{" "}
-          <FlipWords words={["flights", "trains", "buses", "hotels", "holidays"]} className="font-display font-normal italic text-gradient-sun" />
+          <FlipWords words={["flights", "trains", "buses", "hotels", "holidays"]} className="font-lux font-bold italic text-gradient-sun" />
           <br className="hidden md:block" /> <span className="relative">without the chaos.</span>
         </h1>
         <motion.p initial={false} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mx-auto mt-6 max-w-2xl text-center text-base font-medium text-white/90 [text-shadow:0_1px_12px_rgba(0,40,120,0.45)] md:text-lg">
@@ -149,7 +146,7 @@ export function ServicesStrip() {
   return (
     <section className="mx-auto max-w-7xl px-4 pt-14 sm:px-5 sm:pt-20">
       <div className="flex items-end justify-between gap-4">
-        <SectionHead eyebrow="Everything in one app" title={list.length === 5 ? "Five ways to get going" : "Ways to get going"} sub="One login, one wallet, every mode of travel." />
+        <SectionHead eyebrow="Everything in one app" title={list.length === 5 ? "Five ways to get" : "Ways to get"} accent="going" sub="One login, one wallet, every mode of travel." />
         <div className="mb-1 flex shrink-0 gap-1.5 md:hidden">
           <button aria-label="Scroll services left" onClick={() => scroller.current?.scrollBy({ left: -300, behavior: "smooth" })} className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white text-ink shadow-soft"><ArrowLeft className="h-4 w-4" /></button>
           <button aria-label="Scroll services right" onClick={() => scroller.current?.scrollBy({ left: 300, behavior: "smooth" })} className="flex h-10 w-10 items-center justify-center rounded-full bg-ink text-white shadow-soft"><ArrowRight className="h-4 w-4" /></button>
@@ -205,7 +202,7 @@ function ServiceCard({ s, i }: { s: (typeof SERVICES)[number]; i: number }) {
 export function Offers() {
   return (
     <section className="mx-auto max-w-7xl px-4 pt-14 sm:px-5 sm:pt-24">
-      <SectionHead eyebrow="Offers for you" title="Deals that actually save" sub="Auto-applied at checkout. No coupon hunting." />
+      <SectionHead eyebrow="Offers for you" title="Deals that actually" accent="save" sub="Auto-applied at checkout. No coupon hunting." />
       <HoverEffect
         className="mt-8"
         items={[
@@ -231,7 +228,7 @@ const DESTS = [
 export function Destinations() {
   return (
     <section className="mx-auto max-w-7xl px-5 pt-24">
-      <SectionHead size="sm" eyebrow="Trending this season" title="Where India is heading" sub="Packages with stays, transfers & sightseeing — all included." />
+      <SectionHead size="sm" eyebrow="Trending this season" title="Where India is" accent="heading" sub="Packages with stays, transfers & sightseeing — all included." />
       <div className="mt-6 grid gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
         {DESTS.map((d) => (
           <CardContainer key={d.name} className="w-full" containerClassName="py-6">
@@ -269,33 +266,36 @@ export function Destinations() {
 export function WhyUs() {
   const site = useSite();
   const items = [
-    { icon: CalendarClock, title: "Confirm-ticket prediction", body: "Our model predicts waitlist confirmation chances before you pay — with 94% accuracy.", span: "md:col-span-2" },
-    { icon: Undo2, title: "Instant refunds", body: "Refunds land in your source account in minutes, not weeks." },
-    { icon: ShieldCheck, title: "Bank-grade security", body: "AES-256 envelope encryption with AWS KMS, OTP login, zero stored card data." },
-    { icon: Headphones, title: "24×7 human support", body: "Real people on chat & call — in Hindi, English and 8 regional languages.", span: "md:col-span-2" },
+    { icon: CalendarClock, title: "Confirm-ticket prediction", body: "Live waitlist confirmation chances on every class, before you pay.", tint: "from-sky-500 to-indigo-500", span: "md:col-span-2" },
+    { icon: Undo2, title: "Instant refunds", body: "Refunds go back to your source account — no wallet lock-in.", tint: "from-emerald-500 to-teal-500" },
+    { icon: ShieldCheck, title: "Bank-grade security", body: "Encrypted personal data, OTP login and no stored card numbers.", tint: "from-violet-500 to-fuchsia-500" },
+    { icon: Headphones, title: "Human support", body: "Real people on chat and call when a trip needs a hand.", tint: "from-orange-500 to-rose-500", span: "md:col-span-2" },
   ];
   return (
-    <section className="relative mt-28 overflow-hidden bg-ink py-24">
-      <div className="bg-grid absolute inset-0 opacity-50 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
+    <section className="relative mt-16 overflow-hidden bg-[linear-gradient(180deg,#f6f7fb_0%,#fff8f1_55%,#f6f7fb_100%)] py-16 md:mt-20 md:py-20">
+      <div aria-hidden className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-orange-200/40 blur-3xl" />
+      <div aria-hidden className="absolute -right-24 bottom-10 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" />
       <div className="relative mx-auto max-w-7xl px-5">
-        <SectionHead dark eyebrow={`Why ${site.site_name}`} title="Built for the way India travels" sub="Thoughtful features that make every trip calmer." />
-        <div className="mt-12 grid gap-4 md:grid-cols-3">
+        <SectionHead eyebrow={`Why ${site.site_name}`} title="Built for the way India" accent="travels" sub="Thoughtful features that make every trip calmer." />
+        <div className="mt-8 grid gap-3 md:grid-cols-3 md:gap-4">
           {items.map((it, i) => (
             <motion.div key={it.title} {...fadeUp} transition={{ duration: 0.5, delay: i * 0.08 }} className={it.span}>
-              <CardSpotlight className="h-full">
-                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand to-brand-2 text-white shadow-[0_10px_30px_-10px_rgba(255,90,31,0.8)]">
-                  <it.icon className="h-6 w-6" />
+              <div className="group flex h-full items-start gap-4 rounded-[24px] border border-line bg-white/90 p-5 shadow-soft backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lift md:p-6">
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${it.tint} text-white shadow-[0_10px_24px_-12px_rgba(10,15,31,.5)]`}>
+                  <it.icon className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="font-lux text-lg font-bold text-ink md:text-xl">{it.title}</h3>
+                  <p className="mt-1 max-w-md text-sm leading-relaxed text-muted">{it.body}</p>
                 </div>
-                <h3 className="text-xl font-bold text-white">{it.title}</h3>
-                <p className="mt-2 max-w-md text-sm leading-relaxed text-white/60">{it.body}</p>
-              </CardSpotlight>
+              </div>
             </motion.div>
           ))}
         </div>
-        <div className="mt-20">
-          <SectionHead dark eyebrow="Loved by travellers" title="Real trips. Real reviews." />
+        <div className="mt-14">
+          <SectionHead eyebrow="Loved by travellers" title="What travellers" accent="say" />
           <InfiniteMovingCards
-            className="mx-auto mt-8"
+            className="mx-auto mt-4"
             speed="slow"
             items={[
               { quote: "Got a confirmed Tatkal seat on the Rajdhani in under a minute. The prediction was spot on.", name: "Ananya Sharma", title: "Delhi → Mumbai" },
@@ -321,7 +321,7 @@ export function AppCta() {
         <div className="relative grid items-center gap-10 md:grid-cols-2">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white"><Smartphone className="h-3.5 w-3.5" /> Coming soon on Android & iOS</span>
-            <h2 className="mt-5 text-3xl font-extrabold leading-tight text-white md:text-5xl">Your whole trip, <span className="font-display italic font-normal">in your pocket.</span></h2>
+            <h2 className="mt-5 text-3xl font-lux font-bold leading-tight text-white md:text-5xl">Your whole trip, <span className="font-lux italic">in your pocket.</span></h2>
             <p className="mt-4 max-w-md text-white/85">Live PNR alerts, offline tickets, one-tap rebooking and app-only fares. Sign up today and your account carries over to the {site.site_name} app.</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <MovingBorderButton as="a" href="/register" duration={3500}>
@@ -350,12 +350,18 @@ export function AppCta() {
   );
 }
 
-function SectionHead({ eyebrow, title, sub, dark, size = "lg" }: { eyebrow: string; title: string; sub?: string; dark?: boolean; size?: "sm" | "lg" }) {
+function SectionHead({ eyebrow, title, accent, sub, dark, size = "lg" }: { eyebrow: string; title: string; accent?: string; sub?: string; dark?: boolean; size?: "sm" | "lg" }) {
   return (
     <motion.div {...fadeUp} className="max-w-2xl">
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-brand"><Star className="h-3 w-3 fill-brand" />{eyebrow}</div>
-      <h2 className={`mt-3 font-extrabold tracking-tight ${size === "sm" ? "text-2xl md:text-[32px] md:leading-[1.15]" : "text-3xl md:text-[42px] md:leading-[1.1]"} ${dark ? "text-white" : "text-ink"}`}>{title}</h2>
-      {sub && <p className={`mt-3 text-base ${dark ? "text-white/60" : "text-muted"}`}>{sub}</p>}
+      <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.28em] text-[#8a6a2f]">
+        <span className="h-px w-5 bg-gradient-to-r from-transparent to-[#c79a4a]" />
+        {eyebrow}
+      </p>
+      <h2 className={`mt-1.5 font-lux font-bold leading-tight tracking-[-0.01em] ${size === "sm" ? "text-[24px] md:text-[30px]" : "text-[26px] md:text-[38px]"} ${dark ? "text-white" : "text-ink"}`}>
+        {title}
+        {accent && <> <span className="bg-gradient-to-r from-[#b8740a] via-[#d9822b] to-[#ff5a1f] bg-clip-text pr-1 italic text-transparent">{accent}</span></>}
+      </h2>
+      {sub && <p className={`mt-1.5 text-sm md:text-[15px] ${dark ? "text-white/60" : "text-muted"}`}>{sub}</p>}
     </motion.div>
   );
 }

@@ -39,7 +39,7 @@ export function PopularPlaces({ eyebrow = "Popular destinations", title = "Place
       <div className="flex items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-brand"><MapPin className="h-3.5 w-3.5" /> {eyebrow}</div>
-          <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-ink md:text-[32px] md:leading-[1.15]">{title}</h2>
+          <h2 className="mt-2 text-2xl font-lux font-bold tracking-[-0.01em] text-ink md:text-[32px] md:leading-[1.15]">{title}</h2>
           {sub && <p className="mt-1.5 text-sm text-muted md:text-base">{sub}</p>}
         </div>
         <div className="hidden gap-2 sm:flex">

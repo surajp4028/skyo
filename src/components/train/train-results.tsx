@@ -136,19 +136,22 @@ export function TrainResults({ q, initialSlots }: { q: TrainQuery; initialSlots:
   return (
     <div>
       {/* Sky header */}
-      <section className="relative -mt-20 overflow-hidden pb-8 pt-24 sm:pb-10 sm:pt-28">
-        <div className="absolute inset-0 sky-band" />
-        <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.75),transparent_65%)]" />
+      <section className="relative -mt-20 pb-8 pt-24 sm:pb-10 sm:pt-28">
+        {/* backdrop clipped on its own layer, so the station dropdown can hang below the band */}
+        <div aria-hidden className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 sky-band" />
+          <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.75),transparent_65%)]" />
+        </div>
         <div className="relative mx-auto max-w-7xl px-3 sm:px-5">
           <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 text-white sm:mb-4 sm:gap-3">
-            <h1 className="flex min-w-0 items-center gap-2 text-lg font-extrabold sm:text-2xl md:text-3xl"><span className="truncate">{q.fromLabel.replace(/\s*\(.*\)$/, "")}</span><ArrowRight className="h-4 w-4 shrink-0 sm:h-6 sm:w-6" /><span className="truncate">{q.toLabel.replace(/\s*\(.*\)$/, "")}</span></h1>
+            <h1 className="flex min-w-0 items-center gap-2 font-lux text-xl font-bold sm:text-2xl md:text-3xl"><span className="truncate">{q.fromLabel.replace(/\s*\(.*\)$/, "")}</span><ArrowRight className="h-4 w-4 shrink-0 sm:h-6 sm:w-6" /><span className="truncate">{q.toLabel.replace(/\s*\(.*\)$/, "")}</span></h1>
             <span className="rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-bold backdrop-blur sm:px-3 sm:text-xs">{prettyDate(q.date, { weekday: "short", day: "numeric", month: "short" })} · {quotaLabel(q.quota)}</span>
           </div>
           {!editOpen && <button type="button" onClick={() => setEditOpen(true)} className="mb-2 flex w-full items-center gap-3 rounded-2xl border border-white/75 bg-white/95 px-3.5 py-3 text-left shadow-[0_16px_45px_-26px_rgba(10,15,31,.48)] md:hidden">
             <span className="min-w-0 flex-1"><span className="block truncate text-sm font-extrabold text-ink">{q.from} <span className="text-brand">→</span> {q.to}</span><span className="mt-0.5 block truncate text-[11px] font-semibold text-muted">{prettyDate(q.date, { day: "numeric", month: "short" })} · {quotaLabel(q.quota)}</span></span>
             <span className="flex shrink-0 items-center gap-1 rounded-xl bg-ink px-3 py-2 text-xs font-extrabold text-white"><Pencil className="h-3.5 w-3.5" /> Modify</span>
           </button>}
-          <div className={cn("rounded-[28px] border border-white/70 bg-white/95 p-2.5 shadow-[0_30px_80px_-30px_rgba(10,15,31,0.5)] backdrop-blur-xl sm:p-3 md:p-4", !editOpen && "hidden md:block")}>
+          <div className={cn("relative z-30 rounded-[28px] border border-white/70 bg-white/95 p-2.5 shadow-[0_30px_80px_-30px_rgba(10,15,31,0.5)] backdrop-blur-xl sm:p-3 md:p-4", !editOpen && "hidden md:block")}>
             {editOpen && <button type="button" onClick={() => setEditOpen(false)} className="mb-2 ml-auto flex items-center gap-1 rounded-full bg-surface px-3 py-1.5 text-xs font-bold text-muted md:hidden"><X className="h-3.5 w-3.5" /> Done</button>}
             <TrainSearchBar initial={q} compact />
           </div>

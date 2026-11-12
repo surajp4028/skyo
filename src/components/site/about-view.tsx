@@ -57,7 +57,7 @@ export function AboutView() {
           </motion.div>
           <motion.h1 initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="text-4xl font-extrabold leading-[1.06] tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,40,120,0.35)] md:text-7xl">
             We make travel <br className="hidden md:block" />
-            <FlipWords words={["simple.", "honest.", "secure.", "calm."]} className="font-display font-normal italic text-gradient-sun" />
+            <FlipWords words={["simple.", "honest.", "secure.", "calm."]} className="font-lux italic text-gradient-sun" />
           </motion.h1>
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mx-auto mt-6 max-w-2xl text-base font-medium text-white/90 [text-shadow:0_1px_12px_rgba(0,40,120,0.45)] md:text-lg">
             {site.site_name} brings trains, flights, buses, hotels and holidays into one clean, private app — with live data, clear prices and real people behind it.
@@ -92,8 +92,8 @@ export function AboutView() {
       <section className="mx-auto grid max-w-7xl items-center gap-14 px-5 py-24 md:grid-cols-2 md:py-32">
         <motion.div {...fadeUp}>
           <div className="text-xs font-bold uppercase tracking-[0.2em] text-brand">Our story</div>
-          <h2 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight text-ink md:text-5xl">
-            Built by travellers who were tired of <span className="font-display font-normal italic text-brand">guesswork.</span>
+          <h2 className="mt-3 text-3xl font-lux font-bold leading-tight tracking-[-0.01em] text-ink md:text-5xl">
+            Built by travellers who were tired of <span className="font-lux italic text-brand">guesswork.</span>
           </h2>
           <p className="mt-6 text-base leading-relaxed text-muted md:text-lg">
             Waitlists you couldn&apos;t read. Fees that appeared at the last step. Refunds that vanished for weeks. We started {site.site_name} to fix the parts of Indian travel booking that make people anxious.
@@ -126,7 +126,7 @@ export function AboutView() {
         <section className="mx-auto max-w-7xl px-5 pb-24">
           <motion.div {...fadeUp} className="mx-auto max-w-2xl text-center">
             <div className="text-xs font-bold uppercase tracking-[0.2em] text-brand">One app</div>
-            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-ink md:text-5xl">Everything for the journey</h2>
+            <h2 className="mt-3 text-3xl font-lux font-bold tracking-[-0.01em] text-ink md:text-5xl">Everything for the journey</h2>
           </motion.div>
           <div className="mt-12 grid auto-rows-[220px] gap-4 md:grid-cols-4">
             {services.map((s, i) => (
@@ -150,7 +150,7 @@ export function AboutView() {
         <div className="relative mx-auto max-w-7xl px-5">
           <motion.div {...fadeUp} className="max-w-2xl">
             <div className="text-xs font-bold uppercase tracking-[0.2em] text-brand">What we stand for</div>
-            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-white md:text-5xl">Four promises, every booking</h2>
+            <h2 className="mt-3 text-3xl font-lux font-bold tracking-[-0.01em] text-white md:text-5xl">Four promises, every booking</h2>
           </motion.div>
           <div className="mt-12 grid gap-4 md:grid-cols-3">
             {PRINCIPLES.map((p, i) => (
@@ -170,7 +170,7 @@ export function AboutView() {
       <section className="mx-auto max-w-7xl px-5 py-24">
         <motion.div {...fadeUp} className="mx-auto max-w-2xl text-center">
           <div className="text-xs font-bold uppercase tracking-[0.2em] text-brand">How it works</div>
-          <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-ink md:text-5xl">From search to seat in four steps</h2>
+          <h2 className="mt-3 text-3xl font-lux font-bold tracking-[-0.01em] text-ink md:text-5xl">From search to seat in four steps</h2>
         </motion.div>
         <ol className="relative mt-14 grid gap-8 md:grid-cols-4">
           <div aria-hidden className="absolute left-[12%] right-[12%] top-6 hidden h-px bg-gradient-to-r from-transparent via-brand/40 to-transparent md:block" />
@@ -191,7 +191,7 @@ export function AboutView() {
           <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/25 blur-3xl" />
           <div className="relative grid items-center gap-8 md:grid-cols-[1.4fr_1fr]">
             <div>
-              <h2 className="text-3xl font-extrabold leading-tight text-white md:text-5xl">Your next trip, <span className="font-display font-normal italic">without the chaos.</span></h2>
+              <h2 className="text-3xl font-lux font-bold leading-tight text-white md:text-5xl">Your next trip, <span className="font-lux italic">without the chaos.</span></h2>
               <p className="mt-4 max-w-md text-white/85">Questions about a booking, refund or payment? Write to {site.support_email} or call {site.support_phone}.</p>
             </div>
             <div className="flex flex-wrap gap-3 md:justify-end">

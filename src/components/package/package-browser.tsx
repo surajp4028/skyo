@@ -166,7 +166,7 @@ function Accent({ children }: { children: React.ReactNode }) {
   return <span className="bg-gradient-to-r from-[#b8740a] via-[#d9822b] to-[#ff5a1f] bg-clip-text pr-1 italic text-transparent">{children}</span>;
 }
 
-function Heading({ eyebrow, title, accent, accentFirst, sub, action }: { eyebrow?: string; title: string; accent?: string; accentFirst?: boolean; sub?: string; action?: React.ReactNode }) {
+export function Heading({ eyebrow, title, accent, accentFirst, sub, action }: { eyebrow?: string; title: string; accent?: string; accentFirst?: boolean; sub?: string; action?: React.ReactNode }) {
   return (
     <div className="flex items-end justify-between gap-3">
       <div className="min-w-0">
@@ -174,7 +174,7 @@ function Heading({ eyebrow, title, accent, accentFirst, sub, action }: { eyebrow
         <h2 className="mt-1 font-lux text-[22px] font-bold leading-tight tracking-[-0.01em] text-ink sm:text-[28px]">
           {accentFirst ? <><Accent>{accent}</Accent> {title}</> : <>{title} {accent && <Accent>{accent}</Accent>}</>}
         </h2>
-        {sub && <p className="mt-0.5 truncate text-xs text-muted sm:text-[13px]">{sub}</p>}
+        {sub && <p className="mt-0.5 text-xs text-muted sm:truncate sm:text-[13px]">{sub}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
@@ -190,7 +190,7 @@ function Chip({ on, onClick, children }: { on?: boolean; onClick: () => void; ch
 }
 
 /** A horizontal, snap-scrolling row of trip cards — swipe on phones, arrows on desktop. */
-function Rail({ list, className, month }: { list: TourPackage[]; className?: string; month?: string }) {
+export function Rail({ list, className, month }: { list: TourPackage[]; className?: string; month?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const move = (d: number) => ref.current?.scrollBy({ left: d * Math.max(280, ref.current.clientWidth * 0.8), behavior: "smooth" });
   return (
